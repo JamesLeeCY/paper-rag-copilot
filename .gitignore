@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# --- Unpublished dissertation & anything derived from it (DO NOT COMMIT) ---
+# The manuscript itself
+*.docx
+# Generated corpus / indexes
+data/index/
+data/chunks/
+data/references.jsonl
+data/_body_map.txt
+# Golden set contains questions paraphrasing unpublished findings -> keep local.
+# (A neutral schema demo is committed as golden_set.example.json)
+data/golden/golden_set.json
+# Evaluation outputs reference specific unpublished results -> keep local.
+eval/reports/*
+!eval/reports/.gitkeep
+
+# HF model cache
+.cache/

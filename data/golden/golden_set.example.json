@@ -1,0 +1,26 @@
+{
+  "_about": "SCHEMA DEMO ONLY — neutral placeholder entries. The real golden set (golden_set.json) is derived from an unpublished dissertation and is intentionally kept out of version control (see .gitignore). Copy this file to golden_set.json and fill it in for your own corpus.",
+  "_schema": {
+    "retrieval[]": {
+      "id": "stable id, e.g. R01",
+      "question": "a natural-language information need (paraphrase, NOT a verbatim sentence from the source)",
+      "target_paras": "list of docx paragraph indices whose text answers the question; a retrieved chunk 'hits' if its [para_start, para_end] span covers any of these",
+      "section": "human-readable section label (informational only)"
+    },
+    "traps[]": {
+      "id": "stable id, e.g. T01",
+      "question": "a question about a topic GENUINELY ABSENT from the corpus; the grounded system must refuse",
+      "note": "why it is absent"
+    }
+  },
+  "retrieval": [
+    {"id": "R01", "question": "Which method did the authors use to preprocess the raw input data?", "target_paras": [42], "section": "Methods / Preprocessing"},
+    {"id": "R02", "question": "What was the primary outcome and its reported effect size?", "target_paras": [110, 111], "section": "Results"},
+    {"id": "R03", "question": "What theoretical framework does the discussion propose to unify the findings?", "target_paras": [205], "section": "Discussion"}
+  ],
+  "traps": [
+    {"id": "T01", "question": "What were the results of the technique X analysis the authors ran?", "note": "technique X was never used in this corpus"},
+    {"id": "T02", "question": "How did measurement Y change after the intervention?", "note": "measurement Y was never collected"},
+    {"id": "T03", "question": "What did the cohort Z subgroup analysis show?", "note": "no cohort Z exists in this corpus"}
+  ]
+}

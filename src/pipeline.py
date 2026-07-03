@@ -1,0 +1,89 @@
+"""End-to-end query pipeline: retrieve -> generate (grounded) -> verify.
+
+Two entry points:
+  * ``ask``   — question answering with citation-grounded, verified claims.
+  * ``check`` — reverse hallucination check: paste a paragraph you wrote, get a
+    per-sentence "is this supported by the library?" report.
+"""
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+
+import config
+from src.retrieve import Retriever, get_retriever
+from src.generate import generate, GenerationResult
+from src.verify import Verifier, VerificationReport
+from src.llm import LLMClient
+
+
+@dataclass
+class AnswerBundle:
+    query: str
+    generation: GenerationResult
+    verification: VerificationReport
+    passages: list = field(default_factory=list)
+
+
+def ask(
+    query: str,
+    strategy: str | None = None,
+    top_k: int | None = None,
+    llm: LLMClient | None = None,
+    verifier: Verifier | None = None,
+    grounded: bool = True,
+) -> AnswerBundle:
+    strategy = strategy or config.CHUNK_STRATEGY
+    retriever = get_retriever(strategy)
+    passages = retriever.search(query, top_k=top_k)
+    llm = llm or LLMClient()
+    gen = generate(query, passages, llm=llm, grounded=grounded)
+    verifier = verifier or Verifier(llm=llm)
+    ver = verifier.verify(gen)
+    return AnswerBundle(query=query, generation=gen, verification=ver, passages=passages)
+
+
+_SENT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
+
+
+def check(
+    paragraph: str,
+    strategy: str | None = None,
+    llm: LLMClient | None = None,
+    verifier: Verifier | None = None,
+) -> list[AnswerBundle]:
+    """Split a written paragraph into sentences and verify each against the library."""
+    sentences = [s.strip() for s in _SENT_RE.split(paragraph.strip()) if len(s.strip()) > 15]
+    llm = llm or LLMClient()
+    verifier = verifier or Verifier(llm=llm)
+    bundles = []
+    for sent in sentences:
+        bundles.append(ask(sent, strategy=strategy, llm=llm, verifier=verifier))
+    return bundles
+
+
+def format_answer(bundle: AnswerBundle) -> str:
+    """Human-readable rendering for the CLI."""
+    g, v = bundle.generation, bundle.verification
+    lines = [f"Q: {bundle.query}", ""]
+    if g.refused and not g.claims:
+        lines.append(f"⚠  {config.REFUSAL_MARKER}")
+    for claim, verdict in zip(g.claims, v.verdicts):
+        badge = {"supported": "✔", "partially_supported": "◐", "unsupported": "✘"}.get(
+            verdict.label, "?"
+        )
+        lines.append(f"{badge} [{verdict.label}] {claim.statement}")
+        if claim.citation_ids:
+            for cid in claim.citation_ids:
+                loc = next((p.locator() for p in bundle.passages if p.chunk_id == cid), cid)
+                lines.append(f"      ↳ {loc}")
+        if verdict.reason:
+            lines.append(f"      · verify: {verdict.reason}")
+    if g.unsupported_note and config.REFUSAL_MARKER in g.unsupported_note:
+        lines.append(f"\nNote: {g.unsupported_note}")
+    if v.n_claims:
+        lines.append(
+            f"\nCitation precision: {v.citation_precision():.0%} | "
+            f"Hallucination rate: {v.hallucination_rate():.0%}"
+        )
+    return "\n".join(lines)
