@@ -71,6 +71,24 @@ def cmd_eval(args):
     eval_main()
 
 
+def cmd_judge_build(args):
+    from eval.judge_set import main as build_main
+
+    sys.argv = ["judge_set", "--n-sentences", str(args.n_sentences), "--seed", str(args.seed)]
+    build_main()
+
+
+def cmd_judge_eval(args):
+    from eval.judge_eval import main as judge_main
+
+    argv = ["--split", args.split]
+    if args.judges:
+        argv += ["--judges", *args.judges]
+    if args.limit is not None:
+        argv += ["--limit", str(args.limit)]
+    judge_main(argv)
+
+
 def build_parser():
     ap = argparse.ArgumentParser(prog="cli.py", description="Dissertation RAG Copilot")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -99,6 +117,18 @@ def build_parser():
                    help="cap #questions for the LLM pass (e.g. 3 for a quick run)")
     e.add_argument("--llm-strategy", default="section")
     e.set_defaults(func=cmd_eval)
+
+    jb = sub.add_parser("judge-build", help="build the synthetic judge validation set")
+    jb.add_argument("--n-sentences", type=int, default=60)
+    jb.add_argument("--seed", type=int, default=42)
+    jb.set_defaults(func=cmd_judge_build)
+
+    je = sub.add_parser("judge-eval", help="score verifier judges on the validation set")
+    je.add_argument("--judges", nargs="+", default=None,
+                    help='judge specs "backend:model" (default: JUDGES env / generator backend)')
+    je.add_argument("--split", choices=["dev", "test", "all"], default="all")
+    je.add_argument("--limit", type=int, default=None)
+    je.set_defaults(func=cmd_judge_eval)
 
     return ap
 

@@ -187,6 +187,35 @@ The golden set (`data/golden/golden_set.json`, kept local — schema in
 Claim-level metrics are **micro-averaged**: claims are pooled across all
 questions before dividing, so a question with many claims is not under-weighted.
 
+### Validating the judges themselves
+
+Every grounding number above is only as good as the verifier's judges, so they
+get their own benchmark — a **judge validation set** of (claim, passage) pairs
+with known gold labels, built without any LLM by perturbing real sentences:
+
+| Perturbation | Example edit | Gold |
+|---|---|---|
+| original | verbatim sentence vs its own passage | supported |
+| negation | "increased" → "decreased", "was" → "was not" | unsupported |
+| number | a sample size / duration / statistic changed | unsupported |
+| overclaim | "may" → "will always", "suggests" → "proves" | partially_supported |
+| conjunction | sentence + an unrelated claim appended | partially_supported |
+| swap_passage | sentence vs an unrelated passage | unsupported |
+
+```bash
+python cli.py judge-build                       # -> data/golden/judge_set_synthetic.jsonl (local)
+python cli.py judge-eval --judges ollama:llama3:latest ollama:qwen2.5:7b-instruct
+```
+
+The headline metric is the **false-accept rate** (a hallucination judged
+`supported`), alongside false-reject rate, 3-class accuracy, Cohen's κ, and a
+per-perturbation breakdown; panels are scored from the same cached votes, so
+adding a judge only costs that judge's calls. Items are split dev/test by
+source sentence, so a judge with a tunable threshold can be calibrated on dev
+and reported on test. Synthetic positives are verbatim and therefore easy — add
+your own labelled pairs to `data/golden/judge_set_human.jsonl` (schema:
+[`judge_set_human.example.jsonl`](data/golden/judge_set_human.example.jsonl)).
+
 See [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md) for the design write-up.
 
 ---
@@ -206,5 +235,7 @@ src/
   pipeline.py          ask() and check() orchestration
   llm.py               Claude wrapper with graceful no-key degradation
 eval/run_eval.py       the evaluation harness → eval/reports/
+eval/judge_set.py      builds the known-answer judge validation set
+eval/judge_eval.py     scores judges / panels on it → eval/reports/judge_report.md
 data/golden/           golden set (retrieval + trap questions)
 ```

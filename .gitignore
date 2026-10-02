@@ -16,6 +16,10 @@ data/_body_map.txt
 # Golden set contains questions paraphrasing unpublished findings -> keep local.
 # (A neutral schema demo is committed as golden_set.example.json)
 data/golden/golden_set.json
+# Judge validation sets quote dissertation passages -> keep local.
+# (A neutral schema demo is committed as judge_set_human.example.jsonl)
+data/golden/judge_set_*.jsonl
+!data/golden/judge_set_human.example.jsonl
 # Evaluation outputs reference specific unpublished results -> keep local.
 eval/reports/*
 !eval/reports/.gitkeep
