@@ -14,8 +14,12 @@ Produces quantified, reproducible metrics over the golden set:
 
   Grounding metrics are micro-averaged over all claims pooled across
   questions, so every claim carries equal weight.
-  * Refusal Correctness    — (needs API key) share of trap questions correctly
+  * Refusal Correctness    — (needs LLM) share of trap questions correctly
                              answered with the refusal marker
+  * Over-refusal Rate      — (needs LLM) share of answerable questions wrongly
+                             refused; read together with refusal correctness
+  * Answer Hallucination   — (needs LLM) share of non-refused answers with at
+                             least one unsupported claim
 
 Run:  python -m eval.run_eval            # all strategies, retrieval metrics
       python -m eval.run_eval --with-llm # also grounding/hallucination/refusal
@@ -109,14 +113,30 @@ def eval_grounding(strategy: str, golden: dict, llm: LLMClient, limit: int | Non
     # per-question rates, which would down-weight questions with many claims.
     n_claims = n_supported = n_partial = n_unsupported = 0
     parse_failures = 0
+    # Answer-level counts on answerable questions. Every retrieval question has
+    # a known answer in the corpus, so refusing one is an over-refusal — the
+    # counterweight that stops "refuse everything" from scoring perfectly.
+    n_over_refused = n_answered = n_answers_with_halluc = 0
+    answer_detail = []
     for it in retrieval_items:
         bundle = ask(it["question"], strategy=strategy, llm=llm, verifier=verifier)
-        parse_failures += int(bundle.generation.parse_failed)
-        v = bundle.verification
+        g, v = bundle.generation, bundle.verification
+        parse_failures += int(g.parse_failed)
+        n_over_refused += int(g.refused)
+        if v.n_claims:
+            n_answered += 1
+            n_answers_with_halluc += int(v.n_unsupported > 0)
         n_claims += v.n_claims
         n_supported += v.n_supported
         n_partial += v.n_partial
         n_unsupported += v.n_unsupported
+        answer_detail.append({
+            "id": it["id"],
+            "refused": g.refused,
+            "parse_failed": g.parse_failed,
+            "n_claims": v.n_claims,
+            "n_unsupported": v.n_unsupported,
+        })
 
     # Trap questions: system should refuse.
     refused = 0
@@ -146,7 +166,12 @@ def eval_grounding(strategy: str, golden: dict, llm: LLMClient, limit: int | Non
         "citation_precision_lenient": _ratio(n_supported + n_partial, n_claims),
         "hallucination_rate": _ratio(n_unsupported, n_claims),
         "refusal_correctness": round(refused / n_traps, 4) if n_traps else None,
+        "over_refusal_rate": _ratio(n_over_refused, len(retrieval_items)),
+        "n_answered": n_answered,
+        # Share of non-refused answers containing at least one unsupported claim.
+        "answer_hallucination_rate": _ratio(n_answers_with_halluc, n_answered),
         "parse_failures": parse_failures,
+        "answer_detail": answer_detail,
         "trap_detail": trap_detail,
     }
 
@@ -198,17 +223,34 @@ def write_report(results: dict, path: Path) -> None:
         def pct(x):
             return f"{x:.0%}" if x is not None else "n/a"
 
+        A("### 2a. Claim level")
+        A("")
         A("| Strategy | Citation Precision (strict) | Citation Precision (lenient) "
-          "| Hallucination Rate | Refusal Correctness | Claims (✔/◐/✘) | Parse Failures |")
-        A("|---|---|---|---|---|---|---|")
+          "| Hallucination Rate | Claims (✔/◐/✘) |")
+        A("|---|---|---|---|---|")
         for g in results["grounding"]:
             counts = f"{g['n_claims_total']} ({g['n_supported']}/{g['n_partial']}/{g['n_unsupported']})"
             A(f"| {g['strategy']} | {pct(g['citation_precision_strict'])} "
               f"| {pct(g['citation_precision_lenient'])} | {pct(g['hallucination_rate'])} "
-              f"| {pct(g['refusal_correctness'])} | {counts} | {g['parse_failures']} |")
+              f"| {counts} |")
         A("")
         A("> Strict = `supported` only; lenient = `supported` + `partially_supported`. "
-          "All grounding metrics are micro-averaged over pooled claims.")
+          "Micro-averaged over claims pooled across answerable questions.")
+        A("")
+        A("### 2b. Answer level (refusal behaviour)")
+        A("")
+        A("| Strategy | Refusal Correctness (traps) | Over-refusal Rate (answerable) "
+          "| Answer Hallucination Rate | Answered | Parse Failures |")
+        A("|---|---|---|---|---|---|")
+        for g in results["grounding"]:
+            A(f"| {g['strategy']} | {pct(g['refusal_correctness'])} "
+              f"| {pct(g['over_refusal_rate'])} | {pct(g['answer_hallucination_rate'])} "
+              f"| {g['n_answered']}/{g['n_retrieval_scored']} | {g['parse_failures']} |")
+        A("")
+        A("> Refusal correctness and over-refusal must be read together: a system "
+          "that refuses everything scores 100% on the first and 100% (worst) on the "
+          "second. Answer hallucination rate = share of non-refused answers with at "
+          "least one unsupported claim.")
         A("")
         A("> Parse failures = outputs with neither a `<claim>` nor the refusal marker. "
           "They are not counted as refusals.")
@@ -279,7 +321,9 @@ def main():
             results["grounding"] = [g]
             print(f"[grounding:{args.llm_strategy}] precision strict/lenient="
                   f"{g['citation_precision_strict']}/{g['citation_precision_lenient']} "
-                  f"halluc={g['hallucination_rate']} refusal={g['refusal_correctness']} "
+                  f"halluc={g['hallucination_rate']} "
+                  f"answer_halluc={g['answer_hallucination_rate']} "
+                  f"refusal={g['refusal_correctness']} over_refusal={g['over_refusal_rate']} "
                   f"parse_failures={g['parse_failures']}")
 
     config.REPORT_DIR.mkdir(parents=True, exist_ok=True)

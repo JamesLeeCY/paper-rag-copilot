@@ -147,7 +147,9 @@ The golden set (`data/golden/golden_set.json`, kept local — schema in
   fairly compares fixed vs section-aware chunking.
 - **10 trap questions** — topics genuinely *absent* from the dissertation
   (psilocybin, EEG, cortisol, blue-space, HRV, actigraphy…). A trustworthy system
-  must refuse these, not confabulate.
+  must refuse these, not confabulate. Because the retrieval questions are all
+  answerable, they double as the over-refusal check: refusing everything would
+  ace the traps but score 100% over-refusal.
 
 | Metric | Definition | Target (spec §1.3) |
 |---|---|---|
@@ -155,6 +157,8 @@ The golden set (`data/golden/golden_set.json`, kept local — schema in
 | Citation Precision (strict) | claims judged `supported` / total claims | ≥ 95% |
 | Citation Precision (lenient) | claims judged `supported` or `partially_supported` / total claims | — |
 | Hallucination Rate | unsupported claims / total claims | low |
+| Answer Hallucination Rate | non-refused answers with ≥1 unsupported claim / non-refused answers | low |
+| Over-refusal Rate | answerable (retrieval) questions wrongly refused | low |
 | Refusal Correctness | trap questions correctly refused | ≥ 90% |
 | Chunking Ablation | fixed vs section-aware on the above | — |
 
