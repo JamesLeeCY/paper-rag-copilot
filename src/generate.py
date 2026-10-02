@@ -27,10 +27,11 @@ SYSTEM_GROUNDED = f"""你是一個嚴格的學術文獻查證助理。你只能�
 3. 如果檢索到的段落無法直接支持某個論點，禁止生成該論點；改為在 <unsupported_note> 中誠實說明：「{config.REFUSAL_MARKER}」。
 4. 若問題完全沒有任何段落可支持，整個 <answer> 內不得有任何 <claim>，只在 <unsupported_note> 寫「{config.REFUSAL_MARKER}」。
 5. 論點內容要貼近原文證據強度，不得誇大（例如把「相關」寫成「造成」）。
+6. 每個 <claim> 內必須附一個 <quote>，逐字複製被引段落中最直接支持該論點的一句原文（保持原文語言，不可改寫、翻譯或摘要）。
 
 只輸出以下 XML，不要有其他文字：
 <answer>
-  <claim citation_ids="chunk_id,chunk_id">論點內容</claim>
+  <claim citation_ids="chunk_id,chunk_id">論點內容<quote>逐字原文句子</quote></claim>
   ...
   <unsupported_note>（若有查無依據的部分，在此列出；若無則留空）</unsupported_note>
 </answer>"""
@@ -44,6 +45,7 @@ few sentences of prose."""
 class Claim:
     statement: str
     citation_ids: list[str]
+    quote: str = ""              # verbatim supporting sentence ("" if none given)
 
 
 @dataclass
@@ -80,13 +82,19 @@ _CLAIM_RE = re.compile(
     r"<claim[^>]*citation_ids=\"([^\"]*)\"[^>]*>(.*?)</claim>", re.DOTALL
 )
 _NOTE_RE = re.compile(r"<unsupported_note>(.*?)</unsupported_note>", re.DOTALL)
+_QUOTE_RE = re.compile(r"<quote>(.*?)</quote>", re.DOTALL)
+_CID_PREFIX_RE = re.compile(r"^\s*\[?\s*chunk_id\s*:\s*", re.IGNORECASE)
 
 
 def parse_grounded(raw: str, query: str) -> GenerationResult:
     claims = []
     for ids, body in _CLAIM_RE.findall(raw):
-        cid_list = [c.strip() for c in ids.split(",") if c.strip()]
-        claims.append(Claim(statement=body.strip(), citation_ids=cid_list))
+        # Models sometimes copy the context label too ("chunk_id: c_section_0003").
+        cid_list = [_CID_PREFIX_RE.sub("", c).strip(" []") for c in ids.split(",") if c.strip()]
+        quote_m = _QUOTE_RE.search(body)
+        quote = quote_m.group(1).strip() if quote_m else ""
+        statement = _QUOTE_RE.sub("", body).strip()
+        claims.append(Claim(statement=statement, citation_ids=cid_list, quote=quote))
     note_m = _NOTE_RE.search(raw)
     note = note_m.group(1).strip() if note_m else ""
     # A refusal must be explicit: no claims AND the refusal marker emitted. The

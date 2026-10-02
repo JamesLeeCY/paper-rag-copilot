@@ -40,8 +40,12 @@ the spec asked for. The full report is generated locally at
 3. Retrieval   query → dense top-k ⊕ BM25 top-k → RRF fusion → (rerank) → top-k
 4. Generation  Claude **or local Ollama**, citation-forcing XML prompt: every
                claim carries a chunk_id, or the model must say "查無直接支持此說法的段落"
-5. Verification independent 2nd Claude pass (+ optional NLI): entails each
-               (claim, cited passage) → supported / partial / unsupported
+5. Verification cascade, cheapest first:
+               (0) quote grounding — each claim's verbatim <quote> must be found
+                   in its cited passage, else it is rejected as fabricated
+               (1) judge panel — independent LLM judges, ideally from different
+                   model families, vote supported / partial / unsupported;
+                   disagreement → "disputed" (+ optional NLI / lexical fallback)
 6. Evaluation  golden set → pipeline → Hit@k / MRR / citation precision /
                hallucination rate / refusal correctness + chunking ablation
 ```
@@ -128,6 +132,24 @@ python cli.py eval --with-llm --llm-limit 3
 #    ...with cross-encoder reranker (downloads bge-reranker-base):
 python cli.py eval --rerank
 ```
+
+### Multi-model cross-check (judge panel)
+
+Judges from the same model family tend to make the same mistakes, so the
+verifier can poll several models and only accept a verdict they agree on:
+
+```bash
+ollama pull qwen2.5:7b-instruct
+# PowerShell: $env:JUDGES="ollama:llama3:latest,ollama:qwen2.5:7b-instruct"
+export JUDGES="ollama:llama3:latest,ollama:qwen2.5:7b-instruct"
+export PANEL_RULE=unanimous      # or "majority" (useful with 3+ judges)
+python cli.py eval --with-llm
+```
+
+Any disagreement under `unanimous` yields `disputed` (⚖), which counts as
+neither support nor hallucination and is the queue for human review. Leave
+`JUDGES` unset for a single judge on the generator's backend. Set
+`QUOTE_REQUIRED=1` to also reject claims that come without a supporting quote.
 
 If **no** LLM backend is reachable (no API key **and** no Ollama server),
 `ask`/`check` fall back to **mock mode**: retrieval is real, but generation and

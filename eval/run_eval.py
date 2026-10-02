@@ -109,9 +109,14 @@ def eval_grounding(strategy: str, golden: dict, llm: LLMClient, limit: int | Non
     trap_items = golden["traps"][:limit] if limit else golden["traps"]
 
     verifier = Verifier(llm=llm)
+    print(f"[grounding] verifier {verifier.describe()}")
     # Pool claim counts across questions (micro-average) rather than averaging
     # per-question rates, which would down-weight questions with many claims.
     n_claims = n_supported = n_partial = n_unsupported = 0
+    # Cross-check tallies: disputed verdicts, quote-grounding outcomes, and how
+    # often panel judges agreed (claims judged by >= 2 judges).
+    n_disputed = n_panel_judged = n_panel_agreed = 0
+    quote_counts = {s: 0 for s in ("verbatim", "near", "not_found", "missing")}
     parse_failures = 0
     # Answer-level counts on answerable questions. Every retrieval question has
     # a known answer in the corpus, so refusing one is an over-refusal — the
@@ -130,12 +135,18 @@ def eval_grounding(strategy: str, golden: dict, llm: LLMClient, limit: int | Non
         n_supported += v.n_supported
         n_partial += v.n_partial
         n_unsupported += v.n_unsupported
+        n_disputed += v.n_disputed
+        n_panel_judged += v.n_panel_judged
+        n_panel_agreed += v.n_panel_agreed
+        for status in quote_counts:
+            quote_counts[status] += v.n_quote(status)
         answer_detail.append({
             "id": it["id"],
             "refused": g.refused,
             "parse_failed": g.parse_failed,
             "n_claims": v.n_claims,
             "n_unsupported": v.n_unsupported,
+            "n_disputed": v.n_disputed,
         })
 
     # Trap questions: system should refuse.
@@ -162,6 +173,12 @@ def eval_grounding(strategy: str, golden: dict, llm: LLMClient, limit: int | Non
         "n_supported": n_supported,
         "n_partial": n_partial,
         "n_unsupported": n_unsupported,
+        "n_disputed": n_disputed,
+        "verifier": verifier.describe(),
+        "quote_counts": quote_counts,
+        # Claims whose quote is absent from the cited passage: fabricated citations.
+        "fabricated_quote_rate": _ratio(quote_counts["not_found"], n_claims),
+        "panel_agreement_rate": _ratio(n_panel_agreed, n_panel_judged),
         "citation_precision_strict": _ratio(n_supported, n_claims),
         "citation_precision_lenient": _ratio(n_supported + n_partial, n_claims),
         "hallucination_rate": _ratio(n_unsupported, n_claims),
@@ -226,16 +243,33 @@ def write_report(results: dict, path: Path) -> None:
         A("### 2a. Claim level")
         A("")
         A("| Strategy | Citation Precision (strict) | Citation Precision (lenient) "
-          "| Hallucination Rate | Claims (✔/◐/✘) |")
+          "| Hallucination Rate | Claims (✔/◐/⚖/✘) |")
         A("|---|---|---|---|---|")
         for g in results["grounding"]:
-            counts = f"{g['n_claims_total']} ({g['n_supported']}/{g['n_partial']}/{g['n_unsupported']})"
+            counts = (f"{g['n_claims_total']} ({g['n_supported']}/{g['n_partial']}/"
+                      f"{g['n_disputed']}/{g['n_unsupported']})")
             A(f"| {g['strategy']} | {pct(g['citation_precision_strict'])} "
               f"| {pct(g['citation_precision_lenient'])} | {pct(g['hallucination_rate'])} "
               f"| {counts} |")
         A("")
         A("> Strict = `supported` only; lenient = `supported` + `partially_supported`. "
+          "`disputed` (judges disagree) counts as neither support nor hallucination. "
           "Micro-averaged over claims pooled across answerable questions.")
+        A("")
+        A("### 2a′. Cross-check (quote grounding + judge panel)")
+        A("")
+        A("| Strategy | Verifier | Quotes (verbatim/near/not found/missing) "
+          "| Fabricated Quote Rate | Panel Agreement |")
+        A("|---|---|---|---|---|")
+        for g in results["grounding"]:
+            q = g["quote_counts"]
+            A(f"| {g['strategy']} | {g['verifier']} "
+              f"| {q['verbatim']}/{q['near']}/{q['not_found']}/{q['missing']} "
+              f"| {pct(g['fabricated_quote_rate'])} | {pct(g['panel_agreement_rate'])} |")
+        A("")
+        A("> A quote not found in its cited passage rejects the claim before any LLM "
+          "judge runs. Panel agreement = share of claims judged by ≥ 2 judges on "
+          "which all votes matched (n/a with a single judge).")
         A("")
         A("### 2b. Answer level (refusal behaviour)")
         A("")

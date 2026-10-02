@@ -5,24 +5,35 @@ For each (claim, cited passage) pair produced by the generator, this layer asks
 self-confirmation bias — whether the passage actually supports the claim, and
 labels it supported / partially_supported / unsupported.
 
-An optional lightweight NLI model (roberta-large-mnli) can run first as a cheap
-filter; the LLM judgement is the finer second layer. Both are optional: without
-an API key / NLI model the layer degrades to a lexical-overlap heuristic so the
-report still populates.
+Checks run as a cascade, cheapest first:
+
+  0. Quote grounding (no model): the generator must attach a verbatim <quote>
+     from the cited passage. A quote that cannot be found in the passage is a
+     fabricated citation and the claim is rejected without any LLM call.
+  1. Judge panel: one or more LLM judges (``config.JUDGES``), ideally from
+     different model families so their errors are less correlated, each vote
+     independently; votes are combined by ``config.PANEL_RULE``. Disagreement
+     yields ``disputed`` rather than silently picking a side.
+  2. Fallbacks when no judge is reachable: optional NLI, then a lexical-overlap
+     heuristic so the report still populates.
 """
 from __future__ import annotations
 
 import json
 import re
+from collections import Counter
 from dataclasses import dataclass, asdict, field
+from difflib import SequenceMatcher
 
 import config
 from src.llm import LLMClient
 from src.generate import GenerationResult, Claim
 
 
+# Labels a single judge may emit.
 LABELS = ("supported", "partially_supported", "unsupported")
-_RANK = {"supported": 2, "partially_supported": 1, "unsupported": 0}
+# Final verdict ranking; "disputed" (judges disagree) sits just above unsupported.
+_RANK = {"supported": 3, "partially_supported": 2, "disputed": 1, "unsupported": 0}
 
 VERIFY_SYSTEM = """你是一個嚴格的 entailment 判斷器。給你一個「論點」和一段「原文」，
 你只判斷：這段原文是否直接支持這個論點？
@@ -41,9 +52,11 @@ VERIFY_SYSTEM = """你是一個嚴格的 entailment 判斷器。給你一個「�
 class ClaimVerdict:
     statement: str
     citation_ids: list[str]
-    label: str
+    label: str             # one of _RANK
     reason: str
-    method: str            # "llm" | "nli" | "lexical"
+    method: str            # "quote" | "llm" | "panel" | "nli" | "lexical"
+    votes: dict = field(default_factory=dict)   # judge name -> label
+    quote_check: str = ""  # "verbatim" | "near" | "not_found" | "missing" | ""
 
 
 @dataclass
@@ -55,23 +68,42 @@ class VerificationReport:
     def n_claims(self) -> int:
         return len(self.verdicts)
 
+    def _count(self, label: str) -> int:
+        return sum(v.label == label for v in self.verdicts)
+
     @property
     def n_supported(self) -> int:
-        return sum(v.label == "supported" for v in self.verdicts)
+        return self._count("supported")
 
     @property
     def n_partial(self) -> int:
-        return sum(v.label == "partially_supported" for v in self.verdicts)
+        return self._count("partially_supported")
+
+    @property
+    def n_disputed(self) -> int:
+        return self._count("disputed")
 
     @property
     def n_unsupported(self) -> int:
-        return sum(v.label == "unsupported" for v in self.verdicts)
+        return self._count("unsupported")
+
+    def n_quote(self, status: str) -> int:
+        return sum(v.quote_check == status for v in self.verdicts)
+
+    @property
+    def n_panel_judged(self) -> int:
+        return sum(len(v.votes) >= 2 for v in self.verdicts)
+
+    @property
+    def n_panel_agreed(self) -> int:
+        return sum(len(v.votes) >= 2 and len(set(v.votes.values())) == 1 for v in self.verdicts)
 
     def citation_precision(self, strict: bool = True) -> float:
         """Share of claims whose citation supports them.
 
         strict=True counts only ``supported`` (what the spec's ≥95% target
-        means); strict=False also accepts ``partially_supported``.
+        means); strict=False also accepts ``partially_supported``. ``disputed``
+        never counts as support.
         """
         if not self.verdicts:
             return 0.0
@@ -94,6 +126,58 @@ def _passage_text(result: GenerationResult, chunk_id: str) -> str:
     return ""
 
 
+# --------------------------------------------------------------------------
+# Stage 0: quote grounding
+# --------------------------------------------------------------------------
+_QUOTE_CHARS = str.maketrans({"“": '"', "”": '"', "‘": "'", "’": "'", "–": "-", "—": "-"})
+
+
+def _norm(text: str) -> str:
+    text = text.translate(_QUOTE_CHARS).lower()
+    text = re.sub(r"\s+", " ", text).strip()
+    return text.strip(" .…\"'")
+
+
+def check_quote(quote: str, passages: list[str]) -> str:
+    """Is ``quote`` (near-)verbatim in any of ``passages``?
+
+    Returns "verbatim", "near" (≥ QUOTE_MATCH_THRESHOLD of its characters align
+    in order with the passage, ignoring alignment fragments shorter than 4
+    characters so scattered letters cannot add up), "not_found", or "missing".
+    """
+    q = _norm(quote)
+    if not q:
+        return "missing"
+    best = 0.0
+    for p in passages:
+        pn = _norm(p)
+        if q in pn:
+            return "verbatim"
+        blocks = SequenceMatcher(None, q, pn, autojunk=False).get_matching_blocks()
+        best = max(best, sum(b.size for b in blocks if b.size >= 4) / len(q))
+    return "near" if best >= config.QUOTE_MATCH_THRESHOLD else "not_found"
+
+
+# --------------------------------------------------------------------------
+# Stage 1: judge panel
+# --------------------------------------------------------------------------
+def _parse_judge_spec(spec: str) -> LLMClient:
+    backend, _, model = spec.partition(":")
+    return LLMClient(backend=backend, model=model or None)
+
+
+def aggregate_votes(labels: list[str], rule: str | None = None) -> str:
+    """Combine judge labels: agreement wins; otherwise apply the panel rule."""
+    rule = rule or config.PANEL_RULE
+    counts = Counter(labels)
+    top, n_top = counts.most_common(1)[0]
+    if n_top == len(labels):
+        return top
+    if rule == "majority" and n_top > len(labels) / 2:
+        return top
+    return "disputed"
+
+
 def _lexical_label(statement: str, passage: str) -> tuple[str, str]:
     """Fallback judge: token-overlap heuristic (no model needed)."""
     st = set(re.findall(r"[a-z]{4,}", statement.lower()))
@@ -109,10 +193,23 @@ def _lexical_label(statement: str, passage: str) -> tuple[str, str]:
 
 
 class Verifier:
-    def __init__(self, llm: LLMClient | None = None, use_nli: bool = False):
+    def __init__(
+        self,
+        llm: LLMClient | None = None,
+        use_nli: bool = False,
+        judges: list[LLMClient] | None = None,
+    ):
         self.llm = llm or LLMClient()
         self.use_nli = use_nli
         self._nli = None
+        if judges is None:
+            judges = [_parse_judge_spec(s) for s in config.JUDGES] or [self.llm]
+        # Unreachable judges are dropped; with none left the fallbacks apply.
+        self.judges = [j for j in judges if j.available]
+
+    def describe(self) -> str:
+        names = ", ".join(j.describe() for j in self.judges) or "none (fallback)"
+        return f"judges=[{names}] rule={config.PANEL_RULE}"
 
     def _nli_label(self, statement: str, passage: str) -> tuple[str, str] | None:
         if not self.use_nli:
@@ -133,29 +230,48 @@ class Verifier:
         except Exception:
             return None
 
+    @staticmethod
+    def _llm_vote(llm: LLMClient, statement: str, passage: str) -> tuple[str, str] | None:
+        """One judge's independent verdict; it sees only the claim and passage."""
+        raw = llm.complete(
+            VERIFY_SYSTEM,
+            f"原文：\n{passage}\n\n論點：\n{statement}",
+            max_tokens=300,
+            json_mode=True,
+        )
+        m = _JSON_RE.search(raw)
+        if not m:
+            return None
+        try:
+            data = json.loads(m.group(0))
+        except json.JSONDecodeError:
+            return None
+        label = data.get("label", "unsupported")
+        if label not in LABELS:
+            label = "unsupported"
+        return label, data.get("reason", "")
+
     def _judge(self, statement: str, passage: str) -> ClaimVerdict:
         if not passage:
             return ClaimVerdict(statement, [], "unsupported", "cited chunk not in context", "lexical")
-        # Layer 1 (optional): NLI cheap filter
+
+        votes: dict[str, str] = {}
+        reasons: dict[str, str] = {}
+        for judge in self.judges:
+            vote = self._llm_vote(judge, statement, passage)
+            if vote:
+                votes[judge.describe()], reasons[judge.describe()] = vote
+        if votes:
+            label = aggregate_votes(list(votes.values()))
+            if len(votes) == 1:
+                return ClaimVerdict(statement, [], label, next(iter(reasons.values())), "llm", votes)
+            if label == "disputed":
+                reason = " | ".join(f"{name}: {votes[name]} — {reasons[name]}" for name in votes)
+            else:
+                reason = next(r for name, r in reasons.items() if votes[name] == label)
+            return ClaimVerdict(statement, [], label, reason, "panel", votes)
+
         nli = self._nli_label(statement, passage)
-        # Layer 2: LLM judge (authoritative when available)
-        if self.llm.available:
-            raw = self.llm.complete(
-                VERIFY_SYSTEM,
-                f"原文：\n{passage}\n\n論點：\n{statement}",
-                max_tokens=300,
-                json_mode=True,
-            )
-            m = _JSON_RE.search(raw)
-            if m:
-                try:
-                    data = json.loads(m.group(0))
-                    label = data.get("label", "unsupported")
-                    if label not in LABELS:
-                        label = "unsupported"
-                    return ClaimVerdict(statement, [], label, data.get("reason", ""), "llm")
-                except json.JSONDecodeError:
-                    pass
         if nli:
             return ClaimVerdict(statement, [], nli[0], nli[1], "nli")
         label, reason = _lexical_label(statement, passage)
@@ -180,19 +296,39 @@ class Verifier:
             best = ClaimVerdict(statement, [], "unsupported", "no passages retrieved", "lexical")
         return best
 
+    def _verify_claim(self, claim: Claim, result: GenerationResult) -> ClaimVerdict:
+        # Stage 0: the quote must actually appear in one of the cited passages.
+        # Skipped when no cited id resolves to a passage: that is a bad citation
+        # id (the judges mark it "cited chunk not in context"), not a bad quote.
+        cited = [t for t in (_passage_text(result, c) for c in claim.citation_ids) if t]
+        quote_status = check_quote(claim.quote, cited) if cited else ""
+        if quote_status == "not_found":
+            return ClaimVerdict(
+                claim.statement, claim.citation_ids, "unsupported",
+                "quote not found in cited passage(s) — fabricated citation",
+                "quote", quote_check=quote_status,
+            )
+        if quote_status == "missing" and config.QUOTE_REQUIRED:
+            return ClaimVerdict(
+                claim.statement, claim.citation_ids, "unsupported",
+                "no supporting quote given (QUOTE_REQUIRED)",
+                "quote", quote_check=quote_status,
+            )
+
+        # Stage 1: judges. A claim is supported if *any* cited passage supports it.
+        best: ClaimVerdict | None = None
+        for cid in claim.citation_ids or [""]:
+            v = self._judge(claim.statement, _passage_text(result, cid))
+            if best is None or _RANK[v.label] > _RANK[best.label]:
+                best = v
+        best.citation_ids = claim.citation_ids
+        best.quote_check = quote_status
+        return best
+
     def verify(self, result: GenerationResult) -> VerificationReport:
         report = VerificationReport(query=result.query)
         for claim in result.claims:
-            # A claim is supported if *any* of its cited passages support it.
-            best: ClaimVerdict | None = None
-            rank = _RANK
-            for cid in claim.citation_ids or [""]:
-                passage = _passage_text(result, cid)
-                v = self._judge(claim.statement, passage)
-                v.citation_ids = claim.citation_ids
-                if best is None or rank[v.label] > rank[best.label]:
-                    best = v
-            report.verdicts.append(best)
+            report.verdicts.append(self._verify_claim(claim, result))
         return report
 
 

@@ -86,14 +86,19 @@ def format_answer(bundle: AnswerBundle) -> str:
     elif g.parse_failed:
         lines.append("⚠  無法解析模型輸出（既無 <claim> 也無拒答標記）")
     for claim, verdict in zip(g.claims, v.verdicts):
-        badge = {"supported": "✔", "partially_supported": "◐", "unsupported": "✘"}.get(
-            verdict.label, "?"
-        )
+        badge = {
+            "supported": "✔", "partially_supported": "◐",
+            "disputed": "⚖", "unsupported": "✘",
+        }.get(verdict.label, "?")
         lines.append(f"{badge} [{verdict.label}] {claim.statement}")
         if claim.citation_ids:
             for cid in claim.citation_ids:
                 loc = next((p.locator() for p in bundle.passages if p.chunk_id == cid), cid)
                 lines.append(f"      ↳ {loc}")
+        if claim.quote:
+            lines.append(f"      “{claim.quote}” [quote: {verdict.quote_check}]")
+        if len(verdict.votes) > 1:
+            lines.append("      · votes: " + ", ".join(f"{j}={l}" for j, l in verdict.votes.items()))
         if verdict.reason:
             lines.append(f"      · verify: {verdict.reason}")
     if g.unsupported_note and config.REFUSAL_MARKER in g.unsupported_note:
@@ -103,5 +108,6 @@ def format_answer(bundle: AnswerBundle) -> str:
             f"\nCitation precision: {v.citation_precision(strict=True):.0%} strict / "
             f"{v.citation_precision(strict=False):.0%} lenient | "
             f"Hallucination rate: {v.hallucination_rate():.0%}"
+            + (f" | Disputed: {v.n_disputed}" if v.n_disputed else "")
         )
     return "\n".join(lines)

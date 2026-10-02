@@ -98,6 +98,25 @@ OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3:latest")
 # Back-compat: some modules refer to LLM_MODEL as the active model name.
 LLM_MODEL = CLAUDE_MODEL if LLM_BACKEND == "claude" else OLLAMA_MODEL
 
+# -- Verifier panel (multi-model cross-check) --
+# Comma-separated "backend:model" judges, e.g.
+#   JUDGES="ollama:llama3:latest,ollama:qwen2.5:7b-instruct"
+# Empty -> a single judge on the generator's own backend (original behaviour).
+# Judges from different model families make correlated errors less likely.
+JUDGES = [j.strip() for j in os.environ.get("JUDGES", "").split(",") if j.strip()]
+# How panel votes combine: "unanimous" -> any disagreement is "disputed";
+# "majority" -> a strict majority label wins, otherwise "disputed".
+PANEL_RULE = os.environ.get("PANEL_RULE", "unanimous")
+
+# -- Quote grounding --
+# The generator attaches a verbatim <quote> from the cited passage to every
+# claim; quotes are string-matched against the passage before any LLM judge.
+# Share of quote characters that must align with the passage to count as
+# near-verbatim (tolerates small whitespace/punctuation drift).
+QUOTE_MATCH_THRESHOLD = 0.9
+# If True, a claim without a <quote> is marked unsupported outright.
+QUOTE_REQUIRED = os.environ.get("QUOTE_REQUIRED", "0") == "1"
+
 # The exact string the model must emit when nothing supports a claim. The
 # evaluation harness matches on this to score refusal correctness.
 REFUSAL_MARKER = "查無直接支持此說法的段落"
