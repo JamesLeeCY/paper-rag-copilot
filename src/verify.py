@@ -83,6 +83,8 @@ class ClaimVerdict:
     method: str            # "quote" | "llm" | "panel" | "nli" | "lexical"
     votes: dict = field(default_factory=dict)   # judge name -> label
     quote_check: str = ""  # "verbatim" | "near" | "not_found" | "missing" | ""
+    # Original ids when an unresolvable citation was re-attributed by its quote.
+    citation_repaired_from: list = field(default_factory=list)
 
 
 @dataclass
@@ -115,6 +117,10 @@ class VerificationReport:
 
     def n_quote(self, status: str) -> int:
         return sum(v.quote_check == status for v in self.verdicts)
+
+    @property
+    def n_citation_repaired(self) -> int:
+        return sum(bool(v.citation_repaired_from) for v in self.verdicts)
 
     @property
     def n_panel_judged(self) -> int:
@@ -241,8 +247,15 @@ class Verifier:
         self._nli = None
         if judges is None:
             judges = [_parse_judge_spec(s) for s in config.JUDGES] or [self.llm]
-        # Unreachable judges are dropped; with none left the fallbacks apply.
+        # Unreachable judges are dropped. If none is left, judge with the
+        # generator's own model before resorting to NLI / lexical fallbacks.
         self.judges = [j for j in judges if j.available]
+        if not self.judges and self.llm.available:
+            print("[verify] no configured judge available; using the generator's model")
+            self.judges = [self.llm]
+        elif len(self.judges) < len(judges):
+            print(f"[verify] {len(judges) - len(self.judges)} judge(s) unavailable; "
+                  f"panel runs with {len(self.judges)}")
 
     def describe(self) -> str:
         names = ", ".join(j.describe() for j in self.judges) or "none (fallback)"
@@ -341,9 +354,19 @@ class Verifier:
 
     def _verify_claim(self, claim: Claim, result: GenerationResult) -> ClaimVerdict:
         # Stage 0: the quote must actually appear in one of the cited passages.
+        citation_ids = claim.citation_ids
+        repaired = False
+        cited = [t for t in (_passage_text(result, c) for c in citation_ids) if t]
+        if not cited and claim.quote:
+            # No cited id resolves (a mangled id such as "chunk_id_0003"). If the
+            # verbatim quote sits in exactly one retrieved passage, that passage
+            # is the deterministic source: re-attribute and record the repair.
+            hits = [p for p in result.passages
+                    if check_quote(claim.quote, [p.text]) in ("verbatim", "near")]
+            if len(hits) == 1:
+                citation_ids, cited, repaired = [hits[0].chunk_id], [hits[0].text], True
         # Skipped when no cited id resolves to a passage: that is a bad citation
         # id (the judges mark it "cited chunk not in context"), not a bad quote.
-        cited = [t for t in (_passage_text(result, c) for c in claim.citation_ids) if t]
         quote_status = check_quote(claim.quote, cited) if cited else ""
         if quote_status == "not_found":
             return ClaimVerdict(
@@ -360,12 +383,16 @@ class Verifier:
 
         # Stage 1: judges. A claim is supported if *any* cited passage supports it.
         best: ClaimVerdict | None = None
-        for cid in claim.citation_ids or [""]:
+        for cid in citation_ids or [""]:
             v = self._judge(claim.statement, _passage_text(result, cid))
             if best is None or _RANK[v.label] > _RANK[best.label]:
                 best = v
-        best.citation_ids = claim.citation_ids
+        best.citation_ids = citation_ids
         best.quote_check = quote_status
+        if repaired:
+            best.citation_repaired_from = claim.citation_ids
+            best.reason = (f"citation id {claim.citation_ids} not in context; "
+                           f"re-attributed to {citation_ids[0]} by verbatim quote. {best.reason}")
         return best
 
     def verify(self, result: GenerationResult) -> VerificationReport:

@@ -22,7 +22,7 @@ from src.retrieve import Passage
 SYSTEM_GROUNDED = f"""你是一個嚴格的學術文獻查證助理。你只能根據下方提供的「檢索段落」回答問題。
 
 規則：
-1. 每一個論點（claim）都必須用一個 <claim> 標籤，並在 citation_ids 屬性列出支持它的段落 chunk_id（可多個，逗號分隔）。
+1. 每一個論點（claim）都必須用一個 <claim> 標籤，並在 citation_ids 屬性列出支持它的段落編號（可多個，逗號分隔）。段落編號就是每段檢索段落開頭方括號內的字串（例如 c_section_0003），必須原樣照抄，不可改寫或自行編造。
 2. 不可以使用任何檢索段落以外的知識、常識或推論來補足論點。
 3. 如果檢索到的段落無法直接支持某個論點，禁止生成該論點；改為在 <unsupported_note> 中誠實說明：「{config.REFUSAL_MARKER}」。
 4. 若問題完全沒有任何段落可支持，整個 <answer> 內不得有任何 <claim>，只在 <unsupported_note> 寫「{config.REFUSAL_MARKER}」。
@@ -31,7 +31,7 @@ SYSTEM_GROUNDED = f"""你是一個嚴格的學術文獻查證助理。你只能�
 
 只輸出以下 XML，不要有其他文字：
 <answer>
-  <claim citation_ids="chunk_id,chunk_id">論點內容<quote>逐字原文句子</quote></claim>
+  <claim citation_ids="段落編號,段落編號">論點內容<quote>逐字原文句子</quote></claim>
   ...
   <unsupported_note>（若有查無依據的部分，在此列出；若無則留空）</unsupported_note>
 </answer>"""
@@ -70,7 +70,7 @@ def build_context(passages: list[Passage]) -> str:
     for p in passages:
         sec = f"§{p.section_number} {p.section}".strip()
         blocks.append(
-            f"[chunk_id: {p.chunk_id}] (來源: {p.source}, {sec})\n{p.text}"
+            f"[{p.chunk_id}] (來源: {p.source}, {sec})\n{p.text}"
         )
     return "\n\n---\n\n".join(blocks)
 

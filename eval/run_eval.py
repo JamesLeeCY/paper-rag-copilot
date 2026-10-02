@@ -116,6 +116,7 @@ def eval_grounding(strategy: str, golden: dict, llm: LLMClient, limit: int | Non
     # Cross-check tallies: disputed verdicts, quote-grounding outcomes, and how
     # often panel judges agreed (claims judged by >= 2 judges).
     n_disputed = n_panel_judged = n_panel_agreed = 0
+    n_repaired = 0  # mangled citation ids recovered via the verbatim quote
     quote_counts = {s: 0 for s in ("verbatim", "near", "not_found", "missing")}
     parse_failures = 0
     # Answer-level counts on answerable questions. Every retrieval question has
@@ -136,6 +137,7 @@ def eval_grounding(strategy: str, golden: dict, llm: LLMClient, limit: int | Non
         n_partial += v.n_partial
         n_unsupported += v.n_unsupported
         n_disputed += v.n_disputed
+        n_repaired += v.n_citation_repaired
         n_panel_judged += v.n_panel_judged
         n_panel_agreed += v.n_panel_agreed
         for status in quote_counts:
@@ -179,6 +181,7 @@ def eval_grounding(strategy: str, golden: dict, llm: LLMClient, limit: int | Non
         # Claims whose quote is absent from the cited passage: fabricated citations.
         "fabricated_quote_rate": _ratio(quote_counts["not_found"], n_claims),
         "panel_agreement_rate": _ratio(n_panel_agreed, n_panel_judged),
+        "n_citation_repaired": n_repaired,
         "citation_precision_strict": _ratio(n_supported, n_claims),
         "citation_precision_lenient": _ratio(n_supported + n_partial, n_claims),
         "hallucination_rate": _ratio(n_unsupported, n_claims),
@@ -259,13 +262,14 @@ def write_report(results: dict, path: Path) -> None:
         A("### 2a′. Cross-check (quote grounding + judge panel)")
         A("")
         A("| Strategy | Verifier | Quotes (verbatim/near/not found/missing) "
-          "| Fabricated Quote Rate | Panel Agreement |")
-        A("|---|---|---|---|---|")
+          "| Fabricated Quote Rate | Panel Agreement | Repaired Citation IDs |")
+        A("|---|---|---|---|---|---|")
         for g in results["grounding"]:
             q = g["quote_counts"]
             A(f"| {g['strategy']} | {g['verifier']} "
               f"| {q['verbatim']}/{q['near']}/{q['not_found']}/{q['missing']} "
-              f"| {pct(g['fabricated_quote_rate'])} | {pct(g['panel_agreement_rate'])} |")
+              f"| {pct(g['fabricated_quote_rate'])} | {pct(g['panel_agreement_rate'])} "
+              f"| {g.get('n_citation_repaired', 0)} |")
         A("")
         A("> A quote not found in its cited passage rejects the claim before any LLM "
           "judge runs. Panel agreement = share of claims judged by ≥ 2 judges on "

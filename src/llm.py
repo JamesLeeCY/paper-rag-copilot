@@ -49,9 +49,10 @@ class LLMClient:
             self._ok = self._ollama_reachable()
             if not self._ok:
                 print(
-                    f"[llm] Ollama not reachable at {config.OLLAMA_HOST}; running in "
-                    f"mock mode. Start it with `ollama serve` and `ollama pull "
-                    f"{self.model}`."
+                    f"[llm] Ollama model '{self.model}' not available at "
+                    f"{config.OLLAMA_HOST} (server down or model not pulled); "
+                    f"running in mock mode. Start it with `ollama serve` and "
+                    f"`ollama pull {self.model}`."
                 )
         else:
             raise ValueError(f"Unknown LLM_BACKEND: {self.backend}")
@@ -66,14 +67,18 @@ class LLMClient:
 
     # -- ollama helpers ------------------------------------------------------
     def _ollama_reachable(self) -> bool:
+        """Server answers AND this model is pulled (a missing model would
+        otherwise only fail on the first generation call)."""
         try:
             with urllib.request.urlopen(
                 f"{config.OLLAMA_HOST}/api/tags", timeout=3
             ) as resp:
-                json.loads(resp.read().decode("utf-8"))
-            return True
+                tags = json.loads(resp.read().decode("utf-8"))
         except (urllib.error.URLError, OSError, ValueError):
             return False
+        names = {m.get("name", "") for m in tags.get("models", [])}
+        wanted = self.model if ":" in self.model else f"{self.model}:latest"
+        return wanted in names
 
     def _ollama_complete(self, system, user, max_tokens, temperature, json_mode):
         payload = {

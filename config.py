@@ -8,10 +8,30 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parent
+
+
+def _load_dotenv(path: Path) -> None:
+    """Minimal .env reader (KEY=VALUE lines, # comments) — no dependency.
+
+    Variables already set in the real environment win, so a shell export
+    always overrides the file.
+    """
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip().strip("'\""))
+
+
+_load_dotenv(ROOT / ".env")
+
 # --------------------------------------------------------------------------
 # Paths
 # --------------------------------------------------------------------------
-ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
 CHUNK_DIR = DATA_DIR / "chunks"
 GOLDEN_DIR = DATA_DIR / "golden"
@@ -93,7 +113,9 @@ CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
 
 # -- Ollama (local) backend --
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3:latest")
+# qwen2.5 follows the citation/quote XML far more reliably than llama3
+# (5/5 verbatim quotes vs 2/4 in the comparison run).
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b-instruct")
 
 # Back-compat: some modules refer to LLM_MODEL as the active model name.
 LLM_MODEL = CLAUDE_MODEL if LLM_BACKEND == "claude" else OLLAMA_MODEL
@@ -103,7 +125,17 @@ LLM_MODEL = CLAUDE_MODEL if LLM_BACKEND == "claude" else OLLAMA_MODEL
 #   JUDGES="ollama:llama3:latest,ollama:qwen2.5:7b-instruct"
 # Empty -> a single judge on the generator's own backend (original behaviour).
 # Judges from different model families make correlated errors less likely.
-JUDGES = [j.strip() for j in os.environ.get("JUDGES", "").split(",") if j.strip()]
+# Default on the Ollama backend: the panel selected on the judge validation
+# set (qwen2.5 + gemma3:12b, two families; 0% false-accept, 4% false-reject on
+# the held-out split). Judges whose model is not pulled are skipped.
+DEFAULT_OLLAMA_JUDGES = "ollama:qwen2.5:7b-instruct,ollama:gemma3:12b"
+JUDGES = [
+    j.strip()
+    for j in os.environ.get(
+        "JUDGES", DEFAULT_OLLAMA_JUDGES if LLM_BACKEND == "ollama" else ""
+    ).split(",")
+    if j.strip()
+]
 # How panel votes combine: "unanimous" -> any disagreement is "disputed";
 # "majority" -> a strict majority label wins, otherwise "disputed".
 PANEL_RULE = os.environ.get("PANEL_RULE", "unanimous")

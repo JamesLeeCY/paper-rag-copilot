@@ -91,10 +91,13 @@ def format_answer(bundle: AnswerBundle) -> str:
             "disputed": "⚖", "unsupported": "✘",
         }.get(verdict.label, "?")
         lines.append(f"{badge} [{verdict.label}] {claim.statement}")
-        if claim.citation_ids:
-            for cid in claim.citation_ids:
-                loc = next((p.locator() for p in bundle.passages if p.chunk_id == cid), cid)
-                lines.append(f"      ↳ {loc}")
+        # The verdict's ids: they differ from the claim's when a mangled
+        # citation was re-attributed by its verbatim quote.
+        for cid in verdict.citation_ids or claim.citation_ids:
+            loc = next((p.locator() for p in bundle.passages if p.chunk_id == cid), cid)
+            lines.append(f"      ↳ {loc}")
+        if verdict.citation_repaired_from:
+            lines.append(f"      · citation repaired (model cited {verdict.citation_repaired_from})")
         if claim.quote:
             lines.append(f"      “{claim.quote}” [quote: {verdict.quote_check}]")
         if len(verdict.votes) > 1:

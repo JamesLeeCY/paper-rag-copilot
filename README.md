@@ -80,10 +80,14 @@ the box.
 
 **Option A — Local Ollama (free, offline, default):**
 ```bash
-ollama serve                 # if not already running
-ollama pull llama3           # or a stronger instruct model, e.g. qwen2.5:7b-instruct
-#   OLLAMA_MODEL=llama3:latest   OLLAMA_HOST=http://localhost:11434  (defaults)
+ollama serve                       # if not already running
+ollama pull qwen2.5:7b-instruct    # generator + judge
+ollama pull gemma3:12b             # second judge (different model family)
+#   defaults: OLLAMA_MODEL=qwen2.5:7b-instruct
+#             JUDGES=ollama:qwen2.5:7b-instruct,ollama:gemma3:12b
 ```
+A judge whose model is not pulled is skipped with a message; with no judge
+left, the generator's own model judges.
 
 **Option B — Claude API (higher quality on the structured prompts):**
 ```bash
@@ -91,10 +95,12 @@ export ANTHROPIC_API_KEY=sk-ant-...          # PowerShell: $env:ANTHROPIC_API_KE
 export LLM_BACKEND=claude                     # optional; auto-selected when key is set
 ```
 
-> Note on local models: Llama 3 8B handles the citation-forcing prompt and the
-> refusal behaviour well, but a larger instruct model (e.g. `qwen2.5:7b/14b`) is
-> more reliable on the strict XML/JSON structure and on borderline entailment
-> calls. Set `OLLAMA_MODEL` accordingly.
+> Why these defaults: on the judge validation set (below), `llama3` let 35% of
+> planted errors through as `supported` and `gemma3:4b` rejected most correct
+> claims, while `qwen2.5` + `gemma3:12b` under the v2 prompt let none through
+> on the held-out split (4% false-reject). `qwen2.5` also attached verbatim
+> quotes far more reliably as the generator. Settings can go in a `.env` file
+> (see `.env.example`); real environment variables override it.
 
 ---
 
