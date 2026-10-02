@@ -35,7 +35,7 @@ LABELS = ("supported", "partially_supported", "unsupported")
 # Final verdict ranking; "disputed" (judges disagree) sits just above unsupported.
 _RANK = {"supported": 3, "partially_supported": 2, "disputed": 1, "unsupported": 0}
 
-VERIFY_SYSTEM = """你是一個嚴格的 entailment 判斷器。給你一個「論點」和一段「原文」，
+VERIFY_SYSTEM_V1 = """你是一個嚴格的 entailment 判斷器。給你一個「論點」和一段「原文」，
 你只判斷：這段原文是否直接支持這個論點？
 
 只輸出 JSON（不要多餘文字）：
@@ -46,6 +46,32 @@ VERIFY_SYSTEM = """你是一個嚴格的 entailment 判斷器。給你一個「�
 - partially_supported：原文只支持論點的一部分，或證據強度弱於論點的宣稱。
 - unsupported：原文與論點無關，或原文並未提供支持該論點的證據。
 不要用原文以外的常識來補足。"""
+
+# v2 adds an explicit evidence-strength check. The judge validation set showed
+# overclaims ("may" -> "will always", "suggests" -> "proves") were the blind
+# spot of every judge under v1.
+VERIFY_SYSTEM_V2 = """你是一個嚴格的 entailment 判斷器。給你一個「論點」和一段「原文」，
+你只判斷：這段原文是否直接支持這個論點？
+
+請依序檢查：
+1. 內容：論點的每一部分是否都出現在原文中？數字、效果方向（增加／減少）、對象是否完全一致？
+2. 證據強度：論點的確定程度是否高於原文？
+   - 原文的保留用語：may, might, could, suggest, indicate, associated with, correlated with, linked to, potentially, possibly, likely, preliminary
+   - 論點的過度宣稱：will, always, prove, demonstrate, cause, directly, certainly, definitely, all
+   - 原文說「相關」而論點說「造成」，或原文說「可能」而論點說「必定／證明」，都屬於論點較強。
+3. 範圍：原文限定的樣本、條件或情境，論點是否擴大成普遍結論？
+
+只輸出 JSON（不要多餘文字）：
+{"strength": "same" | "claim_stronger" | "claim_weaker", "label": "supported" | "partially_supported" | "unsupported", "reason": "簡短理由"}
+
+判斷準則：
+- supported：內容完全一致，且論點的確定程度與範圍不超過原文。
+- partially_supported：原文只支持論點的一部分；或論點的確定程度、範圍超過原文（strength 為 claim_stronger 時，label 不可為 supported）。
+- unsupported：數字或效果方向與原文矛盾、原文與論點無關，或原文並未提供支持該論點的證據。
+不要用原文以外的常識來補足。"""
+
+VERIFY_PROMPTS = {"v1": VERIFY_SYSTEM_V1, "v2": VERIFY_SYSTEM_V2}
+VERIFY_SYSTEM = VERIFY_PROMPTS[config.VERIFY_PROMPT]
 
 
 @dataclass
@@ -167,7 +193,14 @@ def _parse_judge_spec(spec: str) -> LLMClient:
 
 
 def aggregate_votes(labels: list[str], rule: str | None = None) -> str:
-    """Combine judge labels: agreement wins; otherwise apply the panel rule."""
+    """Combine judge labels: agreement wins; otherwise apply the panel rule.
+
+    "disputed" is reserved for disagreement on the accept/reject boundary
+    (some judges say supported, others do not) — the only case worth a human
+    look. When every judge rejects and they differ only on severity
+    (partially_supported vs unsupported), the majority label wins, ties going
+    to the stricter "unsupported".
+    """
     rule = rule or config.PANEL_RULE
     counts = Counter(labels)
     top, n_top = counts.most_common(1)[0]
@@ -175,6 +208,10 @@ def aggregate_votes(labels: list[str], rule: str | None = None) -> str:
         return top
     if rule == "majority" and n_top > len(labels) / 2:
         return top
+    if "supported" not in counts:
+        if counts["unsupported"] >= counts["partially_supported"]:
+            return "unsupported"
+        return "partially_supported"
     return "disputed"
 
 
@@ -231,10 +268,12 @@ class Verifier:
             return None
 
     @staticmethod
-    def _llm_vote(llm: LLMClient, statement: str, passage: str) -> tuple[str, str] | None:
+    def _llm_vote(
+        llm: LLMClient, statement: str, passage: str, prompt: str | None = None
+    ) -> tuple[str, str] | None:
         """One judge's independent verdict; it sees only the claim and passage."""
         raw = llm.complete(
-            VERIFY_SYSTEM,
+            prompt or VERIFY_SYSTEM,
             f"原文：\n{passage}\n\n論點：\n{statement}",
             max_tokens=300,
             json_mode=True,
@@ -249,6 +288,10 @@ class Verifier:
         label = data.get("label", "unsupported")
         if label not in LABELS:
             label = "unsupported"
+        # Guard against a self-contradicting judge: it says the claim overstates
+        # the source yet still labels it supported.
+        if data.get("strength") == "claim_stronger" and label == "supported":
+            label = "partially_supported"
         return label, data.get("reason", "")
 
     def _judge(self, statement: str, passage: str) -> ClaimVerdict:

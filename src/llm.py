@@ -13,10 +13,19 @@ callers fall back to their deterministic mock so the pipeline still runs.
 from __future__ import annotations
 
 import json
+import re
 import urllib.error
 import urllib.request
 
 import config
+
+# Reasoning models (e.g. DeepSeek-R1) emit their chain of thought in a
+# <think>…</think> block before the answer; it must not reach the parsers.
+_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
+
+
+def strip_thinking(text: str) -> str:
+    return _THINK_RE.sub("", text).strip()
 
 
 class LLMClient:
@@ -118,4 +127,6 @@ class LLMClient:
             )
             return "".join(b.text for b in msg.content if b.type == "text")
 
-        return self._ollama_complete(system, user, max_tokens, temperature, json_mode)
+        return strip_thinking(
+            self._ollama_complete(system, user, max_tokens, temperature, json_mode)
+        )

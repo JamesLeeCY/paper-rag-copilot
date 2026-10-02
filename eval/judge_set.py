@@ -118,6 +118,12 @@ _OVERCLAIM_RULES = [
     (re.compile(r"\bsuggest(s|ed)? that\b", re.I),
      lambda m: {"s": "proves", "ed": "proved"}.get(m.group(1) or "", "prove") + " that"),
     (re.compile(r"\b(likely|possibly|potentially) ", re.I), lambda m: "certainly "),
+    (re.compile(r"\bindicat(es|ed|e) that\b", re.I),
+     lambda m: {"es": "proves", "ed": "proved"}.get(m.group(1).lower(), "prove") + " that"),
+    (re.compile(r"\b(appears|appear|seems|seem) to\b", re.I),
+     lambda m: ("is" if m.group(1).lower().endswith("s") else "are") + " proven to"),
+    (re.compile(r"\bcan ", re.I), lambda m: "will always "),
+    (re.compile(r"\b(partially|partly) ", re.I), lambda m: "fully "),
 ]
 
 
@@ -159,7 +165,7 @@ def _distant(chunks, c, sentence, rng):
     return rng.choice(pool) if pool else None
 
 
-def build(n_sentences: int = 60, seed: int = 42) -> list[dict]:
+def build(n_sentences: int = 60, seed: int = 42, overclaim_extra: int = 30) -> list[dict]:
     rng = random.Random(seed)
     chunks = load_chunks("section")
     cands = _candidate_sentences(chunks)
@@ -198,6 +204,22 @@ def build(n_sentences: int = 60, seed: int = 42) -> list[dict]:
         items.append({**base, "id": f"{group}-{kind}", "perturbation": kind,
                       "gold_label": GOLD[kind], "claim": claim,
                       "passage": passage_chunk.text, "chunk_id": passage_chunk.chunk_id})
+
+    # Overclaims apply to few sentences, so the rotation above leaves too few
+    # (and a lopsided dev/test split). Top up from the unused sentences.
+    n_extra = 0
+    for xi, (sent, c) in enumerate(cands[n_sentences:]):
+        if n_extra >= overclaim_extra:
+            break
+        x = overclaim(sent)
+        if not x or x == sent:
+            continue
+        group = f"X{xi:03d}"
+        items.append({"group": group, "split": _split_of(group), "source": "synthetic",
+                      "id": f"{group}-overclaim", "perturbation": "overclaim",
+                      "gold_label": GOLD["overclaim"], "claim": x,
+                      "passage": c.text, "chunk_id": c.chunk_id})
+        n_extra += 1
     return items
 
 

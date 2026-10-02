@@ -107,6 +107,9 @@ JUDGES = [j.strip() for j in os.environ.get("JUDGES", "").split(",") if j.strip(
 # How panel votes combine: "unanimous" -> any disagreement is "disputed";
 # "majority" -> a strict majority label wins, otherwise "disputed".
 PANEL_RULE = os.environ.get("PANEL_RULE", "unanimous")
+# Judge prompt version (see src/verify.py): "v2" adds an explicit
+# evidence-strength (overclaim) check; "v1" is the original prompt.
+VERIFY_PROMPT = os.environ.get("VERIFY_PROMPT", "v2")
 
 # -- Quote grounding --
 # The generator attaches a verbatim <quote> from the cited passage to every

@@ -28,15 +28,15 @@ from itertools import combinations
 
 import config
 from eval.judge_set import load_items
-from src.verify import Verifier, _parse_judge_spec, aggregate_votes
+from src.verify import VERIFY_PROMPTS, Verifier, _parse_judge_spec, aggregate_votes
 
 VOTES_PATH = config.REPORT_DIR / "judge_votes.jsonl"
 UNPARSED = "unparsed"   # judge output could not be parsed into a label
 
 
-def _key(judge_name: str, item: dict) -> str:
+def _key(prompt: str, judge_name: str, item: dict) -> str:
     h = hashlib.md5((item["claim"] + "\x00" + item["passage"]).encode()).hexdigest()[:12]
-    return f"{judge_name}|{item['id']}|{h}"
+    return f"{prompt}|{judge_name}|{item['id']}|{h}"
 
 
 def _load_cache() -> dict[str, str]:
@@ -44,34 +44,43 @@ def _load_cache() -> dict[str, str]:
     if VOTES_PATH.exists():
         for line in VOTES_PATH.open(encoding="utf-8"):
             row = json.loads(line)
-            cache[row["key"]] = row["label"]
+            key = row["key"]
+            if key.count("|") == 2:      # cached before prompt versions existed
+                key = "v1|" + key
+            cache[key] = row["label"]
     return cache
 
 
-def collect_votes(judge_specs: list[str], items: list[dict]) -> dict[str, dict[str, str]]:
-    """Return {judge_name: {item_id: label}}, calling judges only on cache misses."""
+def collect_votes(
+    judge_specs: list[str], items: list[dict], prompts: list[str]
+) -> dict[str, dict[str, str]]:
+    """Return {"judge (prompt)": {item_id: label}}, calling judges only on cache misses."""
     cache = _load_cache()
     votes: dict[str, dict[str, str]] = {}
     with VOTES_PATH.open("a", encoding="utf-8") as out:
         for spec in judge_specs:
             judge = _parse_judge_spec(spec)
-            name = judge.describe()
             if not judge.available:
-                print(f"[judge-eval] {name} unavailable; skipped")
+                print(f"[judge-eval] {judge.describe()} unavailable; skipped")
                 continue
-            votes[name] = {}
-            misses = [it for it in items if _key(name, it) not in cache]
-            print(f"[judge-eval] {name}: {len(items) - len(misses)} cached, {len(misses)} to judge")
-            for i, it in enumerate(items, 1):
-                k = _key(name, it)
-                if k not in cache:
-                    vote = Verifier._llm_vote(judge, it["claim"], it["passage"])
-                    cache[k] = vote[0] if vote else UNPARSED
-                    out.write(json.dumps({"key": k, "label": cache[k]}, ensure_ascii=False) + "\n")
-                    out.flush()
-                    if i % 10 == 0:
-                        print(f"             {i}/{len(items)}")
-                votes[name][it["id"]] = cache[k]
+            for prompt in prompts:
+                name = f"{judge.describe()} ({prompt})"
+                votes[name] = {}
+                misses = [it for it in items if _key(prompt, judge.describe(), it) not in cache]
+                print(f"[judge-eval] {name}: {len(items) - len(misses)} cached, "
+                      f"{len(misses)} to judge")
+                for i, it in enumerate(items, 1):
+                    k = _key(prompt, judge.describe(), it)
+                    if k not in cache:
+                        vote = Verifier._llm_vote(judge, it["claim"], it["passage"],
+                                                  prompt=VERIFY_PROMPTS[prompt])
+                        cache[k] = vote[0] if vote else UNPARSED
+                        out.write(json.dumps({"key": k, "label": cache[k]},
+                                             ensure_ascii=False) + "\n")
+                        out.flush()
+                        if i % 10 == 0:
+                            print(f"             {i}/{len(items)}")
+                    votes[name][it["id"]] = cache[k]
     return votes
 
 
@@ -174,6 +183,9 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="Score verifier judges on the judge validation set")
     ap.add_argument("--judges", nargs="+", default=None,
                     help='judge specs "backend:model" (default: config.JUDGES or the generator backend)')
+    ap.add_argument("--prompts", nargs="+", choices=list(VERIFY_PROMPTS),
+                    default=[config.VERIFY_PROMPT],
+                    help="judge prompt version(s) to score, e.g. --prompts v1 v2 to compare")
     ap.add_argument("--split", choices=["dev", "test", "all"], default="all")
     ap.add_argument("--limit", type=int, default=None, help="score only the first N items (quick run)")
     args = ap.parse_args(argv)
@@ -185,14 +197,16 @@ def main(argv=None):
     if args.limit:
         items = items[: args.limit]
 
-    votes = collect_votes(specs, items)
+    votes = collect_votes(specs, items, args.prompts)
     preds = dict(votes)
-    names = list(votes)
-    for size in range(2, len(names) + 1):
-        for members in combinations(names, size):
-            for rule in ("unanimous", "majority") if size >= 3 else ("unanimous",):
-                label = f"panel[{' + '.join(members)}] {rule}"
-                preds[label] = panel_votes(votes, members, rule)
+    # Panels combine judges that ran the same prompt version.
+    for prompt in args.prompts:
+        names = [n for n in votes if n.endswith(f"({prompt})")]
+        for size in range(2, len(names) + 1):
+            for members in combinations(names, size):
+                for rule in ("unanimous", "majority") if size >= 3 else ("unanimous",):
+                    short = " + ".join(m.removesuffix(f" ({prompt})") for m in members)
+                    preds[f"panel[{short}] {rule} ({prompt})"] = panel_votes(votes, members, rule)
 
     results = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),

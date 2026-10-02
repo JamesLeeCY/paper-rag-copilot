@@ -84,6 +84,8 @@ def cmd_judge_eval(args):
     argv = ["--split", args.split]
     if args.judges:
         argv += ["--judges", *args.judges]
+    if args.prompts:
+        argv += ["--prompts", *args.prompts]
     if args.limit is not None:
         argv += ["--limit", str(args.limit)]
     judge_main(argv)
@@ -126,6 +128,8 @@ def build_parser():
     je = sub.add_parser("judge-eval", help="score verifier judges on the validation set")
     je.add_argument("--judges", nargs="+", default=None,
                     help='judge specs "backend:model" (default: JUDGES env / generator backend)')
+    je.add_argument("--prompts", nargs="+", default=None,
+                    help="judge prompt version(s), e.g. --prompts v1 v2 to compare")
     je.add_argument("--split", choices=["dev", "test", "all"], default="all")
     je.add_argument("--limit", type=int, default=None)
     je.set_defaults(func=cmd_judge_eval)

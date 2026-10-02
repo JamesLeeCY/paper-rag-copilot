@@ -146,8 +146,19 @@ export PANEL_RULE=unanimous      # or "majority" (useful with 3+ judges)
 python cli.py eval --with-llm
 ```
 
-Any disagreement under `unanimous` yields `disputed` (⚖), which counts as
-neither support nor hallucination and is the queue for human review. Leave
+Under `unanimous`, judges that disagree on *whether to accept* the claim
+yield `disputed` (⚖), which counts as neither support nor hallucination and
+is the queue for human review. Judges that all reject and differ only on
+severity (partial vs unsupported) are resolved by majority, ties going to
+`unsupported`.
+
+Pick judges from **different model families** — check `ollama show <model>`:
+`deepseek-r1:8b`, for instance, reports architecture `qwen3` (a Qwen3 model
+distilled from DeepSeek-R1), so pairing it with `qwen2.5` is not a
+cross-family panel. Reasoning models' `<think>` blocks are stripped
+automatically. The judge prompt version is set by `VERIFY_PROMPT` (`v2`,
+default, adds an explicit evidence-strength / overclaim check; `v1` is the
+original) — compare them with `judge-eval --prompts v1 v2`. Leave
 `JUDGES` unset for a single judge on the generator's backend. Set
 `QUOTE_REQUIRED=1` to also reject claims that come without a supporting quote.
 
