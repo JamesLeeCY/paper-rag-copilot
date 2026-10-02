@@ -68,6 +68,7 @@ SPARSE_TOP_K = 20             # candidates from BM25
 RRF_K = 60                    # reciprocal-rank-fusion constant
 FUSED_TOP_K = 20             # candidates kept after fusion, fed to reranker
 FINAL_TOP_K = 5              # passages returned to the generator
+CHECK_TOP_N = 3              # passages each sentence is judged against in `check`
 
 RERANK_ENABLED = os.environ.get("RERANK_ENABLED", "0") == "1"
 RERANK_MODEL = os.environ.get("RERANK_MODEL", "BAAI/bge-reranker-base")

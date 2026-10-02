@@ -53,7 +53,10 @@ class GenerationResult:
     claims: list[Claim] = field(default_factory=list)
     unsupported_note: str = ""
     refused: bool = False
-    mode: str = "grounded"       # "grounded" | "baseline"
+    # True when the model produced neither a <claim> nor the refusal marker —
+    # malformed output, which must not be scored as a correct refusal.
+    parse_failed: bool = False
+    mode: str = "grounded"       # "grounded" | "baseline" | "check"
     passages: list[Passage] = field(default_factory=list)
 
 
@@ -86,10 +89,15 @@ def parse_grounded(raw: str, query: str) -> GenerationResult:
         claims.append(Claim(statement=body.strip(), citation_ids=cid_list))
     note_m = _NOTE_RE.search(raw)
     note = note_m.group(1).strip() if note_m else ""
-    refused = (len(claims) == 0) or (config.REFUSAL_MARKER in note and len(claims) == 0)
+    # A refusal must be explicit: no claims AND the refusal marker emitted. The
+    # marker is matched anywhere in the output, not only inside
+    # <unsupported_note>, since small local models often drift from the XML.
+    has_marker = config.REFUSAL_MARKER in raw
+    refused = not claims and has_marker
+    parse_failed = not claims and not has_marker
     return GenerationResult(
         query=query, raw=raw, claims=claims, unsupported_note=note,
-        refused=refused, mode="grounded",
+        refused=refused, parse_failed=parse_failed, mode="grounded",
     )
 
 

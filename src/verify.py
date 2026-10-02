@@ -22,6 +22,7 @@ from src.generate import GenerationResult, Claim
 
 
 LABELS = ("supported", "partially_supported", "unsupported")
+_RANK = {"supported": 2, "partially_supported": 1, "unsupported": 0}
 
 VERIFY_SYSTEM = """你是一個嚴格的 entailment 判斷器。給你一個「論點」和一段「原文」，
 你只判斷：這段原文是否直接支持這個論點？
@@ -151,12 +152,31 @@ class Verifier:
         label, reason = _lexical_label(statement, passage)
         return ClaimVerdict(statement, [], label, reason, "lexical")
 
+    def verify_statement(self, statement: str, passages: list) -> ClaimVerdict:
+        """Judge a user-written statement directly against retrieved passages.
+
+        Used by the reverse check: the statement itself is the claim, so no
+        generation step sits in between. The best label over ``passages`` wins;
+        stops early on the first fully supporting passage.
+        """
+        best: ClaimVerdict | None = None
+        for p in passages:
+            v = self._judge(statement, p.text)
+            v.citation_ids = [p.chunk_id]
+            if best is None or _RANK[v.label] > _RANK[best.label]:
+                best = v
+            if best.label == "supported":
+                break
+        if best is None:
+            best = ClaimVerdict(statement, [], "unsupported", "no passages retrieved", "lexical")
+        return best
+
     def verify(self, result: GenerationResult) -> VerificationReport:
         report = VerificationReport(query=result.query)
         for claim in result.claims:
             # A claim is supported if *any* of its cited passages support it.
             best: ClaimVerdict | None = None
-            rank = {"supported": 2, "partially_supported": 1, "unsupported": 0}
+            rank = _RANK
             for cid in claim.citation_ids or [""]:
                 passage = _passage_text(result, cid)
                 v = self._judge(claim.statement, passage)

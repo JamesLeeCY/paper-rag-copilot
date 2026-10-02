@@ -98,8 +98,10 @@ def eval_grounding(strategy: str, golden: dict, llm: LLMClient, limit: int | Non
 
     verifier = Verifier(llm=llm)
     precisions, hallucs, n_claims = [], [], 0
+    parse_failures = 0
     for it in retrieval_items:
         bundle = ask(it["question"], strategy=strategy, llm=llm, verifier=verifier)
+        parse_failures += int(bundle.generation.parse_failed)
         v = bundle.verification
         if v.n_claims:
             precisions.append(v.citation_precision())
@@ -111,12 +113,15 @@ def eval_grounding(strategy: str, golden: dict, llm: LLMClient, limit: int | Non
     trap_detail = []
     for it in trap_items:
         bundle = ask(it["question"], strategy=strategy, llm=llm, verifier=verifier)
-        did_refuse = bundle.generation.refused or (
-            config.REFUSAL_MARKER in bundle.generation.unsupported_note
-            and not bundle.generation.claims
-        )
+        # Malformed output (no claims, no marker) is NOT a correct refusal.
+        did_refuse = bundle.generation.refused
+        parse_failures += int(bundle.generation.parse_failed)
         refused += int(did_refuse)
-        trap_detail.append({"id": it["id"], "refused": did_refuse})
+        trap_detail.append({
+            "id": it["id"],
+            "refused": did_refuse,
+            "parse_failed": bundle.generation.parse_failed,
+        })
 
     n_traps = len(trap_items)
     return {
@@ -127,6 +132,7 @@ def eval_grounding(strategy: str, golden: dict, llm: LLMClient, limit: int | Non
         "citation_precision": round(statistics.mean(precisions), 4) if precisions else None,
         "hallucination_rate": round(statistics.mean(hallucs), 4) if hallucs else None,
         "refusal_correctness": round(refused / n_traps, 4) if n_traps else None,
+        "parse_failures": parse_failures,
         "trap_detail": trap_detail,
     }
 
@@ -175,13 +181,18 @@ def write_report(results: dict, path: Path) -> None:
           f"{g0.get('n_traps_scored','?')} trap questions"
           + (" (sampled subset)." if results.get("llm_limit") else ".") + "_")
         A("")
-        A("| Strategy | Citation Precision | Hallucination Rate | Refusal Correctness | Claims |")
-        A("|---|---|---|---|---|")
+        A("| Strategy | Citation Precision | Hallucination Rate | Refusal Correctness "
+          "| Claims | Parse Failures |")
+        A("|---|---|---|---|---|---|")
         for g in results["grounding"]:
             cp = f"{g['citation_precision']:.0%}" if g["citation_precision"] is not None else "n/a"
             hr = f"{g['hallucination_rate']:.0%}" if g["hallucination_rate"] is not None else "n/a"
             rc = f"{g['refusal_correctness']:.0%}" if g["refusal_correctness"] is not None else "n/a"
-            A(f"| {g['strategy']} | {cp} | {hr} | {rc} | {g['n_claims_total']} |")
+            A(f"| {g['strategy']} | {cp} | {hr} | {rc} | {g['n_claims_total']} "
+              f"| {g.get('parse_failures', 0)} |")
+        A("")
+        A("> Parse failures = outputs with neither a `<claim>` nor the refusal marker. "
+          "They are not counted as refusals.")
         A("")
         A("> Targets (spec §1.3): Citation grounding ≥ **95%** supported; "
           "trap refusal rate ≥ **90%**.")
@@ -248,7 +259,8 @@ def main():
             g = eval_grounding(args.llm_strategy, golden, llm, limit=args.llm_limit)
             results["grounding"] = [g]
             print(f"[grounding:{args.llm_strategy}] citation_precision={g['citation_precision']} "
-                  f"halluc={g['hallucination_rate']} refusal={g['refusal_correctness']}")
+                  f"halluc={g['hallucination_rate']} refusal={g['refusal_correctness']} "
+                  f"parse_failures={g['parse_failures']}")
 
     config.REPORT_DIR.mkdir(parents=True, exist_ok=True)
     (config.REPORT_DIR / "eval_results.json").write_text(

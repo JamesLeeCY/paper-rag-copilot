@@ -104,6 +104,11 @@ def build_parser():
 
 
 if __name__ == "__main__":
+    # Windows consoles default to a legacy codepage (e.g. cp950) that cannot
+    # encode the ✔/◐/✘ verdict badges; force UTF-8 so output never crashes.
+    for _stream in (sys.stdout, sys.stderr):
+        if hasattr(_stream, "reconfigure"):
+            _stream.reconfigure(encoding="utf-8")
     parser = build_parser()
     ns = parser.parse_args()
     ns.func(ns)

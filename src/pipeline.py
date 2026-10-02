@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 
 import config
 from src.retrieve import Retriever, get_retriever
-from src.generate import generate, GenerationResult
+from src.generate import generate, Claim, GenerationResult
 from src.verify import Verifier, VerificationReport
 from src.llm import LLMClient
 
@@ -52,13 +52,28 @@ def check(
     llm: LLMClient | None = None,
     verifier: Verifier | None = None,
 ) -> list[AnswerBundle]:
-    """Split a written paragraph into sentences and verify each against the library."""
+    """Split a written paragraph into sentences and verify each against the library.
+
+    Each sentence is judged *directly* against its retrieved passages — it is
+    not turned into a question for the generator, since verifying the
+    generator's answer would say nothing about whether the user's own sentence
+    is supported.
+    """
+    strategy = strategy or config.CHUNK_STRATEGY
     sentences = [s.strip() for s in _SENT_RE.split(paragraph.strip()) if len(s.strip()) > 15]
     llm = llm or LLMClient()
     verifier = verifier or Verifier(llm=llm)
+    retriever = get_retriever(strategy)
     bundles = []
     for sent in sentences:
-        bundles.append(ask(sent, strategy=strategy, llm=llm, verifier=verifier))
+        passages = retriever.search(sent)
+        verdict = verifier.verify_statement(sent, passages[: config.CHECK_TOP_N])
+        gen = GenerationResult(
+            query=sent, raw="", mode="check", passages=passages,
+            claims=[Claim(statement=sent, citation_ids=verdict.citation_ids)],
+        )
+        ver = VerificationReport(query=sent, verdicts=[verdict])
+        bundles.append(AnswerBundle(query=sent, generation=gen, verification=ver, passages=passages))
     return bundles
 
 
@@ -68,6 +83,8 @@ def format_answer(bundle: AnswerBundle) -> str:
     lines = [f"Q: {bundle.query}", ""]
     if g.refused and not g.claims:
         lines.append(f"⚠  {config.REFUSAL_MARKER}")
+    elif g.parse_failed:
+        lines.append("⚠  無法解析模型輸出（既無 <claim> 也無拒答標記）")
     for claim, verdict in zip(g.claims, v.verdicts):
         badge = {"supported": "✔", "partially_supported": "◐", "unsupported": "✘"}.get(
             verdict.label, "?"
