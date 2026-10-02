@@ -100,7 +100,8 @@ def format_answer(bundle: AnswerBundle) -> str:
         lines.append(f"\nNote: {g.unsupported_note}")
     if v.n_claims:
         lines.append(
-            f"\nCitation precision: {v.citation_precision():.0%} | "
+            f"\nCitation precision: {v.citation_precision(strict=True):.0%} strict / "
+            f"{v.citation_precision(strict=False):.0%} lenient | "
             f"Hallucination rate: {v.hallucination_rate():.0%}"
         )
     return "\n".join(lines)

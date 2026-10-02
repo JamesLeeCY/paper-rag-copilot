@@ -152,10 +152,14 @@ The golden set (`data/golden/golden_set.json`, kept local — schema in
 | Metric | Definition | Target (spec §1.3) |
 |---|---|---|
 | Retrieval Hit Rate@k | correct chunk in top-k | ≥ 90% |
-| Citation Precision | claims whose cited passage entails them | ≥ 95% |
+| Citation Precision (strict) | claims judged `supported` / total claims | ≥ 95% |
+| Citation Precision (lenient) | claims judged `supported` or `partially_supported` / total claims | — |
 | Hallucination Rate | unsupported claims / total claims | low |
 | Refusal Correctness | trap questions correctly refused | ≥ 90% |
 | Chunking Ablation | fixed vs section-aware on the above | — |
+
+Claim-level metrics are **micro-averaged**: claims are pooled across all
+questions before dividing, so a question with many claims is not under-weighted.
 
 See [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md) for the design write-up.
 

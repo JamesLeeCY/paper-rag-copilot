@@ -7,9 +7,13 @@ Produces quantified, reproducible metrics over the golden set:
                              on docx paragraph spans)
   * MRR                    — mean reciprocal rank of the first correct hit
   * Chunking ablation      — fixed-size vs section-aware, same golden set
-  * Citation Precision     — (needs API key) share of generated claims whose
-                             cited passage actually entails them
-  * Hallucination Rate     — (needs API key) share of unsupported claims
+  * Citation Precision     — (needs LLM) share of generated claims whose cited
+                             passage entails them; strict = supported only,
+                             lenient = supported + partially_supported
+  * Hallucination Rate     — (needs LLM) unsupported claims / total claims
+
+  Grounding metrics are micro-averaged over all claims pooled across
+  questions, so every claim carries equal weight.
   * Refusal Correctness    — (needs API key) share of trap questions correctly
                              answered with the refusal marker
 
@@ -36,6 +40,10 @@ MAX_K = max(K_VALUES)
 def load_golden() -> dict:
     with GOLDEN.open("r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def _ratio(num: int, den: int) -> float | None:
+    return round(num / den, 4) if den else None
 
 
 def _first_hit_rank(passages, target_paras: list[int]) -> int | None:
@@ -97,16 +105,18 @@ def eval_grounding(strategy: str, golden: dict, llm: LLMClient, limit: int | Non
     trap_items = golden["traps"][:limit] if limit else golden["traps"]
 
     verifier = Verifier(llm=llm)
-    precisions, hallucs, n_claims = [], [], 0
+    # Pool claim counts across questions (micro-average) rather than averaging
+    # per-question rates, which would down-weight questions with many claims.
+    n_claims = n_supported = n_partial = n_unsupported = 0
     parse_failures = 0
     for it in retrieval_items:
         bundle = ask(it["question"], strategy=strategy, llm=llm, verifier=verifier)
         parse_failures += int(bundle.generation.parse_failed)
         v = bundle.verification
-        if v.n_claims:
-            precisions.append(v.citation_precision())
-            hallucs.append(v.hallucination_rate())
-            n_claims += v.n_claims
+        n_claims += v.n_claims
+        n_supported += v.n_supported
+        n_partial += v.n_partial
+        n_unsupported += v.n_unsupported
 
     # Trap questions: system should refuse.
     refused = 0
@@ -129,8 +139,12 @@ def eval_grounding(strategy: str, golden: dict, llm: LLMClient, limit: int | Non
         "n_retrieval_scored": len(retrieval_items),
         "n_traps_scored": n_traps,
         "n_claims_total": n_claims,
-        "citation_precision": round(statistics.mean(precisions), 4) if precisions else None,
-        "hallucination_rate": round(statistics.mean(hallucs), 4) if hallucs else None,
+        "n_supported": n_supported,
+        "n_partial": n_partial,
+        "n_unsupported": n_unsupported,
+        "citation_precision_strict": _ratio(n_supported, n_claims),
+        "citation_precision_lenient": _ratio(n_supported + n_partial, n_claims),
+        "hallucination_rate": _ratio(n_unsupported, n_claims),
         "refusal_correctness": round(refused / n_traps, 4) if n_traps else None,
         "parse_failures": parse_failures,
         "trap_detail": trap_detail,
@@ -181,20 +195,25 @@ def write_report(results: dict, path: Path) -> None:
           f"{g0.get('n_traps_scored','?')} trap questions"
           + (" (sampled subset)." if results.get("llm_limit") else ".") + "_")
         A("")
-        A("| Strategy | Citation Precision | Hallucination Rate | Refusal Correctness "
-          "| Claims | Parse Failures |")
-        A("|---|---|---|---|---|---|")
+        def pct(x):
+            return f"{x:.0%}" if x is not None else "n/a"
+
+        A("| Strategy | Citation Precision (strict) | Citation Precision (lenient) "
+          "| Hallucination Rate | Refusal Correctness | Claims (✔/◐/✘) | Parse Failures |")
+        A("|---|---|---|---|---|---|---|")
         for g in results["grounding"]:
-            cp = f"{g['citation_precision']:.0%}" if g["citation_precision"] is not None else "n/a"
-            hr = f"{g['hallucination_rate']:.0%}" if g["hallucination_rate"] is not None else "n/a"
-            rc = f"{g['refusal_correctness']:.0%}" if g["refusal_correctness"] is not None else "n/a"
-            A(f"| {g['strategy']} | {cp} | {hr} | {rc} | {g['n_claims_total']} "
-              f"| {g.get('parse_failures', 0)} |")
+            counts = f"{g['n_claims_total']} ({g['n_supported']}/{g['n_partial']}/{g['n_unsupported']})"
+            A(f"| {g['strategy']} | {pct(g['citation_precision_strict'])} "
+              f"| {pct(g['citation_precision_lenient'])} | {pct(g['hallucination_rate'])} "
+              f"| {pct(g['refusal_correctness'])} | {counts} | {g['parse_failures']} |")
+        A("")
+        A("> Strict = `supported` only; lenient = `supported` + `partially_supported`. "
+          "All grounding metrics are micro-averaged over pooled claims.")
         A("")
         A("> Parse failures = outputs with neither a `<claim>` nor the refusal marker. "
           "They are not counted as refusals.")
         A("")
-        A("> Targets (spec §1.3): Citation grounding ≥ **95%** supported; "
+        A("> Targets (spec §1.3): Citation grounding ≥ **95%** supported (strict); "
           "trap refusal rate ≥ **90%**.")
         A("")
     else:
@@ -258,7 +277,8 @@ def main():
             results["llm_limit"] = args.llm_limit
             g = eval_grounding(args.llm_strategy, golden, llm, limit=args.llm_limit)
             results["grounding"] = [g]
-            print(f"[grounding:{args.llm_strategy}] citation_precision={g['citation_precision']} "
+            print(f"[grounding:{args.llm_strategy}] precision strict/lenient="
+                  f"{g['citation_precision_strict']}/{g['citation_precision_lenient']} "
                   f"halluc={g['hallucination_rate']} refusal={g['refusal_correctness']} "
                   f"parse_failures={g['parse_failures']}")
 

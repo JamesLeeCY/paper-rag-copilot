@@ -60,13 +60,22 @@ class VerificationReport:
         return sum(v.label == "supported" for v in self.verdicts)
 
     @property
+    def n_partial(self) -> int:
+        return sum(v.label == "partially_supported" for v in self.verdicts)
+
+    @property
     def n_unsupported(self) -> int:
         return sum(v.label == "unsupported" for v in self.verdicts)
 
-    def citation_precision(self) -> float:
+    def citation_precision(self, strict: bool = True) -> float:
+        """Share of claims whose citation supports them.
+
+        strict=True counts only ``supported`` (what the spec's ≥95% target
+        means); strict=False also accepts ``partially_supported``.
+        """
         if not self.verdicts:
             return 0.0
-        ok = sum(v.label in ("supported", "partially_supported") for v in self.verdicts)
+        ok = self.n_supported if strict else self.n_supported + self.n_partial
         return ok / len(self.verdicts)
 
     def hallucination_rate(self) -> float:
@@ -191,7 +200,8 @@ def report_to_dict(report: VerificationReport) -> dict:
     return {
         "query": report.query,
         "n_claims": report.n_claims,
-        "citation_precision": round(report.citation_precision(), 4),
+        "citation_precision_strict": round(report.citation_precision(strict=True), 4),
+        "citation_precision_lenient": round(report.citation_precision(strict=False), 4),
         "hallucination_rate": round(report.hallucination_rate(), 4),
         "verdicts": [asdict(v) for v in report.verdicts],
     }
