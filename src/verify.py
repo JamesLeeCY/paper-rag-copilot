@@ -357,17 +357,19 @@ class Verifier:
         citation_ids = claim.citation_ids
         repaired = False
         cited = [t for t in (_passage_text(result, c) for c in citation_ids) if t]
-        if not cited and claim.quote:
-            # No cited id resolves (a mangled id such as "chunk_id_0003"). If the
-            # verbatim quote sits in exactly one retrieved passage, that passage
-            # is the deterministic source: re-attribute and record the repair.
+        # Skipped when no cited id resolves to a passage: that is a bad citation
+        # id (the judges mark it "cited chunk not in context"), not a bad quote.
+        quote_status = check_quote(claim.quote, cited) if cited else ""
+        if claim.quote and (not cited or quote_status == "not_found"):
+            # The cited id is mangled ("chunk_id_0003") or points at the wrong
+            # passage. If the verbatim quote sits in exactly one retrieved
+            # passage, that passage is the deterministic source: re-attribute
+            # and record the repair. A quote found nowhere stays a fabrication.
             hits = [p for p in result.passages
                     if check_quote(claim.quote, [p.text]) in ("verbatim", "near")]
             if len(hits) == 1:
                 citation_ids, cited, repaired = [hits[0].chunk_id], [hits[0].text], True
-        # Skipped when no cited id resolves to a passage: that is a bad citation
-        # id (the judges mark it "cited chunk not in context"), not a bad quote.
-        quote_status = check_quote(claim.quote, cited) if cited else ""
+                quote_status = check_quote(claim.quote, cited)
         if quote_status == "not_found":
             return ClaimVerdict(
                 claim.statement, claim.citation_ids, "unsupported",

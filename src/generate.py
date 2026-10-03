@@ -58,6 +58,9 @@ class GenerationResult:
     # True when the model produced neither a <claim> nor the refusal marker —
     # malformed output, which must not be scored as a correct refusal.
     parse_failed: bool = False
+    # True when the model wrapped the refusal marker in a <claim> instead of
+    # <unsupported_note>: a format error, counted separately, not a claim.
+    misplaced_refusal: bool = False
     mode: str = "grounded"       # "grounded" | "baseline" | "check"
     passages: list[Passage] = field(default_factory=list)
 
@@ -95,6 +98,10 @@ def parse_grounded(raw: str, query: str) -> GenerationResult:
         quote = quote_m.group(1).strip() if quote_m else ""
         statement = _QUOTE_RE.sub("", body).strip()
         claims.append(Claim(statement=statement, citation_ids=cid_list, quote=quote))
+    # A <claim> that only restates the refusal marker asserts nothing: drop it
+    # and flag the format error (it was the model's way of refusing).
+    marker_only = [c for c in claims if _is_marker_only(c.statement)]
+    claims = [c for c in claims if not _is_marker_only(c.statement)]
     note_m = _NOTE_RE.search(raw)
     note = note_m.group(1).strip() if note_m else ""
     # A refusal must be explicit: no claims AND the refusal marker emitted. The
@@ -105,8 +112,15 @@ def parse_grounded(raw: str, query: str) -> GenerationResult:
     parse_failed = not claims and not has_marker
     return GenerationResult(
         query=query, raw=raw, claims=claims, unsupported_note=note,
-        refused=refused, parse_failed=parse_failed, mode="grounded",
+        refused=refused, parse_failed=parse_failed,
+        misplaced_refusal=bool(marker_only), mode="grounded",
     )
+
+
+def _is_marker_only(statement: str) -> bool:
+    """True when a claim's text is just the refusal marker (± punctuation)."""
+    core = statement.strip().strip("。.,，、:：;；!！ \"'「」『』（）()")
+    return core == config.REFUSAL_MARKER
 
 
 # --------------------------------------------------------------------------

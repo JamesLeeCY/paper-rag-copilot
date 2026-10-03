@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import json
 import statistics
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -119,15 +120,21 @@ def eval_grounding(strategy: str, golden: dict, llm: LLMClient, limit: int | Non
     n_repaired = 0  # mangled citation ids recovered via the verbatim quote
     quote_counts = {s: 0 for s in ("verbatim", "near", "not_found", "missing")}
     parse_failures = 0
+    misplaced_refusals = 0   # refusal marker wrapped in a <claim> (format error)
     # Answer-level counts on answerable questions. Every retrieval question has
     # a known answer in the corpus, so refusing one is an over-refusal — the
     # counterweight that stops "refuse everything" from scoring perfectly.
     n_over_refused = n_answered = n_answers_with_halluc = 0
     answer_detail = []
-    for it in retrieval_items:
+    for qi, it in enumerate(retrieval_items, 1):
+        t0 = time.time()
         bundle = ask(it["question"], strategy=strategy, llm=llm, verifier=verifier)
+        print(f"  [answerable {qi}/{len(retrieval_items)}] {it['id']}: "
+              f"{bundle.verification.n_claims} claim(s), refused={bundle.generation.refused} "
+              f"({time.time() - t0:.0f}s)", flush=True)
         g, v = bundle.generation, bundle.verification
         parse_failures += int(g.parse_failed)
+        misplaced_refusals += int(g.misplaced_refusal)
         n_over_refused += int(g.refused)
         if v.n_claims:
             n_answered += 1
@@ -149,21 +156,29 @@ def eval_grounding(strategy: str, golden: dict, llm: LLMClient, limit: int | Non
             "n_claims": v.n_claims,
             "n_unsupported": v.n_unsupported,
             "n_disputed": v.n_disputed,
+            # Keep the raw output of malformed generations for diagnosis
+            # (reports are gitignored, so this never leaves the machine).
+            **({"raw": g.raw[:2000]} if g.parse_failed else {}),
         })
 
     # Trap questions: system should refuse.
     refused = 0
     trap_detail = []
-    for it in trap_items:
+    for qi, it in enumerate(trap_items, 1):
+        t0 = time.time()
         bundle = ask(it["question"], strategy=strategy, llm=llm, verifier=verifier)
+        print(f"  [trap {qi}/{len(trap_items)}] {it['id']}: refused={bundle.generation.refused} "
+              f"({time.time() - t0:.0f}s)", flush=True)
         # Malformed output (no claims, no marker) is NOT a correct refusal.
         did_refuse = bundle.generation.refused
         parse_failures += int(bundle.generation.parse_failed)
+        misplaced_refusals += int(bundle.generation.misplaced_refusal)
         refused += int(did_refuse)
         trap_detail.append({
             "id": it["id"],
             "refused": did_refuse,
             "parse_failed": bundle.generation.parse_failed,
+            "misplaced_refusal": bundle.generation.misplaced_refusal,
         })
 
     n_traps = len(trap_items)
@@ -191,6 +206,7 @@ def eval_grounding(strategy: str, golden: dict, llm: LLMClient, limit: int | Non
         # Share of non-refused answers containing at least one unsupported claim.
         "answer_hallucination_rate": _ratio(n_answers_with_halluc, n_answered),
         "parse_failures": parse_failures,
+        "misplaced_refusals": misplaced_refusals,
         "answer_detail": answer_detail,
         "trap_detail": trap_detail,
     }
@@ -278,12 +294,13 @@ def write_report(results: dict, path: Path) -> None:
         A("### 2b. Answer level (refusal behaviour)")
         A("")
         A("| Strategy | Refusal Correctness (traps) | Over-refusal Rate (answerable) "
-          "| Answer Hallucination Rate | Answered | Parse Failures |")
-        A("|---|---|---|---|---|---|")
+          "| Answer Hallucination Rate | Answered | Parse Failures | Misplaced Refusals |")
+        A("|---|---|---|---|---|---|---|")
         for g in results["grounding"]:
             A(f"| {g['strategy']} | {pct(g['refusal_correctness'])} "
               f"| {pct(g['over_refusal_rate'])} | {pct(g['answer_hallucination_rate'])} "
-              f"| {g['n_answered']}/{g['n_retrieval_scored']} | {g['parse_failures']} |")
+              f"| {g['n_answered']}/{g['n_retrieval_scored']} | {g['parse_failures']} "
+              f"| {g.get('misplaced_refusals', 0)} |")
         A("")
         A("> Refusal correctness and over-refusal must be read together: a system "
           "that refuses everything scores 100% on the first and 100% (worst) on the "
@@ -291,7 +308,9 @@ def write_report(results: dict, path: Path) -> None:
           "least one unsupported claim.")
         A("")
         A("> Parse failures = outputs with neither a `<claim>` nor the refusal marker. "
-          "They are not counted as refusals.")
+          "They are not counted as refusals. Misplaced refusals = the refusal marker "
+          "wrapped in a `<claim>`; it is counted as a refusal but reported here as a "
+          "format error.")
         A("")
         A("> Targets (spec §1.3): Citation grounding ≥ **95%** supported (strict); "
           "trap refusal rate ≥ **90%**.")
