@@ -184,11 +184,23 @@ The golden set (`data/golden/golden_set.json`, kept local — schema in
   the docx paragraph index(es) that answer it. A retrieved chunk "hits" if its
   paragraph span covers a target — so the metric is **strategy-agnostic** and
   fairly compares fixed vs section-aware chunking.
-- **10 trap questions** — topics genuinely *absent* from the dissertation
-  (psilocybin, EEG, cortisol, blue-space, HRV, actigraphy…). A trustworthy system
-  must refuse these, not confabulate. Because the retrieval questions are all
-  answerable, they double as the over-refusal check: refusing everything would
-  ace the traps but score 100% over-refusal.
+- **25 trap questions** in three tiers of difficulty:
+  - *far_absent* (10) — topics unrelated to the dissertation (psilocybin, EEG,
+    cortisol, blue-space, HRV, actigraphy…). Must refuse.
+  - *near_absent* (9) — plausible questions about the dissertation's **own**
+    studies whose answer is not in the text, including tempting ones about
+    measures or assessments the methods mention but never report results
+    for. Must refuse.
+  - *false_premise* (6) — questions presupposing something the text
+    contradicts (a reversed effect direction, a wrong study duration or
+    sample). Correct if no claim the judges reject or dispute gets through —
+    refusing and correcting the premise both pass.
+
+  Every trap also records a *safe* rate (no rejected or disputed claim), which
+  separates "did not refuse" from "made something up". Because the retrieval
+  questions are all answerable, they double as the over-refusal check:
+  refusing everything would ace the traps but score 100% over-refusal.
+  Run the traps alone with `python cli.py eval --with-llm --traps-only`.
 
 | Metric | Definition | Target (spec §1.3) |
 |---|---|---|

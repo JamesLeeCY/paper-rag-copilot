@@ -81,8 +81,12 @@ def build_context(passages: list[Passage]) -> str:
 # --------------------------------------------------------------------------
 # Output parsing
 # --------------------------------------------------------------------------
+# A claim ends at </claim> — or, when a model drops the closing tag, at the
+# next <claim>, at <unsupported_note>, at </answer>, or at the end of output.
 _CLAIM_RE = re.compile(
-    r"<claim[^>]*citation_ids=\"([^\"]*)\"[^>]*>(.*?)</claim>", re.DOTALL
+    r"<claim[^>]*citation_ids=\"([^\"]*)\"[^>]*>(.*?)"
+    r"(?:</claim>|(?=<claim\b|<unsupported_note>|</answer>)|\Z)",
+    re.DOTALL,
 )
 _NOTE_RE = re.compile(r"<unsupported_note>(.*?)</unsupported_note>", re.DOTALL)
 _QUOTE_RE = re.compile(r"<quote>(.*?)</quote>", re.DOTALL)

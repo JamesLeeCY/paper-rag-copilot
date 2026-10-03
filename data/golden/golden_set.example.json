@@ -9,8 +9,10 @@
     },
     "traps[]": {
       "id": "stable id, e.g. T01",
-      "question": "a question about a topic GENUINELY ABSENT from the corpus; the grounded system must refuse",
-      "note": "why it is absent"
+      "type": "far_absent (default) | near_absent | false_premise",
+      "question": "far_absent: a topic unrelated to the corpus. near_absent: a plausible question about the corpus's OWN studies whose answer is not in the text (best when the text mentions it without results). false_premise: presupposes something the text contradicts.",
+      "note": "why it is absent, or which passage contradicts the premise",
+      "scoring": "far_absent / near_absent: correct = refused. false_premise: correct = no claim the judges reject or dispute (refusing or correcting the premise both pass)."
     }
   },
   "retrieval": [
@@ -21,6 +23,8 @@
   "traps": [
     {"id": "T01", "question": "What were the results of the technique X analysis the authors ran?", "note": "technique X was never used in this corpus"},
     {"id": "T02", "question": "How did measurement Y change after the intervention?", "note": "measurement Y was never collected"},
-    {"id": "T03", "question": "What did the cohort Z subgroup analysis show?", "note": "no cohort Z exists in this corpus"}
+    {"id": "T03", "question": "What did the cohort Z subgroup analysis show?", "note": "no cohort Z exists in this corpus"},
+    {"id": "T04", "type": "near_absent", "question": "What did measurement W show in the main study?", "note": "the methods mention measurement W, but no results for it are reported"},
+    {"id": "T05", "type": "false_premise", "question": "Why did the primary outcome decrease after the intervention?", "note": "the results report an increase"}
   ]
 }

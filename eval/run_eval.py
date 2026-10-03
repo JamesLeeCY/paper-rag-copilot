@@ -38,6 +38,8 @@ from src.retrieve import Retriever
 from src.llm import LLMClient
 
 GOLDEN = config.GOLDEN_DIR / "golden_set.json"
+# Trap types whose only correct answer is a refusal (see eval_grounding).
+MUST_REFUSE = {"far_absent", "near_absent"}
 K_VALUES = (1, 3, 5, 10)
 MAX_K = max(K_VALUES)
 
@@ -102,11 +104,16 @@ def eval_retrieval(strategy: str, golden: dict, use_rerank: bool) -> dict:
 # --------------------------------------------------------------------------
 # Generation-grounded evaluation (needs LLM)
 # --------------------------------------------------------------------------
-def eval_grounding(strategy: str, golden: dict, llm: LLMClient, limit: int | None = None) -> dict:
+def eval_grounding(
+    strategy: str, golden: dict, llm: LLMClient, limit: int | None = None,
+    traps_only: bool = False,
+) -> dict:
     from src.pipeline import ask
     from src.verify import Verifier
 
     retrieval_items = golden["retrieval"][:limit] if limit else golden["retrieval"]
+    if traps_only:
+        retrieval_items = []
     trap_items = golden["traps"][:limit] if limit else golden["traps"]
 
     verifier = Verifier(llm=llm)
@@ -161,27 +168,50 @@ def eval_grounding(strategy: str, golden: dict, llm: LLMClient, limit: int | Non
             **({"raw": g.raw[:2000]} if g.parse_failed else {}),
         })
 
-    # Trap questions: system should refuse.
-    refused = 0
+    # Trap questions. What counts as correct depends on the trap type:
+    #   far_absent / near_absent -> the topic is not in the corpus: must refuse.
+    #   false_premise            -> the question presupposes something the
+    #     corpus contradicts: correct if no claim is let through that the
+    #     judges reject or dispute (refusing, or correcting the premise with
+    #     supported claims, both pass).
+    # "safe" (no unsupported or disputed claim) is recorded for every type.
     trap_detail = []
     for qi, it in enumerate(trap_items, 1):
         t0 = time.time()
         bundle = ask(it["question"], strategy=strategy, llm=llm, verifier=verifier)
-        print(f"  [trap {qi}/{len(trap_items)}] {it['id']}: refused={bundle.generation.refused} "
-              f"({time.time() - t0:.0f}s)", flush=True)
+        g, v = bundle.generation, bundle.verification
+        kind = it.get("type", "far_absent")
         # Malformed output (no claims, no marker) is NOT a correct refusal.
-        did_refuse = bundle.generation.refused
-        parse_failures += int(bundle.generation.parse_failed)
-        misplaced_refusals += int(bundle.generation.misplaced_refusal)
-        refused += int(did_refuse)
+        safe = v.n_unsupported == 0 and v.n_disputed == 0 and not g.parse_failed
+        correct = g.refused if kind in MUST_REFUSE else safe
+        print(f"  [trap {qi}/{len(trap_items)}] {it['id']} ({kind}): refused={g.refused} "
+              f"claims={v.n_claims} correct={correct} ({time.time() - t0:.0f}s)", flush=True)
+        parse_failures += int(g.parse_failed)
+        misplaced_refusals += int(g.misplaced_refusal)
         trap_detail.append({
             "id": it["id"],
-            "refused": did_refuse,
-            "parse_failed": bundle.generation.parse_failed,
-            "misplaced_refusal": bundle.generation.misplaced_refusal,
+            "type": kind,
+            "refused": g.refused,
+            "correct": correct,
+            "safe": safe,
+            "n_claims": v.n_claims,
+            "n_unsupported": v.n_unsupported,
+            "n_disputed": v.n_disputed,
+            "parse_failed": g.parse_failed,
+            "misplaced_refusal": g.misplaced_refusal,
         })
 
     n_traps = len(trap_items)
+    must_refuse = [d for d in trap_detail if d["type"] in MUST_REFUSE]
+    traps_by_type = {}
+    for kind in sorted({d["type"] for d in trap_detail}):
+        sub = [d for d in trap_detail if d["type"] == kind]
+        traps_by_type[kind] = {
+            "n": len(sub),
+            "correct_rate": _ratio(sum(d["correct"] for d in sub), len(sub)),
+            "refusal_rate": _ratio(sum(d["refused"] for d in sub), len(sub)),
+            "safe_rate": _ratio(sum(d["safe"] for d in sub), len(sub)),
+        }
     return {
         "strategy": strategy,
         "n_retrieval_scored": len(retrieval_items),
@@ -200,7 +230,9 @@ def eval_grounding(strategy: str, golden: dict, llm: LLMClient, limit: int | Non
         "citation_precision_strict": _ratio(n_supported, n_claims),
         "citation_precision_lenient": _ratio(n_supported + n_partial, n_claims),
         "hallucination_rate": _ratio(n_unsupported, n_claims),
-        "refusal_correctness": round(refused / n_traps, 4) if n_traps else None,
+        # Refusal correctness covers only traps that must be refused.
+        "refusal_correctness": _ratio(sum(d["refused"] for d in must_refuse), len(must_refuse)),
+        "traps_by_type": traps_by_type,
         "over_refusal_rate": _ratio(n_over_refused, len(retrieval_items)),
         "n_answered": n_answered,
         # Share of non-refused answers containing at least one unsupported claim.
@@ -312,6 +344,21 @@ def write_report(results: dict, path: Path) -> None:
           "wrapped in a `<claim>`; it is counted as a refusal but reported here as a "
           "format error.")
         A("")
+        tbt = results["grounding"][0].get("traps_by_type")
+        if tbt:
+            A("### 2c. Traps by type")
+            A("")
+            A("| Type | n | Correct | Refused | Safe (no rejected/disputed claim) |")
+            A("|---|---|---|---|---|")
+            for kind, t in tbt.items():
+                A(f"| {kind} | {t['n']} | {pct(t['correct_rate'])} | {pct(t['refusal_rate'])} "
+                  f"| {pct(t['safe_rate'])} |")
+            A("")
+            A("> far_absent / near_absent: correct = refused (the topic is not in the corpus; "
+              "near_absent questions are about the corpus's own studies). false_premise: "
+              "correct = safe — refusing or correcting the premise with supported claims "
+              "both pass. Refusal correctness above covers only the must-refuse types.")
+            A("")
         A("> Targets (spec §1.3): Citation grounding ≥ **95%** supported (strict); "
           "trap refusal rate ≥ **90%**.")
         A("")
@@ -343,6 +390,8 @@ def main():
                     help="also run grounding/hallucination/refusal (needs an LLM backend)")
     ap.add_argument("--llm-strategy", default="section",
                     help="chunking strategy used for the (slow) LLM grounding pass")
+    ap.add_argument("--traps-only", action="store_true",
+                    help="LLM pass on trap questions only (skip the answerable ones)")
     ap.add_argument("--llm-limit", type=int, default=None,
                     help="cap #retrieval and #trap questions for the LLM pass (quick runs)")
     args = ap.parse_args()
@@ -374,7 +423,8 @@ def main():
                   f"(strategy={args.llm_strategy}, limit={args.llm_limit})")
             results["llm_backend"] = llm.describe()
             results["llm_limit"] = args.llm_limit
-            g = eval_grounding(args.llm_strategy, golden, llm, limit=args.llm_limit)
+            g = eval_grounding(args.llm_strategy, golden, llm, limit=args.llm_limit,
+                               traps_only=args.traps_only)
             results["grounding"] = [g]
             print(f"[grounding:{args.llm_strategy}] precision strict/lenient="
                   f"{g['citation_precision_strict']}/{g['citation_precision_lenient']} "
