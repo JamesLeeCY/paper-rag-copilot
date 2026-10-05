@@ -187,6 +187,8 @@ def main(argv=None):
                     default=[config.VERIFY_PROMPT],
                     help="judge prompt version(s) to score, e.g. --prompts v1 v2 to compare")
     ap.add_argument("--split", choices=["dev", "test", "all"], default="all")
+    ap.add_argument("--types", nargs="+", default=None,
+                    help="only these item types, e.g. --types plan_to_result attribution_swap regression")
     ap.add_argument("--limit", type=int, default=None, help="score only the first N items (quick run)")
     args = ap.parse_args(argv)
 
@@ -194,6 +196,8 @@ def main(argv=None):
     items = load_items()
     if args.split != "all":
         items = [it for it in items if it["split"] == args.split]
+    if args.types:
+        items = [it for it in items if it["perturbation"] in args.types]
     if args.limit:
         items = items[: args.limit]
 

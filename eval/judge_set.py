@@ -34,6 +34,7 @@ from src.ingest import load_chunks
 
 SYNTHETIC_PATH = config.GOLDEN_DIR / "judge_set_synthetic.jsonl"
 HUMAN_PATH = config.GOLDEN_DIR / "judge_set_human.jsonl"
+REGRESSION_PATH = config.GOLDEN_DIR / "judge_set_regression.jsonl"
 
 GOLD = {
     "original": "supported",
@@ -42,8 +43,13 @@ GOLD = {
     "overclaim": "partially_supported",
     "conjunction": "partially_supported",
     "swap_passage": "unsupported",
+    "plan_to_result": "unsupported",
+    "attribution_swap": "unsupported",
 }
-PERTURBATIONS = [p for p in GOLD if p != "original"]
+# Top-up only: drawn from sentences outside the main sample, so adding them
+# never changes the items (or cached votes) of the original rotation.
+TOPUP_ONLY = {"plan_to_result", "attribution_swap"}
+PERTURBATIONS = [p for p in GOLD if p != "original" and p not in TOPUP_ONLY]
 
 _SENT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
 _WORD_RE = re.compile(r"[a-z]{4,}")
@@ -135,6 +141,108 @@ def overclaim(s: str) -> str | None:
     return None
 
 
+_IRREGULAR_PAST = {
+    "be": "were", "have": "had", "show": "showed", "lead": "led", "find": "found",
+    "become": "became", "make": "made", "take": "took", "give": "gave", "see": "saw",
+    "go": "went", "run": "ran", "begin": "began", "hold": "held", "bring": "brought",
+}
+
+
+def _past(verb: str) -> str:
+    v = verb.lower()
+    if v in _IRREGULAR_PAST:
+        return _IRREGULAR_PAST[v]
+    if v.endswith("e"):
+        return v + "d"
+    if v.endswith("y") and len(v) > 2 and v[-2] not in "aeiou":
+        return v[:-1] + "ied"
+    return v + "ed"
+
+
+_HYP_LABEL_RE = re.compile(r"^(?:H\d+[a-z]?|Hypothesis \d+[a-z]?)\s*[:.]\s*", re.I)
+_WILL_RE = re.compile(r"\bwill (not )?(be )?([a-z]+)\b", re.I)
+# Only predictions about outcomes make a meaningful "reported finding" when
+# restated in the past tense; planned procedures ("will be recruited") and
+# instrument descriptions do not.
+_HYPOTHESIS_CUE_RE = re.compile(
+    r"^(?:H\d+[a-z]?|Hypothesis \d+[a-z]?)\s*[:.]|\bhypothesi[sz]e|\bexpect|\bpredict", re.I)
+_OUTCOME_VERB_RE = re.compile(
+    r"\bwill (?:not )?(?:reduce|increase|improve|enhance|elicit|show|exhibit|moderate|predict|"
+    r"lead|result|decrease|demonstrate|produce|facilitate|impair|engage|activate|differ|outperform)\b", re.I)
+
+
+def _lower_first(text: str) -> str:
+    """Lowercase the first letter unless it starts an acronym ("VR", "ISC")."""
+    if len(text) > 1 and text[1].isupper():
+        return text
+    return text[:1].lower() + text[1:]
+
+
+def plan_to_result(s: str) -> str | None:
+    """A hypothesis or planned assessment restated as a reported finding.
+
+    "H1a: X will reduce Y" -> "The results showed that X reduced Y". The
+    source only predicts or plans, so the claim is unsupported — the error a
+    generator makes when it reads a methods/hypothesis section as results.
+    """
+    if not _WILL_RE.search(s):
+        return None
+    if not (_HYPOTHESIS_CUE_RE.search(s.strip()) or _OUTCOME_VERB_RE.search(s)):
+        return None
+    body = _HYP_LABEL_RE.sub("", s.strip())
+
+    def repl(m: re.Match) -> str:
+        neg, be, verb = m.group(1), m.group(2), m.group(3)
+        if be:                                   # "will be assessed" -> "were assessed"
+            return ("were not " if neg else "were ") + verb
+        return ("did not " + verb) if neg else _past(verb)
+
+    body = _WILL_RE.sub(repl, body, count=1)
+    return "The results showed that " + _lower_first(body)
+
+
+_CITE_SUBJECT_RE = re.compile(
+    r"\b[A-Z][A-Za-z'\-]+(?: et al\.| and [A-Z][A-Za-z'\-]+)? \((?:19|20)\d{2}[a-z]?\)")
+_CITE_PAREN_RE = re.compile(r"\s*\((?:[^()]*?(?:19|20)\d{2}[a-z]?[^()]*?)\)")
+_FINDING_VERB_RE = re.compile(
+    r"(?<!self-)\b(found|showed|shown|reported|demonstrated|observed|revealed|indicated)\b", re.I)
+# The authors describing their own study ("we", "our") is not a cited finding.
+_OWN_VOICE_RE = re.compile(r"\b(we|our)\b", re.I)
+_OTHER_WORK_RE = re.compile(r"\b(studies|research|review|meta-analys\w*|trials?|authors)\b", re.I)
+_SPECULATIVE_RE = re.compile(r"\b(should|would|could|may|might)\b", re.I)
+_CONNECTOR_RE = re.compile(
+    r"^(?:For example|For instance|Notably|Similarly|Likewise|Moreover|In addition|"
+    r"Consistent with this|In line with this|Importantly),\s*", re.I)
+_AUTHOR_LEFT_RE = re.compile(r"\b[A-Z][a-zÀ-ɏ'\-]+ (?:et al\.|and colleagues)")
+
+
+def attribution_swap(s: str) -> str | None:
+    """A cited study's finding restated as this study's own finding.
+
+    "Berman et al. (2008) demonstrated that X" -> "This study demonstrated
+    that X". The passage attributes X to another study, so the claim is
+    unsupported — the error of reading a literature review as results.
+    """
+    if not _FINDING_VERB_RE.search(s) or _SPECULATIVE_RE.search(s) or _OWN_VOICE_RE.search(s):
+        return None
+    s = _CONNECTOR_RE.sub("", s.strip())
+    m = _CITE_SUBJECT_RE.search(s)
+    if m:
+        out = s[: m.start()] + ("This study" if m.start() == 0 else "this study") + s[m.end():]
+        out = _CITE_PAREN_RE.sub("", out)
+    elif _CITE_PAREN_RE.search(s):
+        body = _CITE_PAREN_RE.sub("", s).strip()
+        if _OTHER_WORK_RE.search(body):    # "studies found…" keeps it attributed elsewhere
+            return None
+        out = "In this study, " + _lower_first(body)
+    else:
+        return None
+    # Another author still named in the sentence keeps the attribution right.
+    if _AUTHOR_LEFT_RE.search(out):
+        return None
+    return out[:1].upper() + out[1:]
+
+
 # --------------------------------------------------------------------------
 # Building
 # --------------------------------------------------------------------------
@@ -165,7 +273,8 @@ def _distant(chunks, c, sentence, rng):
     return rng.choice(pool) if pool else None
 
 
-def build(n_sentences: int = 60, seed: int = 42, overclaim_extra: int = 30) -> list[dict]:
+def build(n_sentences: int = 60, seed: int = 42, overclaim_extra: int = 30,
+          stage_extra: int = 25) -> list[dict]:
     rng = random.Random(seed)
     chunks = load_chunks("section")
     cands = _candidate_sentences(chunks)
@@ -208,6 +317,7 @@ def build(n_sentences: int = 60, seed: int = 42, overclaim_extra: int = 30) -> l
     # Overclaims apply to few sentences, so the rotation above leaves too few
     # (and a lopsided dev/test split). Top up from the unused sentences.
     n_extra = 0
+    taken: set[int] = set()
     for xi, (sent, c) in enumerate(cands[n_sentences:]):
         if n_extra >= overclaim_extra:
             break
@@ -219,20 +329,51 @@ def build(n_sentences: int = 60, seed: int = 42, overclaim_extra: int = 30) -> l
                       "id": f"{group}-overclaim", "perturbation": "overclaim",
                       "gold_label": GOLD["overclaim"], "claim": x,
                       "passage": c.text, "chunk_id": c.chunk_id})
+        taken.add(xi)
         n_extra += 1
+
+    # Study-stage and attribution errors (the generator's failures on real
+    # corpora) are rare per sentence: top up each from unused sentences.
+    for kind, fn, prefix, cap in (("plan_to_result", plan_to_result, "P", stage_extra),
+                                  ("attribution_swap", attribution_swap, "A", stage_extra)):
+        n = 0
+        for xi, (sent, c) in enumerate(cands[n_sentences:]):
+            if n >= cap:
+                break
+            if xi in taken:
+                continue
+            x = fn(sent)
+            if not x or x == sent:
+                continue
+            group = f"{prefix}{xi:03d}"
+            items.append({"group": group, "split": _split_of(group), "source": "synthetic",
+                          "id": f"{group}-{kind}", "perturbation": kind,
+                          "gold_label": GOLD[kind], "claim": x,
+                          "passage": c.text, "chunk_id": c.chunk_id})
+            taken.add(xi)
+            n += 1
     return items
 
 
 def load_items(include_human: bool = True) -> list[dict]:
+    """Synthetic items, plus human-labelled and regression items when present.
+
+    Regression items are real generator outputs that a judge once got wrong,
+    pinned with their verified label so every later prompt or judge change is
+    checked against them.
+    """
     items = [json.loads(l) for l in SYNTHETIC_PATH.open(encoding="utf-8")]
-    if include_human and HUMAN_PATH.exists():
-        for line in HUMAN_PATH.open(encoding="utf-8"):
-            if line.strip():
-                it = json.loads(line)
-                it.setdefault("source", "human")
-                it.setdefault("perturbation", "human")
-                it.setdefault("split", _split_of(it.get("group", it["id"])))
-                items.append(it)
+    if include_human:
+        for path, source in ((HUMAN_PATH, "human"), (REGRESSION_PATH, "regression")):
+            if not path.exists():
+                continue
+            for line in path.open(encoding="utf-8"):
+                if line.strip():
+                    it = json.loads(line)
+                    it.setdefault("source", source)
+                    it.setdefault("perturbation", source)
+                    it.setdefault("split", _split_of(it.get("group", it["id"])))
+                    items.append(it)
     return items
 
 

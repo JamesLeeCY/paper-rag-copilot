@@ -70,7 +70,36 @@ VERIFY_SYSTEM_V2 = """你是一個嚴格的 entailment 判斷器。給你一個�
 - unsupported：數字或效果方向與原文矛盾、原文與論點無關，或原文並未提供支持該論點的證據。
 不要用原文以外的常識來補足。"""
 
-VERIFY_PROMPTS = {"v1": VERIFY_SYSTEM_V1, "v2": VERIFY_SYSTEM_V2}
+# v3 adds two checks for failures seen on real corpora that every v2 judge
+# missed: a planned assessment or hypothesis restated as a reported finding,
+# and a cited study's finding attributed to the study itself.
+VERIFY_SYSTEM_V3 = """你是一個嚴格的 entailment 判斷器。給你一個「論點」和一段「原文」，
+你只判斷：這段原文是否直接支持這個論點？
+
+請依序檢查：
+1. 內容：論點的每一部分是否都出現在原文中？數字、效果方向（增加／減少）、對象是否完全一致？
+2. 證據強度：論點的確定程度是否高於原文？
+   - 原文的保留用語：may, might, could, suggest, indicate, associated with, correlated with, linked to, potentially, possibly, likely, preliminary
+   - 論點的過度宣稱：will, always, prove, demonstrate, cause, directly, certainly, definitely, all
+   - 原文說「相關」而論點說「造成」，或原文說「可能」而論點說「必定／證明」，都屬於論點較強。
+3. 範圍：原文限定的樣本、條件或情境，論點是否擴大成普遍結論？
+4. 研究階段：原文描述的是「已經得到的結果」，還是「假設、預期、計畫或未來要做的事」？
+   - 假設與計畫的訊號：will, will be, hypothesize, expect, predict, aim to, plan to, is designed to, H1/H2 等假設編號。
+   - 若原文只是假設或計畫，而論點寫成「結果顯示／研究發現／追蹤測試顯示……」，原文就不支持該論點。
+5. 歸屬：原文描述的是本研究，還是被引用的其他研究？
+   - 其他研究的訊號：作者與年份（如 Smith et al., 2020）、「先前研究」「一項研究」「a previous study」「their results」。
+   - 若原文的結果屬於其他研究，而論點把它寫成本研究的結果，原文就不支持該論點；論點若正確標明是其他研究的結果，則可以支持。
+
+只輸出 JSON（不要多餘文字）：
+{"strength": "same" | "claim_stronger" | "claim_weaker", "plan_as_result": true | false, "misattributed": true | false, "label": "supported" | "partially_supported" | "unsupported", "reason": "簡短理由"}
+
+判斷準則：
+- supported：內容完全一致，確定程度與範圍不超過原文，且研究階段與歸屬都正確。
+- partially_supported：原文只支持論點的一部分；或論點的確定程度、範圍超過原文（strength 為 claim_stronger 時，label 不可為 supported）。
+- unsupported：數字或效果方向與原文矛盾；把假設或計畫寫成結果（plan_as_result 為 true）；把其他研究的結果歸給本研究（misattributed 為 true）；原文與論點無關，或原文並未提供支持該論點的證據。
+不要用原文以外的常識來補足。"""
+
+VERIFY_PROMPTS = {"v1": VERIFY_SYSTEM_V1, "v2": VERIFY_SYSTEM_V2, "v3": VERIFY_SYSTEM_V3}
 VERIFY_SYSTEM = VERIFY_PROMPTS[config.VERIFY_PROMPT]
 
 
@@ -149,6 +178,11 @@ class VerificationReport:
 
 
 _JSON_RE = re.compile(r"\{.*\}", re.DOTALL)
+
+
+def _flag(value) -> bool:
+    """A judge's boolean field; small models sometimes emit "true" as a string."""
+    return value is True or (isinstance(value, str) and value.strip().lower() == "true")
 
 
 def _passage_text(result: GenerationResult, chunk_id: str) -> str:
@@ -305,6 +339,10 @@ class Verifier:
         # the source yet still labels it supported.
         if data.get("strength") == "claim_stronger" and label == "supported":
             label = "partially_supported"
+        # v3: a plan/hypothesis read as a result, or another study's finding
+        # claimed for this one, is not support of any degree.
+        if _flag(data.get("plan_as_result")) or _flag(data.get("misattributed")):
+            label = "unsupported"
         return label, data.get("reason", "")
 
     def _judge(self, statement: str, passage: str) -> ClaimVerdict:
