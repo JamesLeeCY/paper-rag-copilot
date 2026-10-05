@@ -117,6 +117,28 @@ To run it on your own corpus: drop a `.docx` at the repo root (or set
 [`data/golden/golden_set.example.json`](data/golden/golden_set.example.json) and
 save it as `data/golden/golden_set.json`.
 
+### Other corpora (journal-article PDFs)
+
+`CORPUS` switches the whole pipeline to another document. The default,
+`dissertation`, keeps the layout above; any other name reads
+`papers/<name>.pdf` (or `SOURCE_PATH`) and keeps its chunks, index, golden set
+and reports under `data/corpora/<name>/` and `eval/reports/<name>/`, so corpora
+never mix. `papers/` and all per-corpus folders are gitignored.
+
+```bash
+# PowerShell: $env:CORPUS="my_paper"; $env:SOURCE_LABEL="Author (2026)"
+export CORPUS=my_paper SOURCE_LABEL="Author (2026)"
+python -m src.ingest_pdf papers/my_paper.pdf    # inspect how the PDF was parsed
+python cli.py build --all
+python cli.py ask "..."
+```
+
+The PDF loader drops running headers/footers and page numbers, skips the title
+page, joins hyphenated line breaks, detects numbered and named section headings
+(including letter-spaced ones such as `A B S T R A C T`), splits off the
+reference list, and records page numbers so citations read `§2.1 (p. 3)`.
+Scanned PDFs without a text layer are not supported (they need OCR).
+
 ## Usage
 
 ```bash

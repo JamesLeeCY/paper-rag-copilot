@@ -45,6 +45,7 @@ class BodyPara:
     text: str
     section_path: list[str]
     section_number: str   # e.g. "1.5" ("" if none parsed)
+    page: int = 0         # 1-based PDF page (0 = not applicable, e.g. .docx)
 
 
 @dataclass
@@ -61,6 +62,8 @@ class Chunk:
     est_tokens: int
     citations: list[dict] = field(default_factory=list)
     source: str = config.SOURCE_LABEL
+    page_start: int = 0   # PDF pages spanned (0 = not applicable)
+    page_end: int = 0
 
 
 # --------------------------------------------------------------------------
@@ -208,6 +211,8 @@ def _mk_chunk(
         n_words=len(text.split()),
         est_tokens=est_tokens(text),
         citations=extract_citations(text, ref_lookup),
+        page_start=paras[0].page,
+        page_end=paras[-1].page,
     )
 
 
@@ -261,6 +266,8 @@ def chunk_section_aware(
                         n_words=len(merged_text.split()),
                         est_tokens=est_tokens(merged_text),
                         citations=extract_citations(merged_text, ref_lookup),
+                        page_start=prev.page_start,
+                        page_end=buf[-1].page,
                     )
                 )
             else:
@@ -307,8 +314,13 @@ CHUNKERS = {"fixed": chunk_fixed, "section": chunk_section_aware}
 # Orchestration
 # --------------------------------------------------------------------------
 def ingest(strategy: str, source: Path | None = None) -> list[Chunk]:
-    source = Path(source) if source else config.SOURCE_DOCX
-    body, references = load_document(source)
+    source = Path(source) if source else config.SOURCE_PATH
+    if source.suffix.lower() == ".pdf":
+        from src.ingest_pdf import load_pdf
+
+        body, references = load_pdf(source)
+    else:
+        body, references = load_document(source)
     ref_lookup = build_ref_lookup(references)
 
     # Persist references once (shared across strategies).

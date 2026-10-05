@@ -58,6 +58,8 @@ def build_index(strategy: str, embedder: Embedder | None = None) -> dict:
             "est_tokens": c.est_tokens,
             "source": c.source,
             "citations": json.dumps(c.citations, ensure_ascii=False),
+            "page_start": c.page_start,
+            "page_end": c.page_end,
         }
         for c in chunks
     ]

@@ -31,9 +31,15 @@ class Passage:
     score: float          # fused (or rerank) score
     dense_rank: int | None = None
     sparse_rank: int | None = None
+    page_start: int = 0
+    page_end: int = 0
 
     def locator(self) -> str:
         sec = f"§{self.section_number}" if self.section_number else self.section[:40]
+        if self.page_start:
+            pages = (f"p. {self.page_start}" if self.page_start == self.page_end
+                     else f"pp. {self.page_start}-{self.page_end}")
+            return f"{self.source}, {sec} ({pages}) [{self.chunk_id}]"
         return f"{self.source}, {sec} (paras {self.para_start}-{self.para_end}) [{self.chunk_id}]"
 
 
@@ -132,6 +138,8 @@ class Retriever:
                     score=score_by_id[cid],
                     dense_rank=fused[cid]["dense_rank"],
                     sparse_rank=fused[cid]["sparse_rank"],
+                    page_start=meta.get("page_start", 0),
+                    page_end=meta.get("page_end", 0),
                 )
             )
         return passages

@@ -8,6 +8,10 @@ venv/
 # --- Unpublished dissertation & anything derived from it (DO NOT COMMIT) ---
 # The manuscript itself
 *.docx
+# Other corpora (papers) and everything derived from them stay local too.
+papers/
+data/corpora/
+eval/reports/*/
 # Generated corpus / indexes
 data/index/
 data/chunks/

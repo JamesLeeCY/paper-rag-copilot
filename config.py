@@ -32,21 +32,32 @@ _load_dotenv(ROOT / ".env")
 # --------------------------------------------------------------------------
 # Paths
 # --------------------------------------------------------------------------
-DATA_DIR = ROOT / "data"
+# Which document collection to work on. "dissertation" (default) keeps the
+# original layout; any other name gets its own data/index/report folders and
+# reads papers/<name>.pdf (or SOURCE_PATH), so corpora never mix.
+CORPUS = os.environ.get("CORPUS", "dissertation")
+
+if CORPUS == "dissertation":
+    DATA_DIR = ROOT / "data"
+    REPORT_DIR = ROOT / "eval" / "reports"
+    SOURCE_PATH = Path(
+        os.environ.get(
+            "DISSERTATION_DOCX",
+            ROOT / "2026_Manuscripts_BXF+NTSEC_v2.1.docx",
+        )
+    )
+    # Short human-readable handle used in citations.
+    SOURCE_LABEL = "Lee (2025) Dissertation"
+else:
+    DATA_DIR = ROOT / "data" / "corpora" / CORPUS
+    REPORT_DIR = ROOT / "eval" / "reports" / CORPUS
+    SOURCE_PATH = Path(os.environ.get("SOURCE_PATH", ROOT / "papers" / f"{CORPUS}.pdf"))
+    SOURCE_LABEL = os.environ.get("SOURCE_LABEL", CORPUS)
+
+SOURCE_DOCX = SOURCE_PATH               # back-compat name
 CHUNK_DIR = DATA_DIR / "chunks"
 GOLDEN_DIR = DATA_DIR / "golden"
 INDEX_DIR = DATA_DIR / "index"          # ChromaDB persistent store lives here
-REPORT_DIR = ROOT / "eval" / "reports"
-
-# Source document (the dissertation manuscript).
-SOURCE_DOCX = Path(
-    os.environ.get(
-        "DISSERTATION_DOCX",
-        ROOT / "2026_Manuscripts_BXF+NTSEC_v2.1.docx",
-    )
-)
-# Short human-readable handle used in citations.
-SOURCE_LABEL = "Lee (2025) Dissertation"
 
 for _d in (DATA_DIR, CHUNK_DIR, GOLDEN_DIR, INDEX_DIR, REPORT_DIR):
     _d.mkdir(parents=True, exist_ok=True)
