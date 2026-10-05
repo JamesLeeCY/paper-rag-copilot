@@ -1,6 +1,6 @@
 # Handoff — Dissertation RAG Copilot
 
-State as of **2026-10-05**. Read this first when picking the project up. The
+State as of **2026-10-06**. Read this first when picking the project up. The
 README covers setup and usage; this file covers what has been built, what the
 measurements say, what is in flight, and what to do next.
 
@@ -61,7 +61,7 @@ question ──► hybrid retrieval (dense ⊕ BM25, RRF) ──► top-5 passag
 |---|---|---|
 | Generator | `qwen2.5:7b-instruct` | Follows the XML/quote format far better than llama3 |
 | Judges | `qwen2.5:7b-instruct` + `gemma3:12b`, unanimous | Two families; 0% false-accept / 4% false-reject on the held-out judge split (v2) |
-| Judge prompt | `v2` | `v3` is written but **not yet validated** (see §5) |
+| Judge prompt | `v2` | `v3` helps on synthetic items but its false-reject rate is unmeasured and it still misses the real regression case (see §6) |
 | Chunking | section-aware | Best on the dissertation; see §4 for the pilot paper |
 
 Corpora: `CORPUS=dissertation` (default) and `CORPUS=nature_walking_2026`
@@ -108,20 +108,48 @@ must-refuse traps **100%** (11/11); false-premise 67% (4/6); over-refusal 5%;
 **no false claim was output as supported** — all four generator errors were
 caught (three rejected, one disputed; one of them by the quote check alone).
 
+**Prompt v3, Stage A** (new error types only, both splits; false-accept rate,
+lower is better — no true claims in this subset, so false-reject is not
+measured here):
+
+| Judge | Dissertation (n=15) v2 → v3 | Pilot paper (n=5) v2 → v3 |
+|---|---|---|
+| qwen2.5:7b | 100% → 87% | 100% → 80% |
+| gemma3:12b | 100% → 47% | 80% → 80% |
+| deepseek-r1:8b | 80% → **13%** | 80% → 60% |
+| panel gemma3:12b + deepseek-r1:8b | 80% → **7%** | 80% → 60% |
+
+By type under v3: deepseek-r1 catches 91% of synthetic plan→result items and
+75% of the dissertation's attribution swaps; gemma3:12b catches 100% of those
+attribution swaps but 36% of plan→result. The pilot paper's attribution
+swaps (background statements prefixed "In this study, …") stay hard: at most
+40% caught.
+
+**Real regression cases under v3:** the plan-read-as-result claim is still
+approved by **all three** judges; the cited-study claim is rejected by
+deepseek-r1 only (gemma3:12b moved from partial under v2 to supported under v3).
+
 ## 5. Known weaknesses and open findings
 
-1. **Plan read as result.** The generator restated a planned assessment
-   (future tense) as a reported finding. In a replay with the v2 prompt,
-   **all three judges approved it** (qwen2.5, gemma3:12b, deepseek-r1:8b) —
-   a shared blind spot, not self-bias. → prompt v3 + `plan_to_result` items.
-2. **Cited study attributed to this study.** Journal Discussions describe
-   other studies; the generator presented one as the paper's own result.
-   qwen2.5 approved it; gemma3:12b and deepseek-r1 did not. → v3 +
-   `attribution_swap` items.
-3. **Self-judging.** qwen2.5 is both generator and judge and has approved
-   its own errors twice. Replacement candidates now installed: `phi4`
-   (Phi family), `mistral-nemo` (Mistral), plus `deepseek-r1:8b` (built on
-   Qwen3 weights — same family as the generator, so a weak substitute).
+1. **Plan read as result — still open.** The generator restated a planned
+   assessment (future tense) as a reported finding. All three judges approve
+   it under v2 **and under v3**. v3 does catch the synthetic version
+   (deepseek-r1: 91%), so the synthetic items are easier than the real
+   error: the real claim is a Chinese paraphrase of an English future-tense
+   passage, not "The results showed that" + the source sentence. Options:
+   harder plan→result items shaped like real outputs (paraphrased, Chinese
+   claim / English passage), human-labelled items, and a rule-based check
+   (cited passage has planning/future markers + claim asserts a result →
+   flag) that does not depend on the judge noticing.
+2. **Cited study attributed to this study — partly addressed.** v3 helps on
+   "Author et al. found → This study found" swaps, but the pilot paper's
+   background-statement swaps stay at ≤ 40% detection.
+3. **Self-judging — and qwen2.5 is the weakest judge here.** qwen2.5 is both
+   generator and judge, has approved its own errors twice, and v3 barely
+   changes its votes on the new error types (87% false-accept). Candidates to
+   replace it: `deepseek-r1:8b` (best on the new types, but built on Qwen3
+   weights), `gemma3:12b`, and the newly installed `phi4` (Phi family) and
+   `mistral-nemo` (Mistral) — not yet evaluated.
 4. **Negative facts refused.** "The paper says X was not done" was answered
    with the refusal marker (over-refusal).
 5. **Format drift.** Refusal marker placed inside `<claim>` (3× dissertation,
@@ -130,52 +158,63 @@ caught (three rejected, one disputed; one of them by the quote check alone).
 6. **Judges are not deterministic.** The same claim/passage can get different
    votes across runs; decide on larger sets or repeated runs, not one replay.
 
-## 6. In flight — Stage A of the v3 validation (PAUSED)
+## 6. v3 validation status
 
-Goal: v2 vs v3 on the new error types, judges qwen2.5 / gemma3:12b /
-deepseek-r1:8b, both corpora (`--types plan_to_result attribution_swap`,
-both splits; v3 is not tuned on these items). Saved votes so far: qwen2.5 v2
-14, v3 4 (cache: `eval/reports/judge_votes.jsonl`).
+**Stage A — done (2026-10-05, 21:51).** v2 vs v3 on the new error types,
+judges qwen2.5 / gemma3:12b / deepseek-r1:8b, both corpora
+(`--types plan_to_result attribution_swap`, both splits; v3 was written once
+from the observed failures and not tuned on these items). Results in §4;
+reports saved as `eval/reports/judge_report_stageA.md` and
+`eval/reports/nature_walking_2026/judge_report_stageA.md` (local). Votes are
+cached in each corpus's `judge_votes.jsonl`, so later stages reuse them.
 
-**Why paused:** another local project (`D:\side_project\line_chat`, a labelling
-job using `qwen3:8b`) shares the Ollama server. On this machine Ollama keeps
-only one model loaded (small 2 GB GPU), so the two jobs evicted each other's
-model on every request (~2.5 min per judgment instead of ~8 s). Stage A was
-stopped; the other job was left alone.
-
-**Auto-resume:** a detached waiter (`eval/reports/stage_a_resume.ps1`, local)
-waits for that job's process to exit, then reruns Stage A under the resource
-guard; progress goes to `eval/reports/stage_a.log`. To resume by hand:
+To rerun (skips cached votes):
 
 ```powershell
 $env:PYTHONIOENCODING="utf-8"
 python -u -m eval.resource_guard --log-every-s 300 -- cmd /c eval\reports\stage_a.cmd
 ```
 
-`stage_a.cmd` runs, for `CORPUS=dissertation` and then `nature_walking_2026`:
+`stage_a.cmd` (local) runs, for `CORPUS=dissertation` and then
+`nature_walking_2026`:
 
 ```
 python -u cli.py judge-eval --judges ollama:qwen2.5:7b-instruct ollama:gemma3:12b ollama:deepseek-r1:8b --prompts v2 v3 --split all --types plan_to_result attribution_swap
 ```
 
-Lasting fix for contention (owner's call — restarts Ollama): set
-`OLLAMA_MAX_LOADED_MODELS=3`; with 64 GB RAM several models fit at once.
+**Stage B — not started.** v3 on the full held-out split (all item types, so
+false-reject is measured), adding `phi4` and `mistral-nemo`.
+
+**Ollama contention (resolved for now).** Stage A was paused mid-run because
+another local project (`D:\side_project\line_chat`, a labelling job on
+`qwen3:8b`) shared the Ollama server. On this machine Ollama keeps only one
+model loaded (small 2 GB GPU), so the two jobs evicted each other's model on
+every request (~2.5 min per judgment instead of ~8 s). A detached waiter
+resumed Stage A automatically once that job exited. Before starting a long
+run, check that no other project is using Ollama. Lasting fix (owner's call,
+restarts Ollama): `OLLAMA_MAX_LOADED_MODELS=3`; with 64 GB RAM several models
+fit at once.
 
 ## 7. Next steps (in order)
 
-1. **Finish Stage A.** If v3 closes the plan/attribution blind spot:
-2. **Stage B** — v3 on the full held-out judge split (all item types) to
-   confirm no rise in false-reject; add `phi4` and `mistral-nemo`; choose a
-   judge panel **without the generator model**; then make v3 + that panel
-   the default and rerun both corpora.
-3. Generator prompt: answer negative facts; attribute cited studies
+1. **Stage B** — v3 on the full held-out judge split (all item types) to
+   measure false-reject; add `phi4` and `mistral-nemo`; choose a judge panel
+   **without the generator model** (qwen2.5 is also the weakest judge on the
+   new error types). Leading candidate so far: gemma3:12b + deepseek-r1:8b
+   under v3 (7% false-accept on the dissertation's new error types).
+2. **Close the plan→result gap.** The real case is still approved under v3:
+   add harder items shaped like real generator outputs, and/or a rule-based
+   check (planning/future markers in the cited passage + a result-asserting
+   claim → flag) that does not rely on the judge.
+3. Make the chosen prompt + panel the default and rerun both corpora.
+4. Generator prompt: answer negative facts; attribute cited studies
    explicitly; keep quotes in the source language; put refusals only in
    `<unsupported_note>`.
-4. Resumable `run_eval` (save per question) — the tool's background tasks are
+5. Resumable `run_eval` (save per question) — the tool's background tasks are
    killed after ~30 min; long runs are launched detached for now.
-5. Human-labelled judge items (`data/golden/judge_set_human.jsonl`, schema in
+6. Human-labelled judge items (`data/golden/judge_set_human.jsonl`, schema in
    `judge_set_human.example.jsonl`) — owner's task, not started.
-6. Confidence intervals in reports; grounded vs baseline prompt comparison.
+7. Confidence intervals in reports; grounded vs baseline prompt comparison.
 
 ## 8. Operational notes
 
@@ -206,3 +245,4 @@ Lasting fix for contention (owner's call — restarts Ollama): set
 | `107fdb9` | Multi-corpus switch; journal PDF ingestion; page locators |
 | `2e3b63c` | PDF hardening on a real article; resource guard |
 | `4a0444f` | Prompt v3; plan→result and attribution items; regression items |
+| `40461dc` | This handoff file |
