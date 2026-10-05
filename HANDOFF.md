@@ -185,15 +185,12 @@ python -u cli.py judge-eval --judges ollama:qwen2.5:7b-instruct ollama:gemma3:12
 **Stage B — not started.** v3 on the full held-out split (all item types, so
 false-reject is measured), adding `phi4` and `mistral-nemo`.
 
-**Ollama contention (resolved for now).** Stage A was paused mid-run because
-another local project (`D:\side_project\line_chat`, a labelling job on
-`qwen3:8b`) shared the Ollama server. On this machine Ollama keeps only one
-model loaded (small 2 GB GPU), so the two jobs evicted each other's model on
-every request (~2.5 min per judgment instead of ~8 s). A detached waiter
-resumed Stage A automatically once that job exited. Before starting a long
-run, check that no other project is using Ollama. Lasting fix (owner's call,
-restarts Ollama): `OLLAMA_MAX_LOADED_MODELS=3`; with 64 GB RAM several models
-fit at once.
+**Ollama contention (fixed 2026-10-06, see §8).** Stage A was paused mid-run
+because another local project (`D:\side_project\line_chat`, a labelling job on
+`qwen3:8b`) shared the Ollama server, and Ollama kept only one model loaded:
+the two jobs evicted each other's model on every request (~2.5 min per
+judgment instead of ~8 s). A detached waiter resumed Stage A once that job
+exited. Ollama now keeps up to three models loaded, so this should not recur.
 
 ## 7. Next steps (in order)
 
@@ -220,7 +217,30 @@ fit at once.
 
 - **Long local runs:** launch detached (PowerShell `Start-Process`) under
   `eval.resource_guard`; tool-managed background tasks stop at ~30 min.
-  Measured load with two judges: CPU ~50–80%, RAM ~45% of 64 GB.
+  Measured load with two judges: CPU ~50–80%, RAM ~45% of 64 GB; with three
+  models resident (qwen2.5 + gemma3:12b + deepseek-r1:8b) RAM ~60%.
+- **Ollama runs CPU-only so several models stay loaded (machine setup).** The
+  machine's GPU (Quadro P620, 2 GB) holds only one model's compute buffer, so
+  with the GPU visible Ollama evicted every other model on each switch —
+  `OLLAMA_MAX_LOADED_MODELS` alone does not help (it already defaults to 3),
+  and `OLLAMA_LLM_LIBRARY=cpu` does not change the scheduler. The fix hides
+  the GPU from Ollama only:
+  - `%LOCALAPPDATA%\OllamaCPU\start_ollama_cpu.cmd` sets
+    `CUDA_VISIBLE_DEVICES=-1` and `OLLAMA_MAX_LOADED_MODELS=3` for the Ollama
+    process and starts `ollama app.exe`; the login shortcut
+    `Startup\Ollama.lnk` now runs this script (original backed up as
+    `%LOCALAPPDATA%\OllamaCPU\Ollama.lnk.original`). `OLLAMA_MAX_LOADED_MODELS=3`
+    is also a user environment variable. `CUDA_VISIBLE_DEVICES` is **not** set
+    user- or machine-wide, so other GPU programs are unaffected.
+  - Measured: 3 models co-resident; switching back to a loaded model costs
+    0.1 s instead of a reload; a judgment on a resident model 9–11 s. Cost:
+    the first, uncached prompt read is slower without the GPU (qwen2.5 ~8 s →
+    ~35 s for ~680 tokens); later items reuse the cached instruction prefix.
+  - Verify with the server log: the `server config` line should show
+    `CUDA_VISIBLE_DEVICES:-1` and `inference compute` should say
+    `library=cpu`. Starting Ollama from the tray or Start menu bypasses the
+    script, and an Ollama update may rewrite the startup shortcut — if models
+    start evicting each other again, re-point `Ollama.lnk` at the script.
 - **Windows:** `cli.py` forces UTF-8 output; shell heredocs can mangle
   regex escapes and invisible characters (soft hyphens) — write edit scripts
   to files instead.
