@@ -129,6 +129,22 @@ swaps (background statements prefixed "In this study, …") stay hard: at most
 approved by **all three** judges; the cited-study claim is rejected by
 deepseek-r1 only (gemma3:12b moved from partial under v2 to supported under v3).
 
+**Prompt v3, Stage B step 2** (pilot paper, held-out split, all item types:
+55 items, 20 true claims, 35 errors; 2026-10-06):
+
+| Judge / panel | False-accept ↓ | False-reject ↓ | Disputed | Note |
+|---|---|---|---|---|
+| **phi4** | **6%** (2/35) | **5%** (1/20) | 0% | Best single judge; caught every attribution swap, negation, number change and conjunction |
+| **gemma3:12b + phi4** (unanimous) | **3%** | **5%** | 24% | Lowest false-accept, but a quarter of claims go to human review |
+| gemma3:12b | 34% | 0% | 0% | Missed half the negations and number changes, all conjunctions |
+| mistral-nemo | 40% | 15% | 0% | Worst on both errors; drop |
+| deepseek-r1:8b | — | — | — | **Invalid: 95% of outputs unparsable** (see §5, item 7) |
+
+Small sample: 5% false-reject is one claim. gemma3:12b's weak showing is
+unexplained — it has not been run under v2 on this corpus, so v3 and corpus
+difficulty cannot be separated yet. Panels containing deepseek-r1 equal the
+same panel without it (its unparsable votes are dropped).
+
 ## 5. Known weaknesses and open findings
 
 1. **Plan read as result — still open.** The generator restated a planned
@@ -146,10 +162,9 @@ deepseek-r1 only (gemma3:12b moved from partial under v2 to supported under v3).
    background-statement swaps stay at ≤ 40% detection.
 3. **Self-judging — and qwen2.5 is the weakest judge here.** qwen2.5 is both
    generator and judge, has approved its own errors twice, and v3 barely
-   changes its votes on the new error types (87% false-accept). Candidates to
-   replace it: `deepseek-r1:8b` (best on the new types, but built on Qwen3
-   weights), `gemma3:12b`, and the newly installed `phi4` (Phi family) and
-   `mistral-nemo` (Mistral) — not yet evaluated.
+   changes its votes on the new error types (87% false-accept). On the pilot
+   paper's held-out split **phi4** is the strongest replacement (6% / 5%);
+   mistral-nemo is ruled out (40% / 15%). Not yet run on the dissertation.
 4. **Negative facts refused.** "The paper says X was not done" was answered
    with the refusal marker (over-refusal).
 5. **Format drift.** Refusal marker placed inside `<claim>` (3× dissertation,
@@ -157,6 +172,13 @@ deepseek-r1 only (gemma3:12b moved from partial under v2 to supported under v3).
    counted; worth reducing in the generator prompt.
 6. **Judges are not deterministic.** The same claim/passage can get different
    votes across runs; decide on larger sets or repeated runs, not one replay.
+7. **deepseek-r1:8b broke after an Ollama update.** Under Ollama 0.35.1
+   (auto-updated 2026-10-06) 95% of its v3 replies did not parse, and each
+   judgment took ~80 s instead of ~25 s; under 0.9.3 the night before it
+   parsed normally (Stage A). Unverified hypothesis: the new Ollama returns a
+   reasoning model's thinking and answer in separate fields, and with JSON
+   format the `content` field that `src/llm.py` reads comes back empty or
+   incomplete. Diagnose with one or two raw requests before using it again.
 
 ## 6. v3 validation status
 
@@ -182,8 +204,23 @@ python -u -m eval.resource_guard --log-every-s 300 -- cmd /c eval\reports\stage_
 python -u cli.py judge-eval --judges ollama:qwen2.5:7b-instruct ollama:gemma3:12b ollama:deepseek-r1:8b --prompts v2 v3 --split all --types plan_to_result attribution_swap
 ```
 
-**Stage B — not started.** v3 on the full held-out split (all item types, so
-false-reject is measured), adding `phi4` and `mistral-nemo`.
+**Stage B — v3 on the held-out split, all item types (measures false-reject).**
+Run step by step, each approved by the owner after a plan and resource
+assessment (see §8):
+
+| Step | Scope | Status |
+|---|---|---|
+| 0. Calibration | phi4, mistral-nemo, 3 items each | Done. Per judgment on a loaded model: phi4 ~38 s, mistral-nemo ~21 s (first call incl. load: 111 s / 62 s). Peak CPU 61%, RAM 40% |
+| 1. Dissertation | 83 items (28 true) | **Not run** — skipped by the owner for now |
+| 2. Pilot paper | 55 items (20 true), gemma3:12b / deepseek-r1:8b / phi4 / mistral-nemo | Done 2026-10-06, 12:00–14:51. Peak CPU 85%, RAM 64%; guard never fired. Results in §4 |
+
+Step 2 ran from `eval/reports/stage_b2.cmd` (local) under the guard; report
+copies `eval/reports/nature_walking_2026/judge_report_stageB2.md` and
+`judge_results_stageB2.json`. Command:
+
+```
+CORPUS=nature_walking_2026 python -u cli.py judge-eval --judges ollama:gemma3:12b ollama:deepseek-r1:8b ollama:phi4:latest ollama:mistral-nemo:latest --prompts v3 --split test
+```
 
 **Ollama contention (fixed 2026-10-06, see §8).** Stage A was paused mid-run
 because another local project (`D:\side_project\line_chat`, a labelling job on
@@ -194,31 +231,45 @@ exited. Ollama now keeps up to three models loaded, so this should not recur.
 
 ## 7. Next steps (in order)
 
-1. **Stage B** — v3 on the full held-out judge split (all item types) to
-   measure false-reject; add `phi4` and `mistral-nemo`; choose a judge panel
-   **without the generator model** (qwen2.5 is also the weakest judge on the
-   new error types). Leading candidate so far: gemma3:12b + deepseek-r1:8b
-   under v3 (7% false-accept on the dissertation's new error types).
-2. **Close the plan→result gap.** The real case is still approved under v3:
+Every step that runs local models needs the owner's approval of a plan and
+resource assessment first (§8).
+
+1. **Diagnose deepseek-r1 under Ollama 0.35** (§5 item 7): one or two raw
+   requests, then fix how `src/llm.py` reads reasoning-model replies if the
+   hypothesis holds. Until then its votes and every panel containing it are
+   not meaningful.
+2. **Stage B step 1 (dissertation held-out split)** — skipped so far. Proposed
+   judges: phi4, gemma3:12b, and deepseek-r1 once fixed (drop mistral-nemo).
+3. **Choose the panel without the generator model.** Pilot-paper evidence:
+   phi4 alone 6% false-accept / 5% false-reject / 0% disputed; gemma3:12b +
+   phi4 3% / 5% / 24% disputed. The trade-off is human-review load.
+4. **Close the plan→result gap.** The real case is still approved under v3:
    add harder items shaped like real generator outputs, and/or a rule-based
    check (planning/future markers in the cited passage + a result-asserting
    claim → flag) that does not rely on the judge.
-3. Make the chosen prompt + panel the default and rerun both corpora.
-4. Generator prompt: answer negative facts; attribute cited studies
+5. Make the chosen prompt + panel the default and rerun both corpora.
+6. Generator prompt: answer negative facts; attribute cited studies
    explicitly; keep quotes in the source language; put refusals only in
    `<unsupported_note>`.
-5. Resumable `run_eval` (save per question) — the tool's background tasks are
+7. Resumable `run_eval` (save per question) — the tool's background tasks are
    killed after ~30 min; long runs are launched detached for now.
-6. Human-labelled judge items (`data/golden/judge_set_human.jsonl`, schema in
+8. Human-labelled judge items (`data/golden/judge_set_human.jsonl`, schema in
    `judge_set_human.example.jsonl`) — owner's task, not started.
-7. Confidence intervals in reports; grounded vs baseline prompt comparison.
+9. Confidence intervals in reports; grounded vs baseline prompt comparison.
 
 ## 8. Operational notes
 
+- **Owner's rule for local model runs:** before any test that runs models,
+  measure current RAM / CPU / GPU, check that no other program is using
+  Ollama, and submit an execution plan with a resource assessment (expected
+  peak load, duration, guard thresholds); run only after the owner approves,
+  step by step. A cheap calibration (a few items per new model) first is the
+  accepted way to replace guessed timings with measured ones.
 - **Long local runs:** launch detached (PowerShell `Start-Process`) under
   `eval.resource_guard`; tool-managed background tasks stop at ~30 min.
   Measured load with two judges: CPU ~50–80%, RAM ~45% of 64 GB; with three
-  models resident (qwen2.5 + gemma3:12b + deepseek-r1:8b) RAM ~60%.
+  models resident (qwen2.5 + gemma3:12b + deepseek-r1:8b) RAM ~60%; Stage B
+  step 2 with four judges peaked at CPU 85%, RAM 64%.
 - **Ollama runs CPU-only so several models stay loaded (machine setup).** The
   machine's GPU (Quadro P620, 2 GB) holds only one model's compute buffer, so
   with the GPU visible Ollama evicted every other model on each switch —
@@ -236,11 +287,21 @@ exited. Ollama now keeps up to three models loaded, so this should not recur.
     0.1 s instead of a reload; a judgment on a resident model 9–11 s. Cost:
     the first, uncached prompt read is slower without the GPU (qwen2.5 ~8 s →
     ~35 s for ~680 tokens); later items reuse the cached instruction prefix.
+  - **Ollama 0.35+ also finds GPUs through Vulkan.** Ollama auto-updated
+    from 0.9.3 to 0.35.1 on 2026-10-06 (~10:40) and started evicting models
+    again: the scheduler now counted the GPU via `library=Vulkan`, which
+    `CUDA_VISIBLE_DEVICES` does not hide. The script therefore also sets
+    `OLLAMA_VULKAN=0` and `GGML_VK_VISIBLE_DEVICES=-1`. Verified afterwards:
+    phi4 and mistral-nemo stay co-resident, switching back to phi4 takes
+    2.4 s, RAM 50% with both loaded.
   - Verify with the server log: the `server config` line should show
-    `CUDA_VISIBLE_DEVICES:-1` and `inference compute` should say
-    `library=cpu`. Starting Ollama from the tray or Start menu bypasses the
-    script, and an Ollama update may rewrite the startup shortcut — if models
-    start evicting each other again, re-point `Ollama.lnk` at the script.
+    `CUDA_VISIBLE_DEVICES:-1`, `OLLAMA_VULKAN:false` and
+    `GGML_VK_VISIBLE_DEVICES:-1`, and `inference compute` should say
+    `library=cpu`. A log line `predicted to exceed available memory,
+    evicting` means a GPU is visible again. Starting Ollama from the tray or
+    Start menu bypasses the script, and an Ollama update may rewrite the
+    startup shortcut or add another GPU backend — if models start evicting
+    each other again, check the log and re-point `Ollama.lnk` at the script.
 - **Windows:** `cli.py` forces UTF-8 output; shell heredocs can mangle
   regex escapes and invisible characters (soft hyphens) — write edit scripts
   to files instead.
@@ -265,4 +326,4 @@ exited. Ollama now keeps up to three models loaded, so this should not recur.
 | `107fdb9` | Multi-corpus switch; journal PDF ingestion; page locators |
 | `2e3b63c` | PDF hardening on a real article; resource guard |
 | `4a0444f` | Prompt v3; plan→result and attribution items; regression items |
-| `40461dc` | This handoff file |
+| `40461dc` | This handoff file (later updates: `e554507` Stage A, `9c85db5` Ollama fix) |
