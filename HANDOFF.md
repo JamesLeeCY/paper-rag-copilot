@@ -175,10 +175,21 @@ same panel without it (its unparsable votes are dropped).
 7. **deepseek-r1:8b broke after an Ollama update.** Under Ollama 0.35.1
    (auto-updated 2026-10-06) 95% of its v3 replies did not parse, and each
    judgment took ~80 s instead of ~25 s; under 0.9.3 the night before it
-   parsed normally (Stage A). Unverified hypothesis: the new Ollama returns a
-   reasoning model's thinking and answer in separate fields, and with JSON
-   format the `content` field that `src/llm.py` reads comes back empty or
-   incomplete. Diagnose with one or two raw requests before using it again.
+   parsed normally (Stage A). **Diagnosed 2026-10-06** with three raw
+   `/api/chat` requests on one pilot test item (v3 prompt): Ollama 0.35 returns
+   the thinking in `message.thinking`, and those tokens count toward
+   `num_predict`. With the judge's 300 tokens the model thought until the
+   limit (`done_reason=length`) and `content` was empty — with and without
+   `think: false`, which this model ignores. With 1,500 tokens it stopped on
+   its own after 1,174 tokens (234 s) and returned valid JSON. **Fixed in
+   `src/llm.py`:** models whose `/api/show` capabilities include `thinking`
+   get `OLLAMA_THINK_BUDGET` (default 2000) extra tokens; an empty answer
+   after thinking is logged. Not yet re-validated on a batch (§7 step 1).
+   Cost: ~4 min per judgment on CPU, so 55 items ≈ 3.5 h.
+   **Vote cache caveat:** `judge_eval.py` caches unparsable votes as
+   `UNPARSED`, so the broken Stage B step 2 deepseek-r1 votes in the pilot
+   corpus's `judge_votes.jsonl` would be reused. Remove those entries (or
+   treat `UNPARSED` as a cache miss) before rerunning.
 
 ## 6. v3 validation status
 
@@ -234,10 +245,11 @@ exited. Ollama now keeps up to three models loaded, so this should not recur.
 Every step that runs local models needs the owner's approval of a plan and
 resource assessment first (§8).
 
-1. **Diagnose deepseek-r1 under Ollama 0.35** (§5 item 7): one or two raw
-   requests, then fix how `src/llm.py` reads reasoning-model replies if the
-   hypothesis holds. Until then its votes and every panel containing it are
-   not meaningful.
+1. **Re-validate deepseek-r1 after the thinking-budget fix** (§5 item 7):
+   diagnosis and code fix done; next, clear its `UNPARSED` cached votes and
+   run ~5 items through `judge-eval` to confirm it parses. Then decide whether
+   ~4 min per judgment is acceptable; if not, drop it. Until then its Stage B
+   votes and every panel containing it are not meaningful.
 2. **Stage B step 1 (dissertation held-out split)** — skipped so far. Proposed
    judges: phi4, gemma3:12b, and deepseek-r1 once fixed (drop mistral-nemo).
 3. **Choose the panel without the generator model.** Pilot-paper evidence:

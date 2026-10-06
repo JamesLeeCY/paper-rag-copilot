@@ -1,63 +1,181 @@
 # 論文寫作 RAG Copilot — Dissertation RAG Copilot
 
 A **strictly citation-grounded** retrieval-augmented assistant over a PhD
-dissertation's literature and body, with a **quantified evaluation harness** that
-measures whether its hallucination rate is low enough to trust.
+dissertation (or a small set of journal-article PDFs), with a **quantified
+evaluation harness** that measures whether its hallucination rate is low enough
+to trust — and a second harness that measures whether the *judges* doing that
+measuring can themselves be trusted.
 
-Corpus: *Lee (2025), "The Effects of Nature-Based Interventions on Psychological,
-Cognitive, and Neural Functioning Across the Lifespan"* — Introduction through
-Discussion, plus its 84-entry reference list. Every answer traces back to the
-exact section / paragraph span it came from.
+Main corpus: *Lee (2025), "The Effects of Nature-Based Interventions on
+Psychological, Cognitive, and Neural Functioning Across the Lifespan"* —
+Introduction through Discussion, plus its 84-entry reference list. Pilot corpus:
+Watkins-Martin et al. (2026), *Journal of Environmental Psychology* 115:103188
+(CC-BY). Every answer traces back to the exact section, paragraph span and (for
+PDFs) page it came from.
 
 > Built to demonstrate three things end-to-end: **prompt & context engineering**
 > (citation-forcing prompts, chunking ablation), **RAG system design** (hybrid
-> search + rerank + verification layer), and **evaluation methodology** (a golden
-> set and a multi-metric benchmark, not vibes).
+> search + rerank + a layered verification cascade), and **evaluation
+> methodology** (golden sets, trap tiers, and a known-answer benchmark for the
+> LLM judges — not vibes).
+
+**Contents:**
+[Results](#results) ·
+[Architecture](#architecture) ·
+[Setup](#setup) ·
+[Usage](#usage) ·
+[Evaluation methodology](#evaluation-methodology) ·
+[Running long local evaluations](#running-long-local-evaluations) ·
+[Known limitations](#known-limitations) ·
+[Roadmap](#roadmap) ·
+[Layout](#layout)
 
 ---
 
-## Headline result
+## Results
+
+All numbers below are aggregate; the corpora, golden sets and full reports stay
+local (see [Data & privacy](#data--privacy)). Default configuration unless
+stated: generator `qwen2.5:7b-instruct`, judges `qwen2.5:7b-instruct` +
+`gemma3:12b` (unanimous), judge prompt `v2`, section-aware chunking.
+
+### At a glance
+
+| | Dissertation | Pilot paper | Target |
+|---|---|---|---|
+| Retrieval Hit@5 (section-aware) | **100%** (MRR 0.952) | 95% | ≥ 90% |
+| Strict citation precision | **96%** (26/27) | 90% (18/20) | ≥ 95% |
+| Claim / answer hallucination rate | **0% / 0%** | 0% output as supported | low |
+| Must-refuse traps refused | 95% (far 100%, near 89%) | **100%** (11/11) | ≥ 90% |
+| False-premise traps safe | 83% | 67% (4/6) | — |
+| Over-refusal on answerable questions | **0%** | 5% | low |
+
+On the pilot paper the generator made four errors; **all four were caught**
+(three rejected, one disputed — one of them by the quote check alone), so no
+false claim was shown to the user as supported. The precision shortfall is
+generator error that the verifier flagged, not hallucination that got through.
+
+### Retrieval — chunking ablation (dissertation)
 
 | Strategy | Hit@1 | Hit@3 | Hit@5 | MRR |
 |---|---|---|---|---|
 | fixed-size (baseline) | 69% | 88% | 88% | 0.794 |
 | **section-aware** | **92%** | **96%** | **100%** | **0.952** |
 
-*26 hand-authored golden questions, `bge-small-en-v1.5`, hybrid (dense+BM25) +
-RRF fusion, no reranker.* Section-aware chunking clears the spec's **≥90% Hit@k**
-target and beats the fixed baseline by 12 points at Hit@5 — the chunking ablation
-the spec asked for. The full report is generated locally at
-`eval/reports/eval_report.md` (not committed; see Data & privacy below).
+*26 hand-authored golden questions, `bge-small-en-v1.5`, hybrid (dense + BM25) +
+RRF fusion, no reranker.* Section-aware chunking clears the ≥ 90% Hit@k target
+and beats the fixed baseline by 12 points at Hit@5. On the pilot paper the order
+flips slightly (section 95%, fixed 100% Hit@5): a short journal article has
+fewer, shorter sections, so the advantage is corpus-dependent.
+
+### Judge validation
+
+The judges are scored on a known-answer set of (claim, passage) pairs (see
+[Validating the judges](#validating-the-judges-themselves)). **False-accept** =
+an error judged `supported` (the dangerous direction); **false-reject** = a true
+claim rejected.
+
+**Prompt v1 → v2, dissertation, held-out split:**
+
+| Judge / panel | False-accept | False-reject | Note |
+|---|---|---|---|
+| qwen2.5:7b, v1 | 27% | — | overclaim detection 48% |
+| qwen2.5:7b, v2 | 4% | — | overclaim detection 92% |
+| **qwen2.5 + gemma3:12b, v2 (default)** | **0%** | **4%** | 11% disputed |
+| llama3 | 35% | — | unfit |
+| gemma3:4b, v2 | — | most true claims rejected | unfit |
+
+**Prompt v3, Stage A** — only the two newer error types (plan read as result,
+cited study attributed to this study), both splits; false-accept, lower is
+better:
+
+| Judge | Dissertation (n=15) v2 → v3 | Pilot paper (n=5) v2 → v3 |
+|---|---|---|
+| qwen2.5:7b | 100% → 87% | 100% → 80% |
+| gemma3:12b | 100% → 47% | 80% → 80% |
+| deepseek-r1:8b | 80% → **13%** | 80% → 60% |
+| gemma3:12b + deepseek-r1:8b | 80% → **7%** | 80% → 60% |
+
+**Prompt v3, Stage B** — pilot paper, held-out split, all item types (55 items:
+20 true claims, 35 errors):
+
+| Judge / panel | False-accept ↓ | False-reject ↓ | Disputed |
+|---|---|---|---|
+| **phi4** | **6%** (2/35) | **5%** (1/20) | 0% |
+| **gemma3:12b + phi4** (unanimous) | **3%** | **5%** | 24% |
+| gemma3:12b | 34% | 0% | 0% |
+| mistral-nemo | 40% | 15% | 0% |
+| deepseek-r1:8b | invalid — see [Known limitations](#known-limitations) | | |
+
+Takeaways so far: the generator model is the weakest judge of its own output
+(qwen2.5 barely moves under v3), **phi4** is the strongest single judge measured,
+and adding a second judge trades a few points of false-accept for a large human
+review queue. Samples are small (one false-reject = 5%), so these steer the next
+experiments rather than settle them.
 
 ---
 
 ## Architecture
 
 ```
-1. Ingestion   docx → section-hierarchy walk → chunk (fixed | section-aware)
-               → metadata (section №, paragraph span, inline citations→refs)
-2. Indexing    local bge/e5 embeddings → ChromaDB  +  BM25 sparse index
-3. Retrieval   query → dense top-k ⊕ BM25 top-k → RRF fusion → (rerank) → top-k
-4. Generation  Claude **or local Ollama**, citation-forcing XML prompt: every
-               claim carries a chunk_id, or the model must say "查無直接支持此說法的段落"
-5. Verification cascade, cheapest first:
-               (0) quote grounding — each claim's verbatim <quote> must be found
-                   in its cited passage, else it is rejected as fabricated
-               (1) judge panel — independent LLM judges, ideally from different
-                   model families, vote supported / partial / unsupported;
-                   disagreement → "disputed" (+ optional NLI / lexical fallback)
-6. Evaluation  golden set → pipeline → Hit@k / MRR / citation precision /
-               hallucination rate / refusal correctness + chunking ablation
+docx / PDF ──► ingest ──► chunks (section-aware | fixed) ──► Chroma (bge) + BM25
+                                                                    │
+question ──► hybrid retrieval (dense ⊕ BM25, RRF) ──► (rerank) ──► top-5 passages
+                                                                    │
+            generator — XML: <claim citation_ids> + verbatim <quote>,
+                        or the refusal marker "查無直接支持此說法的段落"
+                                                                    │
+            verification cascade, per claim, cheapest first:
+              0. quote grounding   the verbatim quote must appear in a retrieved
+                                   passage (no LLM). A mangled or wrong chunk id
+                                   is repaired by the quote when it is unique;
+                                   otherwise the claim is rejected as fabricated
+              1. judge panel       independent LLM judges see only claim + passage;
+                                   unanimous rule; accept/reject disagreement
+                                   → "disputed" (human-review queue)
+              2. fallbacks         NLI (optional) → lexical overlap
+                                                                    │
+            ✔ supported / ◐ partial / ⚖ disputed / ✘ unsupported, with locator (§, page)
 ```
 
+| Stage | What happens |
+|---|---|
+| Ingestion | `.docx` → heading-style walk → paragraphs, references, inline citations resolved to the reference list. Journal PDF → the same records via PyMuPDF (see below) |
+| Chunking | `section` (never crosses a section boundary) or `fixed` (size + overlap); each chunk keeps section №, paragraph span and page |
+| Indexing | Local `bge` / `e5` embeddings (with their query/passage prefixes) → ChromaDB, plus a BM25 sparse index |
+| Retrieval | Dense top-k ⊕ BM25 top-k → reciprocal-rank fusion → optional cross-encoder rerank (`bge-reranker-base`) → top-5 |
+| Generation | Citation-forcing XML prompt; a tolerant parser handles unclosed `<claim>` tags and a refusal marker placed inside a claim |
+| Verification | Quote grounding → judge panel → NLI / lexical fallback (above) |
+| Rendering | Each claim printed with its verdict symbol, reason and locator |
+
 Why these choices:
+
 - **Hybrid search** — academic prose is full of exact-match terms (`DiFuMo`,
   `ISFC`, `TFCE`, `dISFC`) that pure semantic embeddings blur; BM25 anchors them.
 - **RRF fusion** — merges dense (cosine) and BM25 (unbounded) rankings without
   score calibration.
-- **Separate verification pass** — a fresh LLM call that never sees the
-  generator's reasoning, avoiding self-confirmation bias. This is what makes
-  "strict" mean something measurable.
+- **Verbatim quotes before any judge** — a string check is free, deterministic
+  and catches fabricated evidence that a lenient judge might wave through.
+- **Separate verification pass** — fresh LLM calls that never see the
+  generator's reasoning, avoiding self-confirmation bias.
+- **Several judges from different model families, unanimous** — judges from one
+  family tend to share blind spots. Disagreement is surfaced as `disputed`
+  rather than silently resolved.
+- **Format errors are counted separately** — parse failures and misplaced
+  refusals are reported on their own and never folded into hallucination numbers.
+
+### Judge prompts
+
+Set with `VERIFY_PROMPT`; compare with `judge-eval --prompts v1 v2 v3`.
+
+| Version | Adds | Status |
+|---|---|---|
+| `v1` | Plain entailment: supported / partially_supported / unsupported | Superseded |
+| `v2` | Explicit evidence-strength field; a claim stronger than its source (overclaim) cannot be `supported` | **Default** |
+| `v3` | Two extra checks: a plan, hypothesis or planned measure restated as a result (`plan_as_result`), and another study's finding claimed for this study (`misattributed`); either one forces `unsupported` | Under validation |
+
+Judges answer in JSON. A self-contradicting vote (`claim_stronger` but labelled
+`supported`) is downgraded to `partially_supported`.
 
 ---
 
@@ -70,47 +188,100 @@ pip install -r requirements.txt          # torch is assumed preinstalled
 Place the manuscript at the repo root as
 `2026_Manuscripts_BXF+NTSEC_v2.1.docx` (or point `DISSERTATION_DOCX` at it).
 Embeddings are always local; models download on first run (~130 MB for
-`bge-small-en-v1.5`). Swap to a stronger model via `EMBED_MODEL=BAAI/bge-large-en-v1.5`.
+`bge-small-en-v1.5`). Swap to a stronger model via
+`EMBED_MODEL=BAAI/bge-large-en-v1.5`.
+
+Settings can go in a `.env` file (see [`.env.example`](.env.example)); real
+environment variables override it.
 
 ### Choosing the LLM backend (generation + verification)
 
-The LLM layer is pluggable via `LLM_BACKEND`. It auto-selects: **Claude** if an
+The LLM layer is pluggable via `LLM_BACKEND`. It auto-selects **Claude** if an
 API key is present, otherwise **local Ollama** — so it runs fully offline out of
 the box.
 
 **Option A — Local Ollama (free, offline, default):**
+
 ```bash
 ollama serve                       # if not already running
 ollama pull qwen2.5:7b-instruct    # generator + judge
 ollama pull gemma3:12b             # second judge (different model family)
+ollama pull phi4                   # optional: strongest judge measured so far
 #   defaults: OLLAMA_MODEL=qwen2.5:7b-instruct
 #             JUDGES=ollama:qwen2.5:7b-instruct,ollama:gemma3:12b
 ```
-A judge whose model is not pulled is skipped with a message; with no judge
-left, the generator's own model judges.
+
+A judge whose model is not pulled is skipped with a message; with no judge left,
+the generator's own model judges.
 
 **Option B — Claude API (higher quality on the structured prompts):**
+
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...          # PowerShell: $env:ANTHROPIC_API_KEY="sk-ant-..."
 export LLM_BACKEND=claude                     # optional; auto-selected when key is set
 ```
 
-> Why these defaults: on the judge validation set (below), `llama3` let 35% of
-> planted errors through as `supported` and `gemma3:4b` rejected most correct
-> claims, while `qwen2.5` + `gemma3:12b` under the v2 prompt let none through
-> on the held-out split (4% false-reject). `qwen2.5` also attached verbatim
-> quotes far more reliably as the generator. Settings can go in a `.env` file
-> (see `.env.example`); real environment variables override it.
+If **no** backend is reachable (no API key **and** no Ollama server), `ask` and
+`check` fall back to **mock mode**: retrieval is real, but generation and
+verification are stand-ins (pipeline shape only).
+
+### Configuration reference
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `CORPUS` | `dissertation` | Which corpus to use; any other name reads `papers/<name>.pdf` |
+| `SOURCE_PATH` | — | Explicit path to the corpus PDF |
+| `SOURCE_LABEL` | — | How the source is named in answers, e.g. `Author (2026)` |
+| `DISSERTATION_DOCX` | repo-root manuscript | Path to the dissertation `.docx` |
+| `CHUNK_STRATEGY` | `section` | `section` or `fixed` |
+| `EMBED_MODEL` | `BAAI/bge-small-en-v1.5` | Sentence-transformers embedding model |
+| `RERANK_ENABLED`, `RERANK_MODEL` | off, `bge-reranker-base` | Cross-encoder rerank |
+| `LLM_BACKEND` | auto | `claude` or `ollama` |
+| `CLAUDE_MODEL` | see `config.py` | Claude model id |
+| `OLLAMA_HOST` | `http://localhost:11434` | Ollama server |
+| `OLLAMA_MODEL` | `qwen2.5:7b-instruct` | Generator model |
+| `OLLAMA_THINK_BUDGET` | `2000` | Extra tokens for models with the `thinking` capability (see below) |
+| `JUDGES` | `ollama:qwen2.5:7b-instruct,ollama:gemma3:12b` | Comma-separated `backend:model` judge list |
+| `PANEL_RULE` | `unanimous` | `unanimous` or `majority` |
+| `VERIFY_PROMPT` | `v2` | Judge prompt version |
+| `QUOTE_REQUIRED` | off | `1` also rejects claims without a supporting quote |
+
+### Local Ollama notes
+
+- **Reasoning models** (e.g. `deepseek-r1`). Since Ollama 0.35 their thinking
+  comes back in a separate `thinking` field, and those tokens count toward the
+  output limit. A judge call allows 300 tokens, which `deepseek-r1:8b` spent
+  entirely on thinking, leaving an empty answer (`think: false` is ignored by
+  that model). The client now reads each model's capabilities from `/api/show`
+  and gives models reporting `thinking` an extra `OLLAMA_THINK_BUDGET` tokens;
+  an empty answer after thinking is logged. Expect such judges to be slow on
+  CPU (one `deepseek-r1:8b` judgment ≈ 1,200 tokens ≈ 4 minutes). Older
+  servers that return `<think>…</think>` inline are still handled by stripping
+  the block.
+- **Keeping several models loaded.** A judge panel switches models on every
+  claim. If Ollama can only fit one model at a time — typically because a small
+  GPU is visible and only one model's compute buffer fits on it — every switch
+  reloads a model from disk. On a machine with ample RAM, running Ollama
+  CPU-only (hide the GPU from the Ollama process with
+  `CUDA_VISIBLE_DEVICES=-1`, and for Ollama 0.35+ also `OLLAMA_VULKAN=0`,
+  `GGML_VK_VISIBLE_DEVICES=-1`) lets up to `OLLAMA_MAX_LOADED_MODELS` models
+  stay resident. Check the server log: `inference compute` should report
+  `library=cpu`, and `predicted to exceed available memory, evicting` means a
+  GPU is visible again.
+- **Pick judges from different families** — check `ollama show <model>`.
+  `deepseek-r1:8b`, for instance, reports architecture `qwen3` (a Qwen3 model
+  distilled from DeepSeek-R1), so pairing it with `qwen2.5` is not a
+  cross-family panel.
 
 ---
 
 ## Data & privacy
 
-The corpus is an **unpublished PhD dissertation**, so nothing derived from it is
-committed to this repository. `.gitignore` excludes the manuscript (`*.docx`),
-the generated chunks/indexes, the golden set (`data/golden/golden_set.json`), and
-the evaluation reports (`eval/reports/`). What ships is the **code, methodology,
-architecture, and aggregate retrieval metrics** only.
+The main corpus is an **unpublished PhD dissertation**, so nothing derived from
+it is committed. `.gitignore` excludes the manuscript (`*.docx`), `papers/`, the
+generated chunks and indexes, every golden set, judge set and vote cache, and
+the evaluation reports (`eval/reports/`). What ships is **code, methodology,
+architecture and aggregate metrics** only.
 
 To run it on your own corpus: drop a `.docx` at the repo root (or set
 `DISSERTATION_DOCX`), then author a golden set following
@@ -120,10 +291,10 @@ save it as `data/golden/golden_set.json`.
 ### Other corpora (journal-article PDFs)
 
 `CORPUS` switches the whole pipeline to another document. The default,
-`dissertation`, keeps the layout above; any other name reads
-`papers/<name>.pdf` (or `SOURCE_PATH`) and keeps its chunks, index, golden set
-and reports under `data/corpora/<name>/` and `eval/reports/<name>/`, so corpora
-never mix. `papers/` and all per-corpus folders are gitignored.
+`dissertation`, keeps the layout above; any other name reads `papers/<name>.pdf`
+(or `SOURCE_PATH`) and keeps its chunks, index, golden set, judge set and
+reports under `data/corpora/<name>/` and `eval/reports/<name>/`, so corpora
+never mix.
 
 ```bash
 # PowerShell: $env:CORPUS="my_paper"; $env:SOURCE_LABEL="Author (2026)"
@@ -133,11 +304,20 @@ python cli.py build --all
 python cli.py ask "..."
 ```
 
-The PDF loader drops running headers/footers and page numbers, skips the title
-page, joins hyphenated line breaks, detects numbered and named section headings
-(including letter-spaced ones such as `A B S T R A C T`), splits off the
-reference list, and records page numbers so citations read `§2.1 (p. 3)`.
+The PDF loader (hardened on a real published article):
+
+- drops running headers/footers, page numbers and publisher boilerplate, and
+  skips the title page;
+- detects numbered, named, bold, italic and letter-spaced headings (`A B S T R A C T`),
+  and gives an unheaded opening its own Introduction section;
+- joins hyphenated line breaks and removes soft hyphens;
+- merges table fragments into one record;
+- splits off the reference list into individual entries;
+- records page numbers, so citations read `§2.1 (p. 3)`.
+
 Scanned PDFs without a text layer are not supported (they need OCR).
+
+---
 
 ## Usage
 
@@ -147,102 +327,99 @@ python cli.py build --all
 
 # 2. Ask a citation-grounded question
 python cli.py ask "Which theory explains how natural environments restore directed attention?"
+python cli.py ask "..." --k 8 --strategy fixed      # more passages / other chunking
+python cli.py ask "..." --baseline                   # ungrounded prompt, for comparison
 
 # 3. Reverse hallucination check — paste something you wrote, get per-sentence verdicts
 python cli.py check "Forest therapy reduced salivary cortisol and improved sleep quality."
+type draft.txt | python cli.py check                 # or pipe text via stdin
 
-# 4. Run the evaluation harness (retrieval only — fast, no LLM)
+# 4. Evaluation harness — retrieval only (fast, no LLM)
 python cli.py eval
+python cli.py eval --rerank                          # with cross-encoder reranker
 #    ...with grounding / hallucination / refusal via the LLM backend:
 python cli.py eval --with-llm
-#    ...quick sample (e.g. 3 questions + 3 traps) for a slow local model:
-python cli.py eval --with-llm --llm-limit 3
-#    ...with cross-encoder reranker (downloads bge-reranker-base):
-python cli.py eval --rerank
+python cli.py eval --with-llm --llm-limit 3          # quick sample for a slow local model
+python cli.py eval --with-llm --traps-only           # trap questions only
+
+# 5. Judge validation
+python cli.py judge-build                            # build the known-answer set (no LLM)
+python cli.py judge-eval --judges ollama:phi4:latest ollama:gemma3:12b --prompts v2 v3 --split test
+python cli.py judge-eval --types plan_to_result attribution_swap --limit 10
 ```
+
+`check` is the writer-facing use: it splits your paragraph into sentences,
+retrieves evidence for each, and runs the same verification cascade, so you see
+which of your own statements the source does not support.
 
 ### Multi-model cross-check (judge panel)
 
-Judges from the same model family tend to make the same mistakes, so the
-verifier can poll several models and only accept a verdict they agree on:
-
 ```bash
-ollama pull qwen2.5:7b-instruct
-# PowerShell: $env:JUDGES="ollama:llama3:latest,ollama:qwen2.5:7b-instruct"
-export JUDGES="ollama:llama3:latest,ollama:qwen2.5:7b-instruct"
+# PowerShell: $env:JUDGES="ollama:phi4:latest,ollama:gemma3:12b"
+export JUDGES="ollama:phi4:latest,ollama:gemma3:12b"
 export PANEL_RULE=unanimous      # or "majority" (useful with 3+ judges)
 python cli.py eval --with-llm
 ```
 
-Under `unanimous`, judges that disagree on *whether to accept* the claim
-yield `disputed` (⚖), which counts as neither support nor hallucination and
-is the queue for human review. Judges that all reject and differ only on
-severity (partial vs unsupported) are resolved by majority, ties going to
-`unsupported`.
-
-Pick judges from **different model families** — check `ollama show <model>`:
-`deepseek-r1:8b`, for instance, reports architecture `qwen3` (a Qwen3 model
-distilled from DeepSeek-R1), so pairing it with `qwen2.5` is not a
-cross-family panel. Reasoning models' `<think>` blocks are stripped
-automatically. The judge prompt version is set by `VERIFY_PROMPT` (`v2`,
-default, adds an explicit evidence-strength / overclaim check; `v1` is the
-original) — compare them with `judge-eval --prompts v1 v2`. Leave
-`JUDGES` unset for a single judge on the generator's backend. Set
-`QUOTE_REQUIRED=1` to also reject claims that come without a supporting quote.
-
-If **no** LLM backend is reachable (no API key **and** no Ollama server),
-`ask`/`check` fall back to **mock mode**: retrieval is real, but generation and
-verification are stand-ins (pipeline shape only). With either Claude or a running
-Ollama, the grounding / hallucination / refusal numbers are fully live.
+Under `unanimous`, judges that disagree on *whether to accept* a claim yield
+`disputed` (⚖), which counts as neither support nor hallucination and is the
+queue for human review. Judges that all reject and differ only on severity
+(partial vs unsupported) are resolved by majority, ties going to `unsupported`.
+Leave `JUDGES` unset for a single judge on the generator's backend.
 
 ---
 
 ## Evaluation methodology
 
+Two layers: first validate the judges, then use them to measure the system.
+See [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md) for the design write-up.
+
+### System evaluation (`eval --with-llm`)
+
 The golden set (`data/golden/golden_set.json`, kept local — schema in
 [`golden_set.example.json`](data/golden/golden_set.example.json)) has two parts:
 
-- **26 retrieval questions** — natural-language information needs, each tied to
-  the docx paragraph index(es) that answer it. A retrieved chunk "hits" if its
-  paragraph span covers a target — so the metric is **strategy-agnostic** and
-  fairly compares fixed vs section-aware chunking.
-- **25 trap questions** in three tiers of difficulty:
-  - *far_absent* (10) — topics unrelated to the dissertation (psilocybin, EEG,
-    cortisol, blue-space, HRV, actigraphy…). Must refuse.
-  - *near_absent* (9) — plausible questions about the dissertation's **own**
-    studies whose answer is not in the text, including tempting ones about
-    measures or assessments the methods mention but never report results
-    for. Must refuse.
-  - *false_premise* (6) — questions presupposing something the text
-    contradicts (a reversed effect direction, a wrong study duration or
-    sample). Correct if no claim the judges reject or dispute gets through —
-    refusing and correcting the premise both pass.
+- **Retrieval questions** (26 on the dissertation, 20 on the pilot paper) —
+  natural-language information needs, each tied to the paragraph index(es) that
+  answer it. A retrieved chunk "hits" if its paragraph span covers a target, so
+  the metric is **strategy-agnostic** and fairly compares fixed vs section-aware
+  chunking. All are answerable, so they double as the over-refusal check.
+- **Trap questions** (25 / 17) in three tiers of difficulty:
+  - *far_absent* — topics unrelated to the source. Must refuse.
+  - *near_absent* — plausible questions about the source's own studies whose
+    answer is not in the text, including measures the methods mention but never
+    report results for. Must refuse.
+  - *false_premise* — questions presupposing something the text contradicts.
+    Correct if no claim the judges reject or dispute gets through — refusing and
+    correcting the premise both pass.
 
   Every trap also records a *safe* rate (no rejected or disputed claim), which
-  separates "did not refuse" from "made something up". Because the retrieval
-  questions are all answerable, they double as the over-refusal check:
-  refusing everything would ace the traps but score 100% over-refusal.
-  Run the traps alone with `python cli.py eval --with-llm --traps-only`.
+  separates "did not refuse" from "made something up".
 
-| Metric | Definition | Target (spec §1.3) |
+| Metric | Definition | Target |
 |---|---|---|
-| Retrieval Hit Rate@k | correct chunk in top-k | ≥ 90% |
-| Citation Precision (strict) | claims judged `supported` / total claims | ≥ 95% |
-| Citation Precision (lenient) | claims judged `supported` or `partially_supported` / total claims | — |
-| Hallucination Rate | unsupported claims / total claims | low |
-| Answer Hallucination Rate | non-refused answers with ≥1 unsupported claim / non-refused answers | low |
-| Over-refusal Rate | answerable (retrieval) questions wrongly refused | low |
-| Refusal Correctness | trap questions correctly refused | ≥ 90% |
-| Chunking Ablation | fixed vs section-aware on the above | — |
+| Retrieval Hit Rate@k / MRR | correct chunk in top-k / reciprocal rank | ≥ 90% |
+| Citation precision (strict) | claims judged `supported` / all claims | ≥ 95% |
+| Citation precision (lenient) | `supported` + `partially_supported` / all claims | — |
+| Claim hallucination rate | unsupported claims / all claims | low |
+| Answer hallucination rate | non-refused answers with ≥ 1 unsupported claim / non-refused answers | low |
+| Fabricated-quote rate | claims whose quote is not in any retrieved passage | low |
+| Repaired citation ids | wrong ids fixed by a unique quote match | reported |
+| Panel agreement / disputed | how often judges agree; claims sent to review | reported |
+| Refusal correctness | must-refuse traps refused, by tier | ≥ 90% |
+| False-premise safe rate | false-premise traps with no rejected/disputed claim | high |
+| Over-refusal rate | answerable questions wrongly refused | low |
+| Format errors | parse failures, refusal marker inside a claim | reported separately |
+| Chunking ablation | fixed vs section-aware on the above | — |
 
-Claim-level metrics are **micro-averaged**: claims are pooled across all
-questions before dividing, so a question with many claims is not under-weighted.
+Claim-level metrics are **micro-averaged**: claims are pooled across questions
+before dividing, so a question with many claims is not under-weighted.
 
 ### Validating the judges themselves
 
-Every grounding number above is only as good as the verifier's judges, so they
-get their own benchmark — a **judge validation set** of (claim, passage) pairs
-with known gold labels, built without any LLM by perturbing real sentences:
+Every grounding number above is only as good as the judges, so they get their
+own benchmark — a **judge validation set** of (claim, passage) pairs with known
+gold labels, built without any LLM by perturbing real sentences:
 
 | Perturbation | Example edit | Gold |
 |---|---|---|
@@ -252,41 +429,121 @@ with known gold labels, built without any LLM by perturbing real sentences:
 | overclaim | "may" → "will always", "suggests" → "proves" | partially_supported |
 | conjunction | sentence + an unrelated claim appended | partially_supported |
 | swap_passage | sentence vs an unrelated passage | unsupported |
+| plan_to_result | a planned or hypothesised step restated as a finding | unsupported |
+| attribution_swap | "Author et al. found …" → "This study found …" | unsupported |
+| regression | real generator outputs a judge once approved, pinned with a verified label | as labelled |
 
-```bash
-python cli.py judge-build                       # -> data/golden/judge_set_synthetic.jsonl (local)
-python cli.py judge-eval --judges ollama:llama3:latest ollama:qwen2.5:7b-instruct
-```
+The headline metric is the **false-accept rate**, always read with the
+false-reject rate, plus 3-class accuracy, Cohen's κ, a per-perturbation
+breakdown and the disputed rate for panels. Items are split dev/test by source
+sentence, so anything tuned on dev is reported on test.
 
-The headline metric is the **false-accept rate** (a hallucination judged
-`supported`), alongside false-reject rate, 3-class accuracy, Cohen's κ, and a
-per-perturbation breakdown; panels are scored from the same cached votes, so
-adding a judge only costs that judge's calls. Items are split dev/test by
-source sentence, so a judge with a tunable threshold can be calibrated on dev
-and reported on test. Synthetic positives are verbatim and therefore easy — add
-your own labelled pairs to `data/golden/judge_set_human.jsonl` (schema:
+Votes are cached per corpus (`judge_votes.jsonl`, keyed by prompt version,
+judge and item), so a rerun only calls the judges on new items, and panels are
+scored offline from the same cached votes — adding a judge costs only that
+judge's calls.
+
+Synthetic positives are verbatim and therefore easy, and synthetic errors are
+cleaner than real ones. Add your own labelled pairs to
+`data/golden/judge_set_human.jsonl` (schema:
 [`judge_set_human.example.jsonl`](data/golden/judge_set_human.example.jsonl)).
 
-See [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md) for the design write-up.
+---
+
+## Running long local evaluations
+
+A full judge or system evaluation on local models runs for hours.
+`eval/resource_guard.py` wraps such a run and stops it if the machine is
+overloaded:
+
+```powershell
+$env:PYTHONIOENCODING="utf-8"
+python -u -m eval.resource_guard --log-every-s 300 -- python -u cli.py judge-eval --prompts v3 --split test
+```
+
+| Flag | Default | Stops the run when |
+|---|---|---|
+| `--max-ram-pct` | 90 | RAM use exceeds this |
+| `--min-free-gb` | 4 | free RAM falls below this |
+| `--max-swap-growth-gb` | 2 | swap grows by more than this |
+| `--max-cpu-pct` | 95 | CPU stays above this for `--cpu-window-s` (180 s) |
+| `--interval-s` / `--log-every-s` | 5 / 60 | sampling and logging intervals |
+
+Practice that has worked: run a short calibration first (a few items per new
+model) to replace guessed timings with measured ones; launch long runs detached
+(e.g. PowerShell `Start-Process`) rather than from a tool session that may time
+out; and copy `eval_report.md` / `judge_report.md` before rerunning, because
+reports are overwritten. Measured load with four 7–14B judges on CPU: peak CPU
+85%, RAM 64% of 64 GB.
+
+---
+
+## Known limitations
+
+1. **Plan read as result.** The generator once restated a planned assessment
+   as a reported finding, and every judge approves that real case under v2 and
+   v3, although v3 catches most synthetic versions. Real errors are paraphrased
+   (often a Chinese claim over an English passage) and harder than the
+   synthetic items.
+2. **Background statements attributed to this study.** v3 catches most
+   "Author et al. found → This study found" swaps, but on the pilot paper at
+   most 40% of swaps of background statements.
+3. **Self-judging.** The default generator is also a default judge, and the
+   weakest one; replacing it on the panel is the next configuration change.
+4. **Negative facts.** "The paper says X was not done" tends to be refused
+   (over-refusal).
+5. **Format drift.** The refusal marker inside `<claim>`, translated quotes and
+   unclosed tags occur; all are handled and counted, not hidden.
+6. **Judges are not deterministic.** The same pair can get different votes
+   across runs; decide on larger sets or repeated runs.
+7. **Reasoning-model judges are slow on CPU.** With the thinking budget fixed,
+   `deepseek-r1:8b` parses again but takes minutes per judgment; its Stage B
+   result above is invalid and has not been rerun yet.
+8. **Small samples.** Pilot-paper rates rest on 20–55 items; no confidence
+   intervals are reported yet.
+
+## Roadmap
+
+1. Re-validate `deepseek-r1:8b` with the thinking budget; decide whether its
+   speed is acceptable.
+2. Stage B on the dissertation's held-out split (phi4, gemma3:12b, and
+   deepseek-r1 if kept).
+3. Choose a panel without the generator model (phi4 alone vs gemma3:12b + phi4:
+   false-accept vs human-review load).
+4. Close the plan→result gap: harder items shaped like real generator outputs,
+   and a rule-based check (planning/future markers in the cited passage + a
+   result-asserting claim → flag) that does not depend on the judge.
+5. Make the chosen prompt and panel the default; rerun both corpora.
+6. Generator prompt: answer negative facts, attribute cited studies explicitly,
+   keep quotes in the source language, refuse only in `<unsupported_note>`.
+7. Resumable `run_eval` (save per question).
+8. Human-labelled judge items; confidence intervals; grounded vs baseline prompt
+   comparison.
 
 ---
 
 ## Layout
 
 ```
-config.py              all tunable knobs (chunking, models, retrieval, LLM)
-cli.py                 build | ask | check | eval
+config.py              all tunable knobs; reads .env; CORPUS switches corpora
+cli.py                 build | ask | check | eval | judge-build | judge-eval
 src/
-  ingest.py            docx → chunks + references + inline-citation resolution
+  ingest.py            docx → paragraphs, references, inline citations, chunkers
+  ingest_pdf.py        journal PDF → the same records (PyMuPDF), with page numbers
   embedder.py          local sentence-transformers wrapper (bge/e5 prefixes)
   index.py             ChromaDB dense index + BM25 sparse index
-  retrieve.py          hybrid search, RRF fusion, optional rerank
-  generate.py          citation-forcing prompt + baseline prompt + XML parsing
-  verify.py            independent entailment verification (LLM / NLI / lexical)
-  pipeline.py          ask() and check() orchestration
-  llm.py               Claude wrapper with graceful no-key degradation
-eval/run_eval.py       the evaluation harness → eval/reports/
-eval/judge_set.py      builds the known-answer judge validation set
-eval/judge_eval.py     scores judges / panels on it → eval/reports/judge_report.md
-data/golden/           golden set (retrieval + trap questions)
+  retrieve.py          hybrid search, RRF fusion, optional cross-encoder rerank
+  generate.py          citation-forcing + baseline prompts, tolerant XML parsing
+  verify.py            quote grounding, citation repair, judge panel, prompts v1–v3,
+                       NLI / lexical fallbacks
+  pipeline.py          ask() and check() orchestration, CLI rendering
+  llm.py               Claude / Ollama backends; thinking-model handling; mock mode
+eval/
+  run_eval.py          system evaluation harness → eval/reports/
+  judge_set.py         builds the known-answer judge validation set
+  judge_eval.py        scores judges / panels / prompt versions (vote cache)
+  resource_guard.py    stops long local-LLM runs on RAM / CPU / swap overload
+data/golden/           example schemas (real golden and judge sets are local)
+docs/METHODOLOGY.md    design write-up
+HANDOFF.md             current state, open findings and next steps
 ```
