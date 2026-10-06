@@ -127,6 +127,12 @@ OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 # qwen2.5 follows the citation/quote XML far more reliably than llama3
 # (5/5 verbatim quotes vs 2/4 in the comparison run).
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b-instruct")
+# Ollama 0.35+ returns a reasoning model's thinking in a separate field, and
+# those tokens count toward num_predict: deepseek-r1 spent all 300 judge tokens
+# thinking and returned empty content (`think: false` is ignored by it). Models
+# reporting the "thinking" capability get this many extra tokens. Measured:
+# ~1,200 tokens (~4 min on CPU) for one deepseek-r1:8b judgment.
+OLLAMA_THINK_BUDGET = int(os.environ.get("OLLAMA_THINK_BUDGET", "2000"))
 
 # Back-compat: some modules refer to LLM_MODEL as the active model name.
 LLM_MODEL = CLAUDE_MODEL if LLM_BACKEND == "claude" else OLLAMA_MODEL

@@ -33,6 +33,7 @@ class LLMClient:
         self.backend = backend or config.LLM_BACKEND
         self._client = None            # anthropic client (claude backend)
         self._ok = False
+        self._thinks = False           # ollama model reports "thinking" capability
 
         if self.backend == "claude":
             self.model = model or config.CLAUDE_MODEL
@@ -47,6 +48,8 @@ class LLMClient:
         elif self.backend == "ollama":
             self.model = model or config.OLLAMA_MODEL
             self._ok = self._ollama_reachable()
+            if self._ok:
+                self._thinks = "thinking" in self._ollama_capabilities()
             if not self._ok:
                 print(
                     f"[llm] Ollama model '{self.model}' not available at "
@@ -80,7 +83,25 @@ class LLMClient:
         wanted = self.model if ":" in self.model else f"{self.model}:latest"
         return wanted in names
 
+    def _ollama_capabilities(self) -> list[str]:
+        """Model capabilities from /api/show (metadata only; loads no model).
+        Older servers omit the field, which reads as no thinking."""
+        req = urllib.request.Request(
+            f"{config.OLLAMA_HOST}/api/show",
+            data=json.dumps({"model": self.model}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                return json.loads(resp.read().decode("utf-8")).get("capabilities", [])
+        except (urllib.error.URLError, OSError, ValueError):
+            return []
+
     def _ollama_complete(self, system, user, max_tokens, temperature, json_mode):
+        if self._thinks:
+            # Thinking tokens count toward num_predict (see OLLAMA_THINK_BUDGET).
+            max_tokens += config.OLLAMA_THINK_BUDGET
         payload = {
             "model": self.model,
             "stream": False,
@@ -104,7 +125,14 @@ class LLMClient:
         # Local generation on CPU can be slow; give it room.
         with urllib.request.urlopen(req, timeout=300) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-        return data["message"]["content"]
+        content = data["message"].get("content", "")
+        if not content.strip() and data["message"].get("thinking"):
+            print(
+                f"[llm] {self.model}: empty answer after thinking "
+                f"(done_reason={data.get('done_reason')}, "
+                f"eval_count={data.get('eval_count')}); raise OLLAMA_THINK_BUDGET."
+            )
+        return content
 
     # -- public --------------------------------------------------------------
     def complete(
