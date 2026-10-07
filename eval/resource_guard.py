@@ -3,7 +3,10 @@
 Local models (Ollama on CPU) can saturate the machine for hours. This wrapper
 starts the command, samples CPU, RAM and swap every few seconds, logs a line
 each minute, and on a sustained breach stops the command (process tree) and
-asks Ollama to unload its models so the memory comes back.
+asks Ollama to unload the job's own models (``--models``) so the memory comes
+back. Other models are left alone: the Ollama server is shared with other
+projects, and a model loaded mid-run may be theirs. Without ``--models``
+nothing is unloaded.
 
 Limits (all configurable):
   * RAM in use >= --max-ram-pct (default 90%) on 2 consecutive samples
@@ -13,7 +16,8 @@ Limits (all configurable):
 
 Exit code: the command's own, or 3 when the guard stopped it.
 
-Run:  python -m eval.resource_guard -- python cli.py eval --with-llm
+Run:  python -m eval.resource_guard --models qwen2.5:7b-instruct gemma3:12b \
+          -- python cli.py eval --with-llm
 """
 from __future__ import annotations
 
@@ -33,14 +37,22 @@ import config
 GUARD_EXIT = 3
 
 
-def _ollama_unload() -> list[str]:
-    """Ask Ollama to drop every loaded model (keep_alive=0)."""
+def _tagged(name: str) -> str:
+    return name if ":" in name else f"{name}:latest"
+
+
+def _ollama_unload(models: list[str]) -> tuple[list[str], list[str]]:
+    """Ask Ollama to drop the given models (keep_alive=0) if they are loaded.
+    Returns (unloaded, left loaded because they are not this job's)."""
     try:
         with urllib.request.urlopen(f"{config.OLLAMA_HOST}/api/ps", timeout=3) as r:
             loaded = [m["name"] for m in json.load(r).get("models", [])]
     except Exception:
-        return []
-    for name in loaded:
+        return [], []
+    own = {_tagged(m) for m in models}
+    mine = [n for n in loaded if _tagged(n) in own]
+    others = [n for n in loaded if _tagged(n) not in own]
+    for name in mine:
         try:
             req = urllib.request.Request(
                 f"{config.OLLAMA_HOST}/api/generate",
@@ -49,7 +61,7 @@ def _ollama_unload() -> list[str]:
             urllib.request.urlopen(req, timeout=10).read()
         except Exception:
             pass
-    return loaded
+    return mine, others
 
 
 def _kill_tree(proc: subprocess.Popen) -> None:
@@ -71,6 +83,8 @@ def main(argv=None) -> int:
     ap.add_argument("--cpu-window-s", type=float, default=180.0)
     ap.add_argument("--interval-s", type=float, default=5.0)
     ap.add_argument("--log-every-s", type=float, default=60.0)
+    ap.add_argument("--models", nargs="+", default=[],
+                    help="Ollama models this job uses; only these are unloaded on a stop")
     ap.add_argument("cmd", nargs=argparse.REMAINDER, help="command to run, after --")
     args = ap.parse_args(argv)
     cmd = args.cmd[1:] if args.cmd[:1] == ["--"] else args.cmd
@@ -108,8 +122,9 @@ def main(argv=None) -> int:
         if reason:
             log(f"OVERLOAD - {reason}. Stopping the job.")
             _kill_tree(proc)
-            unloaded = _ollama_unload()
-            log(f"stopped; unloaded Ollama models: {unloaded or 'none loaded'}")
+            unloaded, others = _ollama_unload(args.models)
+            log(f"stopped; unloaded own Ollama models: {unloaded or 'none'}; "
+                f"left loaded (not this job's): {others or 'none'}")
             break
         if time.time() - last_log >= args.log_every_s:
             log(f"CPU {cpu:.0f}% (avg {cpu_avg:.0f}%) | RAM {vm.percent:.0f}% "
