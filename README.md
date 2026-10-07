@@ -35,9 +35,13 @@ PDFs) page it came from.
 ## Results
 
 All numbers below are aggregate; the corpora, golden sets and full reports stay
-local (see [Data & privacy](#data--privacy)). Default configuration unless
-stated: generator `qwen2.5:7b-instruct`, judges `qwen2.5:7b-instruct` +
-`gemma3:12b` (unanimous), judge prompt `v2`, section-aware chunking.
+local (see [Data & privacy](#data--privacy)).
+
+**Current default:** generator `qwen2.5:7b-instruct`, judge **`phi4`** alone,
+judge prompt **`v3`**, section-aware chunking — chosen on the judge validation
+below (2026-10-07). The system results in this section were measured with the
+**previous** default (judges `qwen2.5:7b-instruct` + `gemma3:12b`, unanimous,
+prompt `v2`); a rerun under the new default is pending.
 
 ### At a glance
 
@@ -81,7 +85,7 @@ claim rejected.
 |---|---|---|---|
 | qwen2.5:7b, v1 | 27% | — | overclaim detection 48% |
 | qwen2.5:7b, v2 | 4% | — | overclaim detection 92% |
-| **qwen2.5 + gemma3:12b, v2 (default)** | **0%** | **4%** | 11% disputed |
+| **qwen2.5 + gemma3:12b, v2 (previous default)** | **0%** | **4%** | 11% disputed |
 | llama3 | 35% | — | unfit |
 | gemma3:4b, v2 | — | most true claims rejected | unfit |
 
@@ -96,22 +100,28 @@ better:
 | deepseek-r1:8b | 80% → **13%** | 80% → 60% |
 | gemma3:12b + deepseek-r1:8b | 80% → **7%** | 80% → 60% |
 
-**Prompt v3, Stage B** — pilot paper, held-out split, all item types (55 items:
-20 true claims, 35 errors):
+**Prompt v3, Stage B** — held-out split, all item types. Dissertation: 83 items
+(28 true claims, 55 errors). Pilot paper: 55 items (20 true, 35 errors).
 
-| Judge / panel | False-accept ↓ | False-reject ↓ | Disputed |
-|---|---|---|---|
-| **phi4** | **6%** (2/35) | **5%** (1/20) | 0% |
-| **gemma3:12b + phi4** (unanimous) | **3%** | **5%** | 24% |
-| gemma3:12b | 34% | 0% | 0% |
-| mistral-nemo | 40% | 15% | 0% |
-| deepseek-r1:8b | invalid — see [Known limitations](#known-limitations) | | |
+| Judge / panel | Dissertation FA ↓ / FR ↓ / disputed | Pilot paper FA ↓ / FR ↓ / disputed |
+|---|---|---|
+| **phi4 (new default)** | **5%** (3/55) / 7% (2/28) / 0% | **6%** (2/35) / 5% (1/20) / 0% |
+| phi4 + gemma3:12b (unanimous) | **2%** (1/55) / 7% / 13% | **3%** / 5% / 24% |
+| gemma3:12b | 15% / 0% / 0% | 34% / 0% / 0% |
+| mistral-nemo | — | 40% / 15% / 0% |
+| deepseek-r1:8b | — | invalid — see [Known limitations](#known-limitations) |
 
-Takeaways so far: the generator model is the weakest judge of its own output
-(qwen2.5 barely moves under v3), **phi4** is the strongest single judge measured,
-and adding a second judge trades a few points of false-accept for a large human
-review queue. Samples are small (one false-reject = 5%), so these steer the next
-experiments rather than settle them.
+*FA = false-accept, FR = false-reject.* Detection by error type on the
+dissertation (phi4 / panel): negation, number, conjunction and swapped passage
+100% / 100%; overclaim 96% / 100%; **plan→result 67% / 83%** (n=6).
+
+Takeaways: the generator model is the weakest judge of its own output (qwen2.5
+barely moves under v3); **phi4 is the strongest single judge and consistent
+across both corpora**, so it became the default; gemma3:12b alone lets number
+changes and plan→result errors through; adding gemma3:12b to phi4 lowers
+false-accept to 2–3% at the cost of 13–24% of claims going to human review.
+Samples are small (one item = 2–5%), and synthetic items are easier than real
+generator errors.
 
 ---
 
@@ -171,8 +181,8 @@ Set with `VERIFY_PROMPT`; compare with `judge-eval --prompts v1 v2 v3`.
 | Version | Adds | Status |
 |---|---|---|
 | `v1` | Plain entailment: supported / partially_supported / unsupported | Superseded |
-| `v2` | Explicit evidence-strength field; a claim stronger than its source (overclaim) cannot be `supported` | **Default** |
-| `v3` | Two extra checks: a plan, hypothesis or planned measure restated as a result (`plan_as_result`), and another study's finding claimed for this study (`misattributed`); either one forces `unsupported` | Under validation |
+| `v2` | Explicit evidence-strength field; a claim stronger than its source (overclaim) cannot be `supported` | Previous default |
+| `v3` | Two extra checks: a plan, hypothesis or planned measure restated as a result (`plan_as_result`), and another study's finding claimed for this study (`misattributed`); either one forces `unsupported` | **Default** (validated with phi4) |
 
 Judges answer in JSON. A self-contradicting vote (`claim_stronger` but labelled
 `supported`) is downgraded to `partially_supported`.
@@ -204,15 +214,25 @@ the box.
 
 ```bash
 ollama serve                       # if not already running
-ollama pull qwen2.5:7b-instruct    # generator + judge
-ollama pull gemma3:12b             # second judge (different model family)
-ollama pull phi4                   # optional: strongest judge measured so far
+ollama pull qwen2.5:7b-instruct    # generator
+ollama pull phi4                   # judge (different family from the generator)
+ollama pull gemma3:12b             # optional: second judge for a stricter panel
 #   defaults: OLLAMA_MODEL=qwen2.5:7b-instruct
-#             JUDGES=ollama:qwen2.5:7b-instruct,ollama:gemma3:12b
+#             JUDGES=ollama:phi4:latest   VERIFY_PROMPT=v3
 ```
 
 A judge whose model is not pulled is skipped with a message; with no judge left,
 the generator's own model judges.
+
+**Compute cost on a CPU-only machine** (measured on an i7-8700, 6 cores, 64 GB
+RAM, Ollama without GPU): generator + phi4 hold about 22 GB of RAM while
+loaded; one phi4 judgment takes 38–50 s (about 110 s for the first call, which
+loads the model), at about 55% CPU. An `ask` answer usually carries one or two
+claims, so verification adds roughly 45–100 s; `check` judges each sentence
+against up to five passages and stops at the first that supports it, so a
+sentence costs 45 s to about 4 min. Adding gemma3:12b as a second judge roughly
+doubles the verification time, adds about 9 GB, and uses a third Ollama model
+slot.
 
 **Option B — Claude API (higher quality on the structured prompts):**
 
@@ -242,9 +262,9 @@ verification are stand-ins (pipeline shape only).
 | `OLLAMA_MODEL` | `qwen2.5:7b-instruct` | Generator model |
 | `OLLAMA_THINK_BUDGET` | `2000` | Extra tokens for models with the `thinking` capability (see below) |
 | `OLLAMA_SECONDS_PER_TOKEN` | `0.4` | Request timeout = max(300 s, 60 s + token limit × this) |
-| `JUDGES` | `ollama:qwen2.5:7b-instruct,ollama:gemma3:12b` | Comma-separated `backend:model` judge list |
+| `JUDGES` | `ollama:phi4:latest` | Comma-separated `backend:model` judge list |
 | `PANEL_RULE` | `unanimous` | `unanimous` or `majority` |
-| `VERIFY_PROMPT` | `v2` | Judge prompt version |
+| `VERIFY_PROMPT` | `v3` | Judge prompt version |
 | `QUOTE_REQUIRED` | off | `1` also rejects claims without a supporting quote |
 
 ### Local Ollama notes
@@ -460,8 +480,15 @@ overloaded:
 
 ```powershell
 $env:PYTHONIOENCODING="utf-8"
-python -u -m eval.resource_guard --log-every-s 300 -- python -u cli.py judge-eval --prompts v3 --split test
+python -u -m eval.resource_guard --log-every-s 300 --models phi4:latest gemma3:12b -- python -u cli.py judge-eval --judges ollama:phi4:latest ollama:gemma3:12b --prompts v3 --split test
 ```
+
+When it stops a job, the guard unloads only the Ollama models named in
+`--models` (the job's own). Other loaded models are left alone, because the
+Ollama server may be shared with other projects and a model loaded mid-run may
+be theirs; without `--models` nothing is unloaded. Every judge vote is written
+to the cache as soon as it is cast, so a stopped `judge-eval` resumes where it
+left off when rerun; the report is written only at the end.
 
 | Flag | Default | Stops the run when |
 |---|---|---|
@@ -470,13 +497,17 @@ python -u -m eval.resource_guard --log-every-s 300 -- python -u cli.py judge-eva
 | `--max-swap-growth-gb` | 2 | swap grows by more than this |
 | `--max-cpu-pct` | 95 | CPU stays above this for `--cpu-window-s` (180 s) |
 | `--interval-s` / `--log-every-s` | 5 / 60 | sampling and logging intervals |
+| `--models` | none | (not a limit) Ollama models to unload when the guard stops the job |
 
 Practice that has worked: run a short calibration first (a few items per new
 model) to replace guessed timings with measured ones; launch long runs detached
 (e.g. PowerShell `Start-Process`) rather than from a tool session that may time
 out; and copy `eval_report.md` / `judge_report.md` before rerunning, because
-reports are overwritten. Measured load with four 7–14B judges on CPU: peak CPU
-85%, RAM 64% of 64 GB.
+reports are overwritten. Measured load on CPU: four 7–14B judges peaked at
+85% CPU and 64% RAM of 64 GB; phi4 + gemma3:12b on 83 items took about 2 h at
+about 55% average CPU. If another job uses the same Ollama server at the same
+time, both slow down sharply and the CPU limit can trip, so check for other
+Ollama clients right before launching.
 
 ---
 
@@ -484,14 +515,16 @@ reports are overwritten. Measured load with four 7–14B judges on CPU: peak CPU
 
 1. **Plan read as result.** The generator once restated a planned assessment
    as a reported finding, and every judge approves that real case under v2 and
-   v3, although v3 catches most synthetic versions. Real errors are paraphrased
+   v3, although v3 catches most synthetic versions (phi4 4/6 on the
+   dissertation's held-out split; that split holds no real regression case). Real errors are paraphrased
    (often a Chinese claim over an English passage) and harder than the
    synthetic items.
 2. **Background statements attributed to this study.** v3 catches most
    "Author et al. found → This study found" swaps, but on the pilot paper at
    most 40% of swaps of background statements.
-3. **Self-judging.** The default generator is also a default judge, and the
-   weakest one; replacing it on the panel is the next configuration change.
+3. **Self-judging — resolved in the default.** qwen2.5 was both generator and
+   judge, and the weakest judge; the default judge is now phi4. The system
+   results above predate this change.
 4. **Negative facts.** "The paper says X was not done" tends to be refused
    (over-refusal).
 5. **Format drift.** The refusal marker inside `<claim>`, translated quotes and
@@ -501,19 +534,20 @@ reports are overwritten. Measured load with four 7–14B judges on CPU: peak CPU
 7. **Reasoning-model judges are too slow on CPU.** With room for its thinking,
    `deepseek-r1:8b` needs 4–8 minutes per judgment (one exceeded 5 minutes), so
    it was dropped as a judge; its Stage B result above is invalid.
-8. **Small samples.** Pilot-paper rates rest on 20–55 items; no confidence
-   intervals are reported yet.
+8. **Small samples.** Judge rates rest on 55–83 items and system rates on
+   20–51 questions; no confidence intervals are reported yet.
+9. **Verification is slow on CPU.** Each phi4 judgment takes 38–50 s, so
+   `check` on a long paragraph can take several minutes (see Setup).
 
 ## Roadmap
 
 1. ~~Re-validate `deepseek-r1:8b`~~ — dropped as too slow on CPU.
-2. Stage B on the dissertation's held-out split (phi4, gemma3:12b).
-3. Choose a panel without the generator model (phi4 alone vs gemma3:12b + phi4:
-   false-accept vs human-review load).
-4. Close the plan→result gap: harder items shaped like real generator outputs,
+2. ~~Stage B on the dissertation's held-out split~~ — done (results above).
+3. ~~Choose a panel without the generator model~~ — phi4 alone, prompt v3.
+4. **Rerun the system evaluation on both corpora under the new default** (next).
+5. Close the plan→result gap: harder items shaped like real generator outputs,
    and a rule-based check (planning/future markers in the cited passage + a
    result-asserting claim → flag) that does not depend on the judge.
-5. Make the chosen prompt and panel the default; rerun both corpora.
 6. Generator prompt: answer negative facts, attribute cited studies explicitly,
    keep quotes in the source language, refuse only in `<unsupported_note>`.
 7. Resumable `run_eval` (save per question).

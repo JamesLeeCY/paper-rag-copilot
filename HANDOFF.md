@@ -1,6 +1,6 @@
 # Handoff — Dissertation RAG Copilot
 
-State as of **2026-10-06**. Read this first when picking the project up. The
+State as of **2026-10-07**. Read this first when picking the project up. The
 README covers setup and usage; this file covers what has been built, what the
 measurements say, what is in flight, and what to do next.
 
@@ -48,21 +48,25 @@ question ──► hybrid retrieval (dense ⊕ BM25, RRF) ──► top-5 passag
 | `src/retrieve.py` | Hybrid search, RRF, optional cross-encoder rerank |
 | `src/generate.py` | Citation-forcing prompt; tolerant XML parser (unclosed `<claim>`, refusal marker inside `<claim>`) |
 | `src/verify.py` | Quote check, citation repair, judge panel, prompts v1/v2/v3 |
-| `src/llm.py` | Claude / Ollama backends; strips `<think>`; checks the model is pulled |
+| `src/llm.py` | Claude / Ollama backends; thinking-model budget, timeout scaled to token limit; strips `<think>`; checks the model is pulled |
 | `src/pipeline.py` | `ask`, `check` (verifies a user's own sentences), CLI rendering |
 | `eval/run_eval.py` | Main harness: retrieval, grounding, refusal, traps by tier |
 | `eval/judge_set.py` | Builds the known-answer judge validation set (rule-based perturbations) |
 | `eval/judge_eval.py` | Scores judges / panels / prompt versions; vote cache makes it resumable |
-| `eval/resource_guard.py` | Wraps long local-LLM jobs; stops them on RAM/CPU/swap overload |
+| `eval/resource_guard.py` | Wraps long local-LLM jobs; stops them on RAM/CPU/swap overload; unloads only the job's own models (`--models`) |
 
-### Default configuration (validated)
+### Default configuration (changed 2026-10-07)
 
 | Setting | Value | Why |
 |---|---|---|
 | Generator | `qwen2.5:7b-instruct` | Follows the XML/quote format far better than llama3 |
-| Judges | `qwen2.5:7b-instruct` + `gemma3:12b`, unanimous | Two families; 0% false-accept / 4% false-reject on the held-out judge split (v2) |
-| Judge prompt | `v2` | `v3` helps on synthetic items but its false-reject rate is unmeasured and it still misses the real regression case (see §6) |
+| Judge | **`phi4`** alone | Best single judge on both corpora under v3 (held-out: dissertation 5% FA / 7% FR, pilot 6% / 5%, 0% disputed); takes the generator model off the judge seat. Previous: `qwen2.5` + `gemma3:12b`, unanimous |
+| Judge prompt | **`v3`** | phi4 was validated under v3. Previous: `v2` |
 | Chunking | section-aware | Best on the dissertation; see §4 for the pilot paper |
+
+**The system results in §4 were measured under the previous default**; the
+rerun under the new default is §7 step 1. Stricter option:
+`JUDGES=ollama:phi4:latest,ollama:gemma3:12b` (FA 2–3%, but 13–24% disputed).
 
 Corpora: `CORPUS=dissertation` (default) and `CORPUS=nature_walking_2026`
 (pilot: Watkins-Martin et al., 2026, *J. Environ. Psychol.* 115:103188, CC-BY;
@@ -145,6 +149,26 @@ unexplained — it has not been run under v2 on this corpus, so v3 and corpus
 difficulty cannot be separated yet. Panels containing deepseek-r1 equal the
 same panel without it (its unparsable votes are dropped).
 
+**Prompt v3, Stage B step 1** (dissertation, held-out split, all item types:
+83 items, 28 true claims, 55 errors; 2026-10-07 17:08–19:05):
+
+| Judge / panel | False-accept ↓ | False-reject ↓ | Acc. (3-class) | κ | Disputed |
+|---|---|---|---|---|---|
+| **phi4** | **5%** (3/55) | 7% (2/28) | 81% | 0.71 | 0% |
+| gemma3:12b | 15% (8/55) | **0%** | 82% | 0.73 | 0% (1 unparsed) |
+| **phi4 + gemma3:12b** (unanimous) | **2%** (1/55) | 7% (2/28) | 75% | 0.64 | 13% |
+
+Share of perturbed items not waved through (phi4 / gemma3:12b / panel):
+negation 100/100/100, number 100/**50**/100, conjunction 100/83/100,
+overclaim 96/92/100, swap_passage 100/100/100, **plan→result 67/50/83** (n=6),
+attribution swap 100 across (n=1); originals judged supported 93/100/93.
+This split holds no regression items, so the real plan→result case was not
+tested here. gemma3:12b is weaker on both corpora (15% and 34% FA), so its
+pilot showing was not just corpus difficulty. One gemma3 call got HTTP 500
+from Ollama; it was recorded as no vote and the run continued (it will be
+re-judged on the next run). Report copies: `eval/reports/judge_report_stageB1.md`,
+`judge_results_stageB1.json` (local).
+
 ## 5. Known weaknesses and open findings
 
 1. **Plan read as result — still open.** The generator restated a planned
@@ -160,11 +184,10 @@ same panel without it (its unparsable votes are dropped).
 2. **Cited study attributed to this study — partly addressed.** v3 helps on
    "Author et al. found → This study found" swaps, but the pilot paper's
    background-statement swaps stay at ≤ 40% detection.
-3. **Self-judging — and qwen2.5 is the weakest judge here.** qwen2.5 is both
-   generator and judge, has approved its own errors twice, and v3 barely
-   changes its votes on the new error types (87% false-accept). On the pilot
-   paper's held-out split **phi4** is the strongest replacement (6% / 5%);
-   mistral-nemo is ruled out (40% / 15%). Not yet run on the dissertation.
+3. **Self-judging — resolved in the default (2026-10-07).** qwen2.5 was both
+   generator and judge, had approved its own errors twice, and barely changed
+   under v3 (87% false-accept on the new error types). The default judge is now
+   **phi4** (dissertation 5% / 7%, pilot 6% / 5%); mistral-nemo is ruled out.
 4. **Negative facts refused.** "The paper says X was not done" was answered
    with the refusal marker (over-refusal).
 5. **Format drift.** Refusal marker placed inside `<claim>` (3× dissertation,
@@ -230,7 +253,7 @@ assessment (see §8):
 | Step | Scope | Status |
 |---|---|---|
 | 0. Calibration | phi4, mistral-nemo, 3 items each | Done. Per judgment on a loaded model: phi4 ~38 s, mistral-nemo ~21 s (first call incl. load: 111 s / 62 s). Peak CPU 61%, RAM 40% |
-| 1. Dissertation | 83 items (28 true) | **Not run** — skipped by the owner for now |
+| 1. Dissertation | 83 items (28 true), phi4 / gemma3:12b | Done 2026-10-07, 17:08–19:05 (phi4 ~50 s per item, gemma3 ~30 s). Avg CPU ~55%, peak 100%; RAM peak 56%; guard never fired. Results in §4 |
 | 2. Pilot paper | 55 items (20 true), gemma3:12b / deepseek-r1:8b / phi4 / mistral-nemo | Done 2026-10-06, 12:00–14:51. Peak CPU 85%, RAM 64%; guard never fired. Results in §4 |
 
 Step 2 ran from `eval/reports/stage_b2.cmd` (local) under the guard; report
@@ -253,27 +276,34 @@ exited. Ollama now keeps up to three models loaded, so this should not recur.
 Every step that runs local models needs the owner's approval of a plan and
 resource assessment first (§8).
 
-1. ~~Re-validate deepseek-r1~~ — **dropped** (too slow on CPU; §5 item 7).
-   Its Stage B votes and every panel containing it are not meaningful.
-2. **Stage B step 1 (dissertation held-out split)** — next. Judges: phi4 and
-   gemma3:12b (mistral-nemo and deepseek-r1 dropped). Needs a plan and resource
-   assessment first (§8); check that no `line_chat` job is using Ollama.
-3. **Choose the panel without the generator model.** Pilot-paper evidence:
-   phi4 alone 6% false-accept / 5% false-reject / 0% disputed; gemma3:12b +
-   phi4 3% / 5% / 24% disputed. The trade-off is human-review load.
-4. **Close the plan→result gap.** The real case is still approved under v3:
-   add harder items shaped like real generator outputs, and/or a rule-based
-   check (planning/future markers in the cited passage + a result-asserting
-   claim → flag) that does not rely on the judge.
-5. Make the chosen prompt + panel the default and rerun both corpora.
-6. Generator prompt: answer negative facts; attribute cited studies
+Done since the last handoff: deepseek-r1 dropped (§5 item 7); Stage B step 1
+run (§4); default judge set to phi4 alone with prompt v3 (owner's decision,
+2026-10-07; §2).
+
+1. **Rerun the system evaluation on both corpora under the new default**
+   (`eval --with-llm`, `CORPUS=dissertation` then `nature_walking_2026`).
+   Owner's instruction (2026-10-07): run only once the other Ollama users
+   (`line_chat`, `D:\2026_manuscripts\Study1` VLM triage) have finished and the
+   CPU is free. Estimated ~1–1.5 h per corpus; RAM ~60% (qwen2.5 + phi4);
+   `run_eval` is not resumable, so launch detached under the guard with
+   `--models qwen2.5:7b-instruct phi4:latest`. Compare with the §4 numbers
+   measured under the previous default.
+2. **Close the plan→result gap.** The real case is still approved under v3,
+   and phi4 misses 2/6 synthetic items: add harder items shaped like real
+   generator outputs, and/or a rule-based check (planning/future markers in the
+   cited passage + a result-asserting claim → flag) that does not rely on the
+   judge.
+3. `check` cost under phi4: it judges each sentence against up to five
+   passages (45 s – ~4 min per sentence on CPU). Consider judging only the top
+   one or two passages; measure the effect on its verdicts first.
+4. Generator prompt: answer negative facts; attribute cited studies
    explicitly; keep quotes in the source language; put refusals only in
    `<unsupported_note>`.
-7. Resumable `run_eval` (save per question) — the tool's background tasks are
+5. Resumable `run_eval` (save per question) — the tool's background tasks are
    killed after ~30 min; long runs are launched detached for now.
-8. Human-labelled judge items (`data/golden/judge_set_human.jsonl`, schema in
+6. Human-labelled judge items (`data/golden/judge_set_human.jsonl`, schema in
    `judge_set_human.example.jsonl`) — owner's task, not started.
-9. Confidence intervals in reports; grounded vs baseline prompt comparison.
+7. Confidence intervals in reports; grounded vs baseline prompt comparison.
 
 ## 8. Operational notes
 
@@ -284,11 +314,15 @@ resource assessment first (§8).
   step by step. A cheap calibration (a few items per new model) first is the
   accepted way to replace guessed timings with measured ones.
 - **Shared Ollama server:** `D:\side_project\line_chat` runs long `src.community
-  label/critique` jobs (qwen3:8b, phi4) started from other sessions, and
-  `Alpha Machine\tg_bot.py` may call `llama3`. Check for them right before
-  launching, not only at planning time. When the guard stops a job it unloads
-  **every** loaded Ollama model, including other projects' — consider limiting
-  it to the job's own models.
+  label/critique` jobs (qwen3:8b, phi4) started from other sessions (its
+  `annotate --queue` process stays up and does not block),
+  `D:\2026_manuscripts\Study1\scripts\32_vlm_triage.py` uses `gemma3:4b`, and
+  `Alpha Machine\tg_bot.py` may call `llama3`. Check for them (processes and
+  established connections to port 11434) right before launching, not only at
+  planning time; Ollama holds at most three models, so a third project's model
+  can start evictions. The guard now unloads only the models passed with
+  `--models` (fixed 2026-10-07; it used to unload every loaded model,
+  including other projects').
 - **Long local runs:** launch detached (PowerShell `Start-Process`) under
   `eval.resource_guard`; tool-managed background tasks stop at ~30 min.
   Measured load with two judges: CPU ~50–80%, RAM ~45% of 64 GB; with three
@@ -351,3 +385,7 @@ resource assessment first (§8).
 | `2e3b63c` | PDF hardening on a real article; resource guard |
 | `4a0444f` | Prompt v3; plan→result and attribution items; regression items |
 | `40461dc` | This handoff file (later updates: `e554507` Stage A, `9c85db5` Ollama fix) |
+| `d789ff4` | Token budget for Ollama thinking models (deepseek-r1 empty answers) |
+| `01e8580` | Scaled Ollama timeout; failed judge casts no vote; re-judge cached `unparsed` |
+| `5eed641` | deepseek-r1 dropped as a judge |
+| (this commit) | Default judge phi4 + prompt v3; guard unloads only its own models; Stage B step 1 results |

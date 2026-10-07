@@ -146,10 +146,14 @@ LLM_MODEL = CLAUDE_MODEL if LLM_BACKEND == "claude" else OLLAMA_MODEL
 #   JUDGES="ollama:llama3:latest,ollama:qwen2.5:7b-instruct"
 # Empty -> a single judge on the generator's own backend (original behaviour).
 # Judges from different model families make correlated errors less likely.
-# Default on the Ollama backend: the panel selected on the judge validation
-# set (qwen2.5 + gemma3:12b, two families; 0% false-accept, 4% false-reject on
-# the held-out split). Judges whose model is not pulled are skipped.
-DEFAULT_OLLAMA_JUDGES = "ollama:qwen2.5:7b-instruct,ollama:gemma3:12b"
+# Default on the Ollama backend: phi4 alone, selected on the judge validation
+# set under prompt v3 (held-out split: dissertation 5% false-accept / 7%
+# false-reject, pilot paper 6% / 5%, 0% disputed). It also takes the generator
+# model (qwen2.5) off the judge seat; qwen2.5 was the weakest judge and had
+# approved its own errors. For fewer false-accepts at the cost of a human-review
+# queue (13-24% disputed), use JUDGES="ollama:phi4:latest,ollama:gemma3:12b".
+# Judges whose model is not pulled are skipped.
+DEFAULT_OLLAMA_JUDGES = "ollama:phi4:latest"
 JUDGES = [
     j.strip()
     for j in os.environ.get(
@@ -160,9 +164,11 @@ JUDGES = [
 # How panel votes combine: "unanimous" -> any disagreement is "disputed";
 # "majority" -> a strict majority label wins, otherwise "disputed".
 PANEL_RULE = os.environ.get("PANEL_RULE", "unanimous")
-# Judge prompt version (see src/verify.py): "v2" adds an explicit
-# evidence-strength (overclaim) check; "v1" is the original prompt.
-VERIFY_PROMPT = os.environ.get("VERIFY_PROMPT", "v2")
+# Judge prompt version (see src/verify.py): "v1" is the original prompt, "v2"
+# adds an explicit evidence-strength (overclaim) check, "v3" adds the
+# plan-as-result and misattribution checks. v3 is the default because the
+# default judge (phi4) was validated under it.
+VERIFY_PROMPT = os.environ.get("VERIFY_PROMPT", "v3")
 
 # -- Quote grounding --
 # The generator attaches a verbatim <quote> from the cited passage to every
