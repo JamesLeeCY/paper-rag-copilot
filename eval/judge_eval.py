@@ -44,6 +44,10 @@ def _load_cache() -> dict[str, str]:
     if VOTES_PATH.exists():
         for line in VOTES_PATH.open(encoding="utf-8"):
             row = json.loads(line)
+            if row["label"] == UNPARSED:
+                # Not a verdict: judge it again on the next run. The log is
+                # append-only, so a later valid vote for the key takes over.
+                continue
             key = row["key"]
             if key.count("|") == 2:      # cached before prompt versions existed
                 key = "v1|" + key

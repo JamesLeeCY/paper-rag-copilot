@@ -318,13 +318,19 @@ class Verifier:
     def _llm_vote(
         llm: LLMClient, statement: str, passage: str, prompt: str | None = None
     ) -> tuple[str, str] | None:
-        """One judge's independent verdict; it sees only the claim and passage."""
-        raw = llm.complete(
-            prompt or VERIFY_SYSTEM,
-            f"原文：\n{passage}\n\n論點：\n{statement}",
-            max_tokens=300,
-            json_mode=True,
-        )
+        """One judge's independent verdict; it sees only the claim and passage.
+        A judge that times out or errors casts no vote rather than aborting the
+        whole verification or evaluation run."""
+        try:
+            raw = llm.complete(
+                prompt or VERIFY_SYSTEM,
+                f"原文：\n{passage}\n\n論點：\n{statement}",
+                max_tokens=300,
+                json_mode=True,
+            )
+        except (OSError, ValueError) as e:   # timeouts, connection errors, bad JSON body
+            print(f"[verify] judge {llm.describe()} failed ({type(e).__name__}: {e}); no vote")
+            return None
         m = _JSON_RE.search(raw)
         if not m:
             return None

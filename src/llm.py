@@ -122,8 +122,10 @@ class LLMClient:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        # Local generation on CPU can be slow; give it room.
-        with urllib.request.urlopen(req, timeout=300) as resp:
+        # Local generation on CPU can be slow; give it room in proportion to
+        # how many tokens it may produce.
+        timeout = max(300.0, 60.0 + max_tokens * config.OLLAMA_SECONDS_PER_TOKEN)
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.loads(resp.read().decode("utf-8"))
         content = data["message"].get("content", "")
         if not content.strip() and data["message"].get("thinking"):
