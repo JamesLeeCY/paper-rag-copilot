@@ -241,6 +241,7 @@ verification are stand-ins (pipeline shape only).
 | `OLLAMA_HOST` | `http://localhost:11434` | Ollama server |
 | `OLLAMA_MODEL` | `qwen2.5:7b-instruct` | Generator model |
 | `OLLAMA_THINK_BUDGET` | `2000` | Extra tokens for models with the `thinking` capability (see below) |
+| `OLLAMA_SECONDS_PER_TOKEN` | `0.4` | Request timeout = max(300 s, 60 s + token limit × this) |
 | `JUDGES` | `ollama:qwen2.5:7b-instruct,ollama:gemma3:12b` | Comma-separated `backend:model` judge list |
 | `PANEL_RULE` | `unanimous` | `unanimous` or `majority` |
 | `VERIFY_PROMPT` | `v2` | Judge prompt version |
@@ -255,7 +256,8 @@ verification are stand-ins (pipeline shape only).
   that model). The client now reads each model's capabilities from `/api/show`
   and gives models reporting `thinking` an extra `OLLAMA_THINK_BUDGET` tokens;
   an empty answer after thinking is logged. Expect such judges to be slow on
-  CPU (one `deepseek-r1:8b` judgment ≈ 1,200 tokens ≈ 4 minutes). Older
+  CPU (a `deepseek-r1:8b` judgment takes 4–8 minutes); the request timeout
+  scales with the token limit (`OLLAMA_SECONDS_PER_TOKEN`). Older
   servers that return `<think>…</think>` inline are still handled by stripping
   the block.
 - **Keeping several models loaded.** A judge panel switches models on every
@@ -496,18 +498,16 @@ reports are overwritten. Measured load with four 7–14B judges on CPU: peak CPU
    unclosed tags occur; all are handled and counted, not hidden.
 6. **Judges are not deterministic.** The same pair can get different votes
    across runs; decide on larger sets or repeated runs.
-7. **Reasoning-model judges are slow on CPU.** With the thinking budget fixed,
-   `deepseek-r1:8b` parses again but takes minutes per judgment; its Stage B
-   result above is invalid and has not been rerun yet.
+7. **Reasoning-model judges are too slow on CPU.** With room for its thinking,
+   `deepseek-r1:8b` needs 4–8 minutes per judgment (one exceeded 5 minutes), so
+   it was dropped as a judge; its Stage B result above is invalid.
 8. **Small samples.** Pilot-paper rates rest on 20–55 items; no confidence
    intervals are reported yet.
 
 ## Roadmap
 
-1. Re-validate `deepseek-r1:8b` with the thinking budget; decide whether its
-   speed is acceptable.
-2. Stage B on the dissertation's held-out split (phi4, gemma3:12b, and
-   deepseek-r1 if kept).
+1. ~~Re-validate `deepseek-r1:8b`~~ — dropped as too slow on CPU.
+2. Stage B on the dissertation's held-out split (phi4, gemma3:12b).
 3. Choose a panel without the generator model (phi4 alone vs gemma3:12b + phi4:
    false-accept vs human-review load).
 4. Close the plan→result gap: harder items shaped like real generator outputs,

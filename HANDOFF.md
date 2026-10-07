@@ -184,12 +184,20 @@ same panel without it (its unparsable votes are dropped).
    its own after 1,174 tokens (234 s) and returned valid JSON. **Fixed in
    `src/llm.py`:** models whose `/api/show` capabilities include `thinking`
    get `OLLAMA_THINK_BUDGET` (default 2000) extra tokens; an empty answer
-   after thinking is logged. Not yet re-validated on a batch (§7 step 1).
-   Cost: ~4 min per judgment on CPU, so 55 items ≈ 3.5 h.
-   **Vote cache caveat:** `judge_eval.py` caches unparsable votes as
-   `UNPARSED`, so the broken Stage B step 2 deepseek-r1 votes in the pilot
-   corpus's `judge_votes.jsonl` would be reused. Remove those entries (or
-   treat `UNPARSED` as a cache miss) before rerunning.
+   after thinking is logged. **Re-validation attempt 2026-10-07 09:28** (5
+   pilot test items, no competing load, CPU ~58%): the first judgment was
+   still generating at the fixed 300 s client timeout and the uncaught
+   `TimeoutError` aborted the run. Real cost is therefore 4–8 min per
+   judgment on CPU (pilot 55 items ≈ 4–7 h, dissertation 83 ≈ 6–11 h).
+   **Decision (owner, 2026-10-07): drop deepseek-r1 as a judge**; phi4 is
+   faster (~38 s) and already at 6% / 5% on the pilot split. Follow-up fixes
+   made anyway: the Ollama timeout now scales with the token limit
+   (`OLLAMA_SECONDS_PER_TOKEN`), a judge that times out or errors casts no vote
+   instead of aborting the run, and `judge_eval.py` no longer treats cached
+   `unparsed` votes as cache hits (they are re-judged on the next run).
+   An earlier 4b attempt (2026-10-06 19:29) was stopped by the guard because a
+   `line_chat` labelling job started on `qwen3:8b` 25 s later; the guard's
+   unload of *all* models also interrupted that job (see §8).
 
 ## 6. v3 validation status
 
@@ -245,13 +253,11 @@ exited. Ollama now keeps up to three models loaded, so this should not recur.
 Every step that runs local models needs the owner's approval of a plan and
 resource assessment first (§8).
 
-1. **Re-validate deepseek-r1 after the thinking-budget fix** (§5 item 7):
-   diagnosis and code fix done; next, clear its `UNPARSED` cached votes and
-   run ~5 items through `judge-eval` to confirm it parses. Then decide whether
-   ~4 min per judgment is acceptable; if not, drop it. Until then its Stage B
-   votes and every panel containing it are not meaningful.
-2. **Stage B step 1 (dissertation held-out split)** — skipped so far. Proposed
-   judges: phi4, gemma3:12b, and deepseek-r1 once fixed (drop mistral-nemo).
+1. ~~Re-validate deepseek-r1~~ — **dropped** (too slow on CPU; §5 item 7).
+   Its Stage B votes and every panel containing it are not meaningful.
+2. **Stage B step 1 (dissertation held-out split)** — next. Judges: phi4 and
+   gemma3:12b (mistral-nemo and deepseek-r1 dropped). Needs a plan and resource
+   assessment first (§8); check that no `line_chat` job is using Ollama.
 3. **Choose the panel without the generator model.** Pilot-paper evidence:
    phi4 alone 6% false-accept / 5% false-reject / 0% disputed; gemma3:12b +
    phi4 3% / 5% / 24% disputed. The trade-off is human-review load.
@@ -277,6 +283,12 @@ resource assessment first (§8).
   peak load, duration, guard thresholds); run only after the owner approves,
   step by step. A cheap calibration (a few items per new model) first is the
   accepted way to replace guessed timings with measured ones.
+- **Shared Ollama server:** `D:\side_project\line_chat` runs long `src.community
+  label/critique` jobs (qwen3:8b, phi4) started from other sessions, and
+  `Alpha Machine\tg_bot.py` may call `llama3`. Check for them right before
+  launching, not only at planning time. When the guard stops a job it unloads
+  **every** loaded Ollama model, including other projects' — consider limiting
+  it to the job's own models.
 - **Long local runs:** launch detached (PowerShell `Start-Process`) under
   `eval.resource_guard`; tool-managed background tasks stop at ~30 min.
   Measured load with two judges: CPU ~50–80%, RAM ~45% of 64 GB; with three
