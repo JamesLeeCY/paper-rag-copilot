@@ -104,9 +104,33 @@ def eval_retrieval(strategy: str, golden: dict, use_rerank: bool) -> dict:
 # --------------------------------------------------------------------------
 # Generation-grounded evaluation (needs LLM)
 # --------------------------------------------------------------------------
+def _claim_detail(g, v) -> list[dict]:
+    """Per-claim record (claim, quote, cited passage, verdict, votes, reason) so
+    a verdict can be audited after the run. Verdicts align with claims by index.
+    Contains corpus text: eval_results.json stays local (reports are gitignored)."""
+    from src.verify import _passage_text
+
+    out = []
+    for claim, verdict in zip(g.claims, v.verdicts):
+        out.append({
+            "statement": claim.statement,
+            "quote": claim.quote,
+            "cited": claim.citation_ids,
+            "judged_against": verdict.citation_ids,
+            "passages": {cid: (_passage_text(g, cid) or "")[:2000]
+                         for cid in verdict.citation_ids},
+            "label": verdict.label,
+            "method": verdict.method,
+            "quote_check": verdict.quote_check,
+            "votes": verdict.votes,
+            "reason": verdict.reason,
+        })
+    return out
+
+
 def eval_grounding(
     strategy: str, golden: dict, llm: LLMClient, limit: int | None = None,
-    traps_only: bool = False,
+    traps_only: bool = False, answerable_only: bool = False,
 ) -> dict:
     from src.pipeline import ask
     from src.verify import Verifier
@@ -115,6 +139,8 @@ def eval_grounding(
     if traps_only:
         retrieval_items = []
     trap_items = golden["traps"][:limit] if limit else golden["traps"]
+    if answerable_only:
+        trap_items = []
 
     verifier = Verifier(llm=llm)
     print(f"[grounding] verifier {verifier.describe()}")
@@ -163,6 +189,7 @@ def eval_grounding(
             "n_claims": v.n_claims,
             "n_unsupported": v.n_unsupported,
             "n_disputed": v.n_disputed,
+            "claims": _claim_detail(g, v),
             # Keep the raw output of malformed generations for diagnosis
             # (reports are gitignored, so this never leaves the machine).
             **({"raw": g.raw[:2000]} if g.parse_failed else {}),
@@ -199,6 +226,7 @@ def eval_grounding(
             "n_disputed": v.n_disputed,
             "parse_failed": g.parse_failed,
             "misplaced_refusal": g.misplaced_refusal,
+            "claims": _claim_detail(g, v),
         })
 
     n_traps = len(trap_items)
@@ -392,6 +420,8 @@ def main():
                     help="chunking strategy used for the (slow) LLM grounding pass")
     ap.add_argument("--traps-only", action="store_true",
                     help="LLM pass on trap questions only (skip the answerable ones)")
+    ap.add_argument("--answerable-only", action="store_true",
+                    help="LLM pass on answerable questions only (skip the traps)")
     ap.add_argument("--llm-limit", type=int, default=None,
                     help="cap #retrieval and #trap questions for the LLM pass (quick runs)")
     args = ap.parse_args()
@@ -424,7 +454,8 @@ def main():
             results["llm_backend"] = llm.describe()
             results["llm_limit"] = args.llm_limit
             g = eval_grounding(args.llm_strategy, golden, llm, limit=args.llm_limit,
-                               traps_only=args.traps_only)
+                               traps_only=args.traps_only,
+                               answerable_only=args.answerable_only)
             results["grounding"] = [g]
             print(f"[grounding:{args.llm_strategy}] precision strict/lenient="
                   f"{g['citation_precision_strict']}/{g['citation_precision_lenient']} "

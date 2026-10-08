@@ -70,6 +70,8 @@ def cmd_eval(args):
         sys.argv += ["--llm-strategy", args.llm_strategy]
     if args.traps_only:
         sys.argv.append("--traps-only")
+    if args.answerable_only:
+        sys.argv.append("--answerable-only")
     eval_main()
 
 
@@ -124,6 +126,8 @@ def build_parser():
     e.add_argument("--llm-strategy", default="section")
     e.add_argument("--traps-only", action="store_true",
                    help="LLM pass on trap questions only")
+    e.add_argument("--answerable-only", action="store_true",
+                   help="LLM pass on answerable questions only")
     e.set_defaults(func=cmd_eval)
 
     jb = sub.add_parser("judge-build", help="build the synthetic judge validation set")

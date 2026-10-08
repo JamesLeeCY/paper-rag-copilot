@@ -137,6 +137,11 @@ OLLAMA_THINK_BUDGET = int(os.environ.get("OLLAMA_THINK_BUDGET", "2000"))
 # CPU-only generation measured ~5 tokens/s (0.2 s/token); 0.4 leaves a 2x
 # margin. A fixed 300 s cut off a deepseek-r1 judgment still thinking.
 OLLAMA_SECONDS_PER_TOKEN = float(os.environ.get("OLLAMA_SECONDS_PER_TOKEN", "0.4"))
+# CPU threads Ollama may use for this project's requests (sent per request as
+# the num_thread option, so other projects sharing the server are unaffected).
+# 0 = Ollama's default (all physical cores). Set e.g. 3 to leave room for other
+# jobs; generation and judging slow down roughly in proportion.
+OLLAMA_NUM_THREAD = int(os.environ.get("OLLAMA_NUM_THREAD", "0"))
 
 # Back-compat: some modules refer to LLM_MODEL as the active model name.
 LLM_MODEL = CLAUDE_MODEL if LLM_BACKEND == "claude" else OLLAMA_MODEL

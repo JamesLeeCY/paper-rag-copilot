@@ -114,6 +114,8 @@ class LLMClient:
                 "num_predict": max_tokens,
             },
         }
+        if config.OLLAMA_NUM_THREAD > 0:
+            payload["options"]["num_thread"] = config.OLLAMA_NUM_THREAD
         if json_mode:
             payload["format"] = "json"
         req = urllib.request.Request(
