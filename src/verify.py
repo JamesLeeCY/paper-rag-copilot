@@ -192,6 +192,24 @@ def _passage_text(result: GenerationResult, chunk_id: str) -> str:
     return ""
 
 
+def _judge_passage(p) -> str:
+    """Passage as shown to a judge: its section heading, then the text.
+
+    A chunk judged alone can lack context that a true claim relies on (which
+    study or analysis it belongs to); that context usually sits in the heading.
+    Quote checks use the bare text, never this.
+    """
+    heading = p.heading() if hasattr(p, "heading") else getattr(p, "section", "")
+    return f"（章節：{heading}）\n{p.text}" if heading else p.text
+
+
+def _judge_passage_by_id(result: GenerationResult, chunk_id: str) -> str:
+    for p in result.passages:
+        if p.chunk_id == chunk_id:
+            return _judge_passage(p)
+    return ""
+
+
 # --------------------------------------------------------------------------
 # Stage 0: quote grounding
 # --------------------------------------------------------------------------
@@ -222,6 +240,32 @@ def check_quote(quote: str, passages: list[str]) -> str:
         blocks = SequenceMatcher(None, q, pn, autojunk=False).get_matching_blocks()
         best = max(best, sum(b.size for b in blocks if b.size >= 4) / len(q))
     return "near" if best >= config.QUOTE_MATCH_THRESHOLD else "not_found"
+
+
+_SENT_SPLIT_RE = re.compile(r"(?<=[.!?。！？])\s+")
+
+
+def quote_span(quote: str, passages: list) -> list | None:
+    """Passages that together contain every sentence of ``quote``, or None.
+
+    For a quote that is not (near-)verbatim in any single passage because it
+    runs across a chunk boundary (a paragraph split between two chunks): each
+    sentence must be found (near-)verbatim in some retrieved passage. One
+    sentence found nowhere keeps the quote a fabrication. Single-sentence
+    quotes are left to ``check_quote``.
+    """
+    sentences = [s for s in _SENT_SPLIT_RE.split(quote.strip()) if _norm(s)]
+    if len(sentences) < 2:
+        return None
+    used: list = []
+    for s in sentences:
+        hit = next((p for p in passages
+                    if check_quote(s, [p.text]) in ("verbatim", "near")), None)
+        if hit is None:
+            return None
+        if hit not in used:
+            used.append(hit)
+    return used
 
 
 # --------------------------------------------------------------------------
@@ -386,7 +430,7 @@ class Verifier:
         """
         best: ClaimVerdict | None = None
         for p in passages:
-            v = self._judge(statement, p.text)
+            v = self._judge(statement, _judge_passage(p))
             v.citation_ids = [p.chunk_id]
             if best is None or _RANK[v.label] > _RANK[best.label]:
                 best = v
@@ -414,6 +458,19 @@ class Verifier:
             if len(hits) == 1:
                 citation_ids, cited, repaired = [hits[0].chunk_id], [hits[0].text], True
                 quote_status = check_quote(claim.quote, cited)
+            elif not hits:
+                # The quote may run across a chunk boundary: accept it when every
+                # sentence is in a retrieved passage (cited passages tried first),
+                # and judge the claim against all the passages it spans.
+                ordered = ([p for p in result.passages if p.chunk_id in claim.citation_ids]
+                           + [p for p in result.passages if p.chunk_id not in claim.citation_ids])
+                span = quote_span(claim.quote, ordered)
+                if span:
+                    spanned_ids = [p.chunk_id for p in span]
+                    citation_ids = ([c for c in claim.citation_ids if c in spanned_ids]
+                                    + [c for c in spanned_ids if c not in claim.citation_ids])
+                    cited, quote_status = [p.text for p in span], "near"
+                    repaired = citation_ids != claim.citation_ids
         if quote_status == "not_found":
             return ClaimVerdict(
                 claim.statement, claim.citation_ids, "unsupported",
@@ -430,15 +487,17 @@ class Verifier:
         # Stage 1: judges. A claim is supported if *any* cited passage supports it.
         best: ClaimVerdict | None = None
         for cid in citation_ids or [""]:
-            v = self._judge(claim.statement, _passage_text(result, cid))
+            v = self._judge(claim.statement, _judge_passage_by_id(result, cid))
             if best is None or _RANK[v.label] > _RANK[best.label]:
                 best = v
         best.citation_ids = citation_ids
         best.quote_check = quote_status
         if repaired:
             best.citation_repaired_from = claim.citation_ids
-            best.reason = (f"citation id {claim.citation_ids} not in context; "
-                           f"re-attributed to {citation_ids[0]} by verbatim quote. {best.reason}")
+            how = ("quote spans chunks " + " + ".join(citation_ids)
+                   if len(citation_ids) > 1 else f"re-attributed to {citation_ids[0]}")
+            best.reason = (f"citation id {claim.citation_ids} not matched by the quote; "
+                           f"{how} by verbatim quote. {best.reason}")
         return best
 
     def verify(self, result: GenerationResult) -> VerificationReport:

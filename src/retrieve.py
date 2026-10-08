@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import functools
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import config
 from src.embedder import Embedder
@@ -33,6 +33,11 @@ class Passage:
     sparse_rank: int | None = None
     page_start: int = 0
     page_end: int = 0
+    section_path: list = field(default_factory=list)   # headings, outermost first
+
+    def heading(self) -> str:
+        """Full heading path, e.g. "2. Methods > 2.1 Study 1 > 2.1.3 Analysis"."""
+        return " > ".join(self.section_path) or self.section
 
     def locator(self) -> str:
         sec = f"§{self.section_number}" if self.section_number else self.section[:40]
@@ -52,6 +57,9 @@ class Retriever:
         self.bm25 = bm["bm25"]
         self.bm25_ids = bm["ids"]
         self._reranker = None
+        # Heading paths are not in the vector-store metadata; read them from the
+        # chunk file so a judge can see which section a passage belongs to.
+        self.section_paths = _load_section_paths(self.strategy)
 
     # -- candidate generation ------------------------------------------------
     def _dense(self, query: str, k: int) -> list[str]:
@@ -140,9 +148,23 @@ class Retriever:
                     sparse_rank=fused[cid]["sparse_rank"],
                     page_start=meta.get("page_start", 0),
                     page_end=meta.get("page_end", 0),
+                    section_path=self.section_paths.get(cid, []),
                 )
             )
         return passages
+
+
+def _load_section_paths(strategy: str) -> dict[str, list]:
+    """{chunk_id: section_path} from the chunk file; empty if it is missing."""
+    path = config.chunks_path(strategy)
+    if not path.exists():
+        return {}
+    out = {}
+    with path.open(encoding="utf-8") as f:
+        for line in f:
+            row = json.loads(line)
+            out[row["chunk_id"]] = row.get("section_path", [])
+    return out
 
 
 @functools.lru_cache(maxsize=2)
