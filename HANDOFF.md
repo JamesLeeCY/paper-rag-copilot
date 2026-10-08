@@ -196,10 +196,11 @@ recorded here):
 - 1 claim: **phi4 too strict** — the claim uses a narrower but consistent term
   than the passage. Left as is (loosening the prompt risks letting overclaims
   through).
-- 1 claim: rejected by the **quote check**, not phi4 — the generator's quote
-  stitched non-adjacent sentences with a gap, so the contiguous match failed
-  although every sentence is in the passage. Fix: check the quote sentence by
-  sentence.
+- 1 claim: rejected by the **quote check**, not phi4 — the quote ran across
+  a chunk boundary: its first sentences are in the cited chunk, the rest in the
+  next chunk of the same section (a paragraph split between chunks), and the
+  claim cited only the first. Fix: accept a quote whose every sentence is in
+  some retrieved chunk, and judge against all chunks it spans.
 
 With the two fixes, strict precision on this run would be 28/31 (90%).
 Per-claim detail (claim, quote, cited passage, verdict, votes, reason) is now
@@ -320,12 +321,19 @@ run (§4); default judge set to phi4 alone with prompt v3 (owner's decision,
 plus a per-claim rerun of the dissertation's answerable questions and an
 audit of every non-supported claim (§4).
 
-1. **Fix the two causes of false rejections found in the audit (§4), then
-   rerun the 26 answerable questions** (`eval --with-llm --answerable-only`,
-   ~1.5 h with `OLLAMA_NUM_THREAD=3`):
-   - quote check: accept a quote whose sentences each appear in the passage
-     (elided quotes), instead of requiring one contiguous match;
-   - judge input: show the passage's section heading with the passage.
+1. **Rerun the 26 answerable questions to confirm the two audit fixes**
+   (`eval --with-llm --answerable-only`, ~1.5 h with `OLLAMA_NUM_THREAD=3`).
+   Both are implemented (2026-10-08) and pass offline tests on the real chunks:
+   - `verify.quote_span`: a quote not found in one passage is accepted when
+     every sentence is (near-)verbatim in some retrieved passage; the claim is
+     then judged against all spanned chunks (recorded as a citation repair).
+     One sentence found nowhere still marks a fabrication; single-sentence
+     quotes are unaffected.
+   - The judge now sees each passage as `（章節：heading path）` + text
+     (`Passage.section_path`, read from the chunk file; no index rebuild).
+     Quote checks still use the bare text. The judge validation set
+     (`judge-eval`) still passes bare passages, so its numbers are not directly
+     comparable on items where the heading matters.
 2. **Close the plan→result gap.** The real case is still approved under v3,
    and phi4 misses 2/6 synthetic items: add harder items shaped like real
    generator outputs, and/or a rule-based check (planning/future markers in the

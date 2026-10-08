@@ -65,10 +65,12 @@ default's lower strict precision on the dissertation was audited claim by claim
 | 2 claims | phi4 (partial) | **Correct** — the generator mischaracterised the passage; the previous judges would likely have accepted them |
 | 1 claim | phi4 (partial) | Reasonable on what it saw, but true in the document: the chunk lacks the section context that names the analysis |
 | 1 claim | phi4 (partial) | Too strict — a narrower but consistent term |
-| 1 claim | quote check (unsupported) | False rejection — the quote joined non-adjacent sentences, so the contiguous match failed |
+| 1 claim | quote check (unsupported) | False rejection — the quote ran across a chunk boundary (a paragraph split between two chunks) while the claim cited only the first, so the match against that chunk failed |
 
-Two fixes follow from this (quote check per sentence; section heading shown to
-the judge); with them, strict precision on that run would be 90% (28/31). On
+Two fixes follow from this, both now in the code (a quote may span retrieved
+chunks if every sentence is found; the judge sees each passage's section
+heading); with them, strict precision on that run would be 90% (28/31) — to be
+confirmed by a rerun. On
 the pilot paper all four generator errors under the previous default were
 caught as well (three rejected, one disputed).
 
@@ -555,9 +557,11 @@ Ollama clients right before launching.
    20–51 questions; no confidence intervals are reported yet.
 9. **Verification is slow on CPU.** Each phi4 judgment takes 38–50 s, so
    `check` on a long paragraph can take several minutes (see Setup).
-10. **False rejections from context and quote format.** A chunk judged alone
-    can lack the section context a true claim relies on, and a quote that joins
-    non-adjacent sentences fails the contiguous quote match (see Results).
+10. **Chunk boundaries.** A chunk judged alone can lack context a true claim
+    relies on, and a quote can run across two chunks. Both are now mitigated
+    (section heading shown to the judge; quotes checked sentence by sentence
+    across retrieved chunks), but a claim whose support is split across chunks
+    is still judged one chunk at a time.
 
 ## Roadmap
 
@@ -566,8 +570,8 @@ Ollama clients right before launching.
 3. ~~Choose a panel without the generator model~~ — phi4 alone, prompt v3.
 4. ~~Rerun the system evaluation under the new default~~ — done, with a
    claim-by-claim audit (Results).
-4a. **Quote check per sentence; section heading shown to the judge** (next),
-    then rerun the answerable questions.
+4a. Quote spanning chunks; section heading shown to the judge — implemented;
+    **rerun the answerable questions to confirm** (next).
 5. Close the plan→result gap: harder items shaped like real generator outputs,
    and a rule-based check (planning/future markers in the cited passage + a
    result-asserting claim → flag) that does not depend on the judge.
