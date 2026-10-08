@@ -169,6 +169,44 @@ from Ollama; it was recorded as no vote and the run continued (it will be
 re-judged on the next run). Report copies: `eval/reports/judge_report_stageB1.md`,
 `judge_results_stageB1.json` (local).
 
+**System evaluation under the new default** (generator qwen2.5, judge phi4,
+prompt v3; 2026-10-08):
+
+| | Dissertation, old default (10-03) | Dissertation, new (10-08 night) | Dissertation, new, rerun with per-claim detail (10-08 15:31, 3 threads) | Pilot, old (10-05) | Pilot, new (10-08) |
+|---|---|---|---|---|---|
+| Strict / lenient citation precision | 96% / 96% (26/27) | 83% / 97% (25/30) | **84% / 97% (26/31)** | 90% / 90% | 90% / **95%** |
+| Claim / answer hallucination | 0% / 0% | 3% / 4% | 3% / 4% | 10% / 11% | **5% / 5%** |
+| Must-refuse traps refused | 95% | 95% | (traps not rerun) | 100% | 100% |
+| False-premise traps safe | 83% | **100%** | — | 67% | **83%** |
+| Over-refusal | 0% | 0% | 0% | 5% | 5% |
+| Parse failures / misplaced refusals | 1 / 3 | 0 / 12 | 0 / — | 0 / 12 | 0 / 13 |
+
+No false claim was shown as supported in any run. The dissertation's strict
+precision drop has the same shape in both new runs (4 partial + 1 unsupported),
+so it is systematic. **Audit of the 5 non-supported claims in the
+per-claim rerun** (done locally against the cited passages; content not
+recorded here):
+
+- 2 claims: **phi4 right** — the generator mischaracterised what the passage
+  describes (a real error the previous judges would likely have accepted).
+- 1 claim: phi4 reasonable on what it saw, but the claim is true in the
+  document — the cited chunk does not name the analysis it belongs to; that
+  context is in the section heading / neighbouring chunk. Fix: show the
+  section heading with the passage to the judge.
+- 1 claim: **phi4 too strict** — the claim uses a narrower but consistent term
+  than the passage. Left as is (loosening the prompt risks letting overclaims
+  through).
+- 1 claim: rejected by the **quote check**, not phi4 — the generator's quote
+  stitched non-adjacent sentences with a gap, so the contiguous match failed
+  although every sentence is in the passage. Fix: check the quote sentence by
+  sentence.
+
+With the two fixes, strict precision on this run would be 28/31 (90%).
+Per-claim detail (claim, quote, cited passage, verdict, votes, reason) is now
+saved in `eval_results.json` (local; contains corpus text). Reports:
+`eval/reports/eval_report_phi4v3.md`, `eval_report_phi4v3_detail.md`,
+`eval_results_phi4v3_detail.json`, and the pilot's `eval_report_phi4v3.md`.
+
 ## 5. Known weaknesses and open findings
 
 1. **Plan read as result — still open.** The generator restated a planned
@@ -278,16 +316,16 @@ resource assessment first (§8).
 
 Done since the last handoff: deepseek-r1 dropped (§5 item 7); Stage B step 1
 run (§4); default judge set to phi4 alone with prompt v3 (owner's decision,
-2026-10-07; §2).
+2026-10-07; §2); system evaluation rerun on both corpora under the new default,
+plus a per-claim rerun of the dissertation's answerable questions and an
+audit of every non-supported claim (§4).
 
-1. **Rerun the system evaluation on both corpora under the new default**
-   (`eval --with-llm`, `CORPUS=dissertation` then `nature_walking_2026`).
-   Owner's instruction (2026-10-07): run only once the other Ollama users
-   (`line_chat`, `D:\2026_manuscripts\Study1` VLM triage) have finished and the
-   CPU is free. Estimated ~1–1.5 h per corpus; RAM ~60% (qwen2.5 + phi4);
-   `run_eval` is not resumable, so launch detached under the guard with
-   `--models qwen2.5:7b-instruct phi4:latest`. Compare with the §4 numbers
-   measured under the previous default.
+1. **Fix the two causes of false rejections found in the audit (§4), then
+   rerun the 26 answerable questions** (`eval --with-llm --answerable-only`,
+   ~1.5 h with `OLLAMA_NUM_THREAD=3`):
+   - quote check: accept a quote whose sentences each appear in the passage
+     (elided quotes), instead of requiring one contiguous match;
+   - judge input: show the passage's section heading with the passage.
 2. **Close the plan→result gap.** The real case is still approved under v3,
    and phi4 misses 2/6 synthetic items: add harder items shaped like real
    generator outputs, and/or a rule-based check (planning/future markers in the
@@ -323,6 +361,14 @@ run (§4); default judge set to phi4 alone with prompt v3 (owner's decision,
   can start evictions. The guard now unloads only the models passed with
   `--models` (fixed 2026-10-07; it used to unload every loaded model,
   including other projects').
+- **Limiting this project's CPU use:** `OLLAMA_NUM_THREAD=3` sends `num_thread`
+  with each Ollama request (other projects on the shared server are
+  unaffected); measured: the runner then uses exactly 3.0 cores, total CPU
+  ~40%, and an answerable question takes ~110–400 s instead of ~95–280 s. Raise
+  `OLLAMA_SECONDS_PER_TOKEN` (0.8 was used) so slower generation is not cut
+  off. Other sessions start jobs at any time (`line_rumor_bot` ran a retrieval
+  experiment mid-run on 2026-10-08 and the guard stopped our full-core run), so
+  a capped run is the safer default when the machine is shared.
 - **Long local runs:** launch detached (PowerShell `Start-Process`) under
   `eval.resource_guard`; tool-managed background tasks stop at ~30 min.
   Measured load with two judges: CPU ~50–80%, RAM ~45% of 64 GB; with three
@@ -388,4 +434,5 @@ run (§4); default judge set to phi4 alone with prompt v3 (owner's decision,
 | `d789ff4` | Token budget for Ollama thinking models (deepseek-r1 empty answers) |
 | `01e8580` | Scaled Ollama timeout; failed judge casts no vote; re-judge cached `unparsed` |
 | `5eed641` | deepseek-r1 dropped as a judge |
-| (this commit) | Default judge phi4 + prompt v3; guard unloads only its own models; Stage B step 1 results |
+| `a113f24`, `5345aee` | Guard unloads only its own models; default judge phi4 + prompt v3; Stage B step 1 results |
+| (this commit) | Per-claim detail in eval results; `--answerable-only`; `OLLAMA_NUM_THREAD`; system results under the new default and claim audit |

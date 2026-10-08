@@ -39,25 +39,38 @@ local (see [Data & privacy](#data--privacy)).
 
 **Current default:** generator `qwen2.5:7b-instruct`, judge **`phi4`** alone,
 judge prompt **`v3`**, section-aware chunking — chosen on the judge validation
-below (2026-10-07). The system results in this section were measured with the
-**previous** default (judges `qwen2.5:7b-instruct` + `gemma3:12b`, unanimous,
-prompt `v2`); a rerun under the new default is pending.
+below (2026-10-07). "Previous" below means judges `qwen2.5:7b-instruct` +
+`gemma3:12b` (unanimous) with prompt `v2`.
 
 ### At a glance
 
-| | Dissertation | Pilot paper | Target |
-|---|---|---|---|
-| Retrieval Hit@5 (section-aware) | **100%** (MRR 0.952) | 95% | ≥ 90% |
-| Strict citation precision | **96%** (26/27) | 90% (18/20) | ≥ 95% |
-| Claim / answer hallucination rate | **0% / 0%** | 0% output as supported | low |
-| Must-refuse traps refused | 95% (far 100%, near 89%) | **100%** (11/11) | ≥ 90% |
-| False-premise traps safe | 83% | 67% (4/6) | — |
-| Over-refusal on answerable questions | **0%** | 5% | low |
+| | Dissertation, previous | **Dissertation, current** | Pilot, previous | **Pilot, current** | Target |
+|---|---|---|---|---|---|
+| Retrieval Hit@5 (section-aware) | 100% (MRR 0.952) | 100% (MRR 0.952) | 95% | 95% | ≥ 90% |
+| Strict citation precision | 96% (26/27) | **84%** (26/31) | 90% (18/20) | 90% (18/20) | ≥ 95% |
+| Lenient citation precision | 96% | 97% | 90% | **95%** | — |
+| Claim / answer hallucination rate | 0% / 0% | 3% / 4% | 10% / 11% | **5% / 5%** | low |
+| Must-refuse traps refused | 95% | 95% | 100% | 100% | ≥ 90% |
+| False-premise traps safe | 83% | **100%** | 67% | **83%** | — |
+| Over-refusal on answerable questions | 0% | 0% | 5% | 5% | low |
+| Parse failures | 1 | **0** | 0 | 0 | — |
 
-On the pilot paper the generator made four errors; **all four were caught**
-(three rejected, one disputed — one of them by the quote check alone), so no
-false claim was shown to the user as supported. The precision shortfall is
-generator error that the verifier flagged, not hallucination that got through.
+**No false claim was shown to the user as supported in any run**: every
+"hallucination" counted here is a claim the verifier flagged. The current
+default's lower strict precision on the dissertation was audited claim by claim
+(the same pattern appeared in two independent runs):
+
+| Non-supported claim | Who flagged it | Verdict on the verdict |
+|---|---|---|
+| 2 claims | phi4 (partial) | **Correct** — the generator mischaracterised the passage; the previous judges would likely have accepted them |
+| 1 claim | phi4 (partial) | Reasonable on what it saw, but true in the document: the chunk lacks the section context that names the analysis |
+| 1 claim | phi4 (partial) | Too strict — a narrower but consistent term |
+| 1 claim | quote check (unsupported) | False rejection — the quote joined non-adjacent sentences, so the contiguous match failed |
+
+Two fixes follow from this (quote check per sentence; section heading shown to
+the judge); with them, strict precision on that run would be 90% (28/31). On
+the pilot paper all four generator errors under the previous default were
+caught as well (three rejected, one disputed).
 
 ### Retrieval — chunking ablation (dissertation)
 
@@ -262,6 +275,7 @@ verification are stand-ins (pipeline shape only).
 | `OLLAMA_MODEL` | `qwen2.5:7b-instruct` | Generator model |
 | `OLLAMA_THINK_BUDGET` | `2000` | Extra tokens for models with the `thinking` capability (see below) |
 | `OLLAMA_SECONDS_PER_TOKEN` | `0.4` | Request timeout = max(300 s, 60 s + token limit × this) |
+| `OLLAMA_NUM_THREAD` | `0` (Ollama default) | CPU threads per request for this project, e.g. `3` on a shared machine (raise `OLLAMA_SECONDS_PER_TOKEN` too) |
 | `JUDGES` | `ollama:phi4:latest` | Comma-separated `backend:model` judge list |
 | `PANEL_RULE` | `unanimous` | `unanimous` or `majority` |
 | `VERIFY_PROMPT` | `v3` | Judge prompt version |
@@ -363,6 +377,7 @@ python cli.py eval --rerank                          # with cross-encoder rerank
 python cli.py eval --with-llm
 python cli.py eval --with-llm --llm-limit 3          # quick sample for a slow local model
 python cli.py eval --with-llm --traps-only           # trap questions only
+python cli.py eval --with-llm --answerable-only      # answerable questions only
 
 # 5. Judge validation
 python cli.py judge-build                            # build the known-answer set (no LLM)
@@ -436,6 +451,9 @@ The golden set (`data/golden/golden_set.json`, kept local — schema in
 
 Claim-level metrics are **micro-averaged**: claims are pooled across questions
 before dividing, so a question with many claims is not under-weighted.
+`eval_results.json` (local) records every claim with its quote, cited passage,
+verdict, judge votes and reason, so a metric change can be audited claim by
+claim.
 
 ### Validating the judges themselves
 
@@ -523,8 +541,7 @@ Ollama clients right before launching.
    "Author et al. found → This study found" swaps, but on the pilot paper at
    most 40% of swaps of background statements.
 3. **Self-judging — resolved in the default.** qwen2.5 was both generator and
-   judge, and the weakest judge; the default judge is now phi4. The system
-   results above predate this change.
+   judge, and the weakest judge; the default judge is now phi4.
 4. **Negative facts.** "The paper says X was not done" tends to be refused
    (over-refusal).
 5. **Format drift.** The refusal marker inside `<claim>`, translated quotes and
@@ -538,13 +555,19 @@ Ollama clients right before launching.
    20–51 questions; no confidence intervals are reported yet.
 9. **Verification is slow on CPU.** Each phi4 judgment takes 38–50 s, so
    `check` on a long paragraph can take several minutes (see Setup).
+10. **False rejections from context and quote format.** A chunk judged alone
+    can lack the section context a true claim relies on, and a quote that joins
+    non-adjacent sentences fails the contiguous quote match (see Results).
 
 ## Roadmap
 
 1. ~~Re-validate `deepseek-r1:8b`~~ — dropped as too slow on CPU.
 2. ~~Stage B on the dissertation's held-out split~~ — done (results above).
 3. ~~Choose a panel without the generator model~~ — phi4 alone, prompt v3.
-4. **Rerun the system evaluation on both corpora under the new default** (next).
+4. ~~Rerun the system evaluation under the new default~~ — done, with a
+   claim-by-claim audit (Results).
+4a. **Quote check per sentence; section heading shown to the judge** (next),
+    then rerun the answerable questions.
 5. Close the plan→result gap: harder items shaped like real generator outputs,
    and a rule-based check (planning/future markers in the cited passage + a
    result-asserting claim → flag) that does not depend on the judge.
