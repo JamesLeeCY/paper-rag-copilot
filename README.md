@@ -89,6 +89,33 @@ supported. On
 the pilot paper all four generator errors under the previous default were
 caught as well (three rejected, one disputed).
 
+### How certain are these numbers?
+
+Every rate here rests on a small sample, so the reports now print a 95%
+Wilson confidence interval with the counts (`eval/stats.py`). For the headline
+numbers:
+
+| Rate | Estimate [95% CI] (k/n) |
+|---|---|
+| phi4 false-accept, dissertation held-out | 5% [2–15] (3/55) |
+| phi4 false-reject, dissertation held-out | 7% [2–23] (2/28) |
+| phi4 false-accept, pilot held-out | 6% [2–19] (2/35) |
+| phi4 + plan rule false-accept, dissertation | 2% [0–10] (1/55) |
+| Strict citation precision, dissertation, before → after the audit fixes | 84% [67–93] → 97% [84–99] (26/31 → 30/31) |
+| Strict citation precision, dissertation, previous default | 96% [82–99] (26/27) |
+| Strict citation precision, pilot, after fixes | 89% [69–97] (17/19) |
+| Must-refuse traps refused, dissertation / pilot | 95% [75–99] (18/19) / 100% [74–100] (11/11) |
+| Over-refusal, dissertation / pilot | 0% [0–13] (0/26) / 5% [1–24] (1/20) |
+
+Read differences accordingly. The intervals of the judges compared here
+overlap, so "best judge" means best measured, not proven better. The 84% → 97%
+gain was measured on the same 31 claims, so it is a paired comparison — 4
+claims changed, all in the same direction — yet with only 4 discordant claims
+even that is not significant on its own (exact two-sided binomial p = 0.125);
+it rests on the claim-by-claim audit as much as on the numbers. Claim-level
+intervals also treat claims as independent, which understates the uncertainty
+when one answer has several claims.
+
 ### Retrieval — chunking ablation (dissertation)
 
 | Strategy | Hit@1 | Hit@3 | Hit@5 | MRR |
@@ -585,9 +612,13 @@ Ollama clients right before launching.
    an outcome). It catches the real case and sends it to review as `disputed`;
    offline it flagged 0 of 100 true validation claims and 0 of 31 real system
    claims, and lowered phi4's false-accept on the dissertation's held-out split
-   from 3/55 to 1/55. Caveats: one real positive only; the synthetic items share
-   the rule's cues; a true finding cited from a future-tense methods passage
-   could still be flagged, which is why the default is review, not rejection.
+   from 3/55 to 1/55. On a hand-written hard set (plans restated as findings
+   in natural Chinese) it caught 7 of 12 — every one using a result cue word,
+   none of the 5 phrased without one — with 0 of 14 controls flagged, so its
+   recall depends on wording and the judge remains the main line of defence.
+   Caveats: the synthetic items share the rule's cues; a true finding cited
+   from a future-tense methods passage could still be flagged, which is why the
+   default is review, not rejection.
 2. **Background statements attributed to this study.** v3 catches most
    "Author et al. found → This study found" swaps, but on the pilot paper at
    most 40% of swaps of background statements.
@@ -603,7 +634,8 @@ Ollama clients right before launching.
    `deepseek-r1:8b` needs 4–8 minutes per judgment (one exceeded 5 minutes), so
    it was dropped as a judge; its Stage B result above is invalid.
 8. **Small samples.** Judge rates rest on 55–83 items and system rates on
-   20–51 questions; no confidence intervals are reported yet.
+   20–51 questions; reports show 95% intervals (see "How certain are these
+   numbers?"), and most differences discussed here fall inside them.
 9. **Verification is slow on CPU.** Each phi4 judgment takes 38–50 s (longer
    with `OLLAMA_NUM_THREAD=3`), so `check` on a long paragraph can take several
    minutes (see Setup). A judgment that still times out sends the claim to
@@ -631,8 +663,8 @@ Ollama clients right before launching.
 6. Generator prompt: answer negative facts, attribute cited studies explicitly,
    keep quotes in the source language, refuse only in `<unsupported_note>`.
 7. ~~Resumable `run_eval`~~ — done (saves each question; resumes on rerun).
-8. Human-labelled judge items; confidence intervals; grounded vs baseline prompt
-   comparison.
+8. ~~Confidence intervals~~ — done (Wilson, in both reports). Still open:
+   human-labelled judge items; grounded vs baseline prompt comparison.
 
 ---
 
@@ -657,6 +689,7 @@ eval/
   judge_set.py         builds the known-answer judge validation set
   judge_eval.py        scores judges / panels / prompt versions (vote cache)
   resource_guard.py    stops long local-LLM runs on RAM / CPU / swap overload
+  stats.py             95% Wilson confidence intervals for the reports
 data/golden/           example schemas (real golden and judge sets are local)
 tests/                 unit tests for the deterministic verification rules
 docs/METHODOLOGY.md    design write-up

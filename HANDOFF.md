@@ -249,6 +249,15 @@ accepted verdict becomes `disputed` (`reject` → unsupported).
 | Pilot REG-T14 (misattribution, not plan→result) | not flagged, as expected |
 | phi4 false-accept, dissertation held-out, + rule | **3/55 → 1/55**, true claims flagged 0/28 (same with and without heading); the remaining miss is an overclaim |
 
+**Hard set** (2026-10-10, `data/golden/judge_set_hard.jsonl`, local,
+`judge-eval --split hard`): 26 hand-written items over dissertation passages —
+12 plan→result restated as findings in natural Chinese (5 deliberately without
+the rule's result cues), 6 plans kept as plans, 8 real results paraphrased in
+Chinese; gold relative to the cited passage. Rule offline: **7/12 caught — all
+7 with cue words, none of the 5 without** — and 0/14 controls flagged. The
+rule's recall depends on the claim's wording; it was deliberately not tuned on
+this set (the only real test of it). phi4 scoring on the set is the next step.
+
 One real positive only, so recall is unknown; the residual risk is a true
 finding cited from a future-tense methods passage, hence review (`disputed`)
 rather than rejection by default. Unit tests: `tests/test_verify_rules.py`
@@ -443,7 +452,13 @@ audit of every non-supported claim (§4).
    detached.
 6. Human-labelled judge items (`data/golden/judge_set_human.jsonl`, schema in
    `judge_set_human.example.jsonl`) — owner's task, not started.
-7. Confidence intervals in reports; grounded vs baseline prompt comparison.
+7. ~~Confidence intervals~~ — done 2026-10-10: `eval/stats.py` (Wilson 95%);
+   both reports print rate [CI] (k/n); results JSON carry `counts` /
+   `false_accept` / `false_reject` with intervals. Headline intervals are in
+   the README ("How certain are these numbers?"). Main reading: judge
+   comparisons and the 84% → 97% gain overlap within their intervals (the gain
+   is paired, 4/4 discordant claims in one direction, exact p = 0.125).
+   Still open: grounded vs baseline prompt comparison.
 
 ## 8. Operational notes
 
