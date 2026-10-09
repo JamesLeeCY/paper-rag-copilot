@@ -55,10 +55,32 @@ def _load_cache() -> dict[str, str]:
     return cache
 
 
+def add_headings(items: list[dict]) -> int:
+    """Prefix each item's passage with its section heading, as the live verifier
+    shows passages to judges. Looked up by the item's chunk_id (the chunk the
+    passage itself comes from, also for swapped passages). Items without a
+    known heading are left unchanged. Returns how many items got one.
+    The changed passage changes the cache key, so bare votes are never reused."""
+    from src.retrieve import _load_section_paths
+    from src.verify import with_heading
+
+    paths: dict[str, list] = {}
+    for strategy in ("section", "fixed"):
+        paths.update(_load_section_paths(strategy))
+    n = 0
+    for it in items:
+        heading = " > ".join(paths.get(it.get("chunk_id", ""), []))
+        if heading:
+            it["passage"] = with_heading(it["passage"], heading)
+            n += 1
+    return n
+
+
 def collect_votes(
-    judge_specs: list[str], items: list[dict], prompts: list[str]
+    judge_specs: list[str], items: list[dict], prompts: list[str], tag: str = ""
 ) -> dict[str, dict[str, str]]:
-    """Return {"judge (prompt)": {item_id: label}}, calling judges only on cache misses."""
+    """Return {"judge (prompt+tag)": {item_id: label}}, calling judges only on
+    cache misses. ``tag`` (e.g. "+heading") only labels the run in reports."""
     cache = _load_cache()
     votes: dict[str, dict[str, str]] = {}
     with VOTES_PATH.open("a", encoding="utf-8") as out:
@@ -68,7 +90,7 @@ def collect_votes(
                 print(f"[judge-eval] {judge.describe()} unavailable; skipped")
                 continue
             for prompt in prompts:
-                name = f"{judge.describe()} ({prompt})"
+                name = f"{judge.describe()} ({prompt}{tag})"
                 votes[name] = {}
                 misses = [it for it in items if _key(prompt, judge.describe(), it) not in cache]
                 print(f"[judge-eval] {name}: {len(items) - len(misses)} cached, "
@@ -194,6 +216,8 @@ def main(argv=None):
     ap.add_argument("--types", nargs="+", default=None,
                     help="only these item types, e.g. --types plan_to_result attribution_swap regression")
     ap.add_argument("--limit", type=int, default=None, help="score only the first N items (quick run)")
+    ap.add_argument("--with-heading", action="store_true",
+                    help="show judges each passage's section heading, as the live verifier does")
     args = ap.parse_args(argv)
 
     specs = args.judges or config.JUDGES or [f"{config.LLM_BACKEND}:{config.LLM_MODEL}"]
@@ -205,16 +229,22 @@ def main(argv=None):
     if args.limit:
         items = items[: args.limit]
 
-    votes = collect_votes(specs, items, args.prompts)
+    tag = ""
+    if args.with_heading:
+        tag = "+heading"
+        print(f"[judge-eval] section heading added to {add_headings(items)}/{len(items)} passages")
+
+    votes = collect_votes(specs, items, args.prompts, tag)
     preds = dict(votes)
     # Panels combine judges that ran the same prompt version.
     for prompt in args.prompts:
-        names = [n for n in votes if n.endswith(f"({prompt})")]
+        label = f"{prompt}{tag}"
+        names = [n for n in votes if n.endswith(f"({label})")]
         for size in range(2, len(names) + 1):
             for members in combinations(names, size):
                 for rule in ("unanimous", "majority") if size >= 3 else ("unanimous",):
-                    short = " + ".join(m.removesuffix(f" ({prompt})") for m in members)
-                    preds[f"panel[{short}] {rule} ({prompt})"] = panel_votes(votes, members, rule)
+                    short = " + ".join(m.removesuffix(f" ({label})") for m in members)
+                    preds[f"panel[{short}] {rule} ({label})"] = panel_votes(votes, members, rule)
 
     results = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),

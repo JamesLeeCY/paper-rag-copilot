@@ -192,6 +192,12 @@ def _passage_text(result: GenerationResult, chunk_id: str) -> str:
     return ""
 
 
+def with_heading(text: str, heading: str) -> str:
+    """Prefix a passage with its section heading, in the form judges are shown.
+    Shared by the live verifier and the judge validation (judge-eval)."""
+    return f"（章節：{heading}）\n{text}" if heading else text
+
+
 def _judge_passage(p) -> str:
     """Passage as shown to a judge: its section heading, then the text.
 
@@ -200,7 +206,7 @@ def _judge_passage(p) -> str:
     Quote checks use the bare text, never this.
     """
     heading = p.heading() if hasattr(p, "heading") else getattr(p, "section", "")
-    return f"（章節：{heading}）\n{p.text}" if heading else p.text
+    return with_heading(p.text, heading)
 
 
 def _judge_passage_by_id(result: GenerationResult, chunk_id: str) -> str:

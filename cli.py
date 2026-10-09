@@ -94,6 +94,8 @@ def cmd_judge_eval(args):
         argv += ["--prompts", *args.prompts]
     if args.limit is not None:
         argv += ["--limit", str(args.limit)]
+    if args.with_heading:
+        argv.append("--with-heading")
     judge_main(argv)
 
 
@@ -143,6 +145,8 @@ def build_parser():
     je.add_argument("--split", choices=["dev", "test", "all"], default="all")
     je.add_argument("--types", nargs="+", default=None, help="only these item types")
     je.add_argument("--limit", type=int, default=None)
+    je.add_argument("--with-heading", action="store_true",
+                    help="show judges each passage's section heading (as the live verifier does)")
     je.set_defaults(func=cmd_judge_eval)
 
     return ap
