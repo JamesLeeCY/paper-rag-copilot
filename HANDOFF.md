@@ -288,6 +288,18 @@ right), one added inference (phi4 reasonable). No quote spanned chunks.
   counts as not safe for false-premise traps (conservative); `n_unjudged` in
   the eval results shows how many claims this was.
 
+**Timeout fix confirmed** (2026-10-09 22:50–22:57): phi4 re-judged the two
+saved claims whose judge had timed out, with identical inputs (same claim,
+quote, full passage + heading; no regeneration), 3 threads, running alongside
+another project's Ollama job (peak CPU 76%, RAM 55%). Both finished well under
+the new ceiling (~860 s): 279 s and 153 s. The 279 s case shows why the old
+300 s floor failed under contention. Verdicts: the dissertation claim
+`supported` (its fact matches the passage; the wording is muddled — a
+generator writing issue, judged leniently but not a hallucination); the pilot
+claim `partially_supported` (phi4 caught a wrong study duration). Re-scored
+with these verdicts, false-premise safe would be 5/6 in both corpora (an
+estimate; partial counts as safe under the trap rule).
+
 ## 5. Known weaknesses and open findings
 
 1. **Plan read as result — mitigated by a rule (2026-10-09, §4).** The
@@ -413,9 +425,8 @@ audit of every non-supported claim (§4).
      (`judge-eval`) still passes bare passages, so its numbers are not directly
      comparable on items where the heading matters.
 2. ~~Close the plan→result gap~~ — rule check done (§4); traps and the pilot
-   paper rerun with all fixes (§4). **Next:** rerun the two trap questions
-   whose judge timed out (dissertation T24, pilot T14) to confirm the timeout
-   fix (~15 min, needs approval). Optional: harder plan→result items.
+   paper rerun with all fixes (§4); timeout fix confirmed on the two claims
+   that had timed out (§4). Optional: harder plan→result items.
 3. `check` cost under phi4: it judges each sentence against up to five
    passages (45 s – ~4 min per sentence on CPU). Consider judging only the top
    one or two passages; measure the effect on its verdicts first.
@@ -532,4 +543,5 @@ audit of every non-supported claim (§4).
 | `bf1c42b`, `8371906` | `judge-eval --with-heading`; headings do not make phi4 more lenient |
 | `901bf30`, `2c004da` | Plan-as-result rule check; unit tests (`tests/`) |
 | `846ec63`, `a8d8257` | Resumable `eval --with-llm` (`--fresh`) |
-| (this commit) | Traps + pilot after fixes; timeout covers the prompt; judge failure → review |
+| `7e6bcdc`, `73da0a7` | Traps + pilot after fixes; timeout covers the prompt; judge failure → review |
+| (this commit) | Timeout fix confirmed on the two claims that had timed out |
