@@ -72,6 +72,8 @@ def cmd_eval(args):
         sys.argv.append("--traps-only")
     if args.answerable_only:
         sys.argv.append("--answerable-only")
+    if args.fresh:
+        sys.argv.append("--fresh")
     eval_main()
 
 
@@ -130,6 +132,8 @@ def build_parser():
                    help="LLM pass on trap questions only")
     e.add_argument("--answerable-only", action="store_true",
                    help="LLM pass on answerable questions only")
+    e.add_argument("--fresh", action="store_true",
+                   help="ignore questions saved by an interrupted run and start over")
     e.set_defaults(func=cmd_eval)
 
     jb = sub.add_parser("judge-build", help="build the synthetic judge validation set")

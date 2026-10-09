@@ -27,6 +27,7 @@ Run:  python -m eval.run_eval            # all strategies, retrieval metrics
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import statistics
 import time
@@ -128,10 +129,74 @@ def _claim_detail(g, v) -> list[dict]:
     return out
 
 
+PROGRESS_NAME = "eval_progress.jsonl"
+_QUOTE_STATUSES = ("verbatim", "near", "not_found", "missing")
+
+
+def _run_signature(strategy: str, llm: LLMClient, verifier) -> str:
+    """Identifies a grounding run. Saved per-question records are reused only
+    by a run with the same signature: same models, prompts, knobs and the same
+    generation / verification / retrieval code, so a resumed run never mixes
+    answers produced under different conditions."""
+    src = Path(__file__).resolve().parents[1] / "src"
+    code = "".join((src / f).read_text(encoding="utf-8")
+                   for f in ("generate.py", "verify.py", "retrieve.py"))
+    parts = [strategy, llm.describe(), verifier.describe(), config.VERIFY_PROMPT,
+             config.PLAN_RESULT_RULE, str(config.QUOTE_REQUIRED), str(config.FINAL_TOP_K),
+             config.EMBED_MODEL, str(config.RERANK_ENABLED), code]
+    return hashlib.sha256("\x00".join(parts).encode("utf-8")).hexdigest()[:16]
+
+
+def _question_key(kind: str, it: dict) -> str:
+    return f"{kind}|{it['id']}|" + hashlib.md5(it["question"].encode("utf-8")).hexdigest()[:10]
+
+
+def _load_progress(path: Path, signature: str) -> dict[str, dict]:
+    """{question key: record} saved by an interrupted run with this signature."""
+    done = {}
+    if path.exists():
+        for line in path.open(encoding="utf-8"):
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:      # a line cut off by a hard stop
+                continue
+            if row.get("run") == signature:
+                done[row["key"]] = row["record"]
+    return done
+
+
+def _question_record(g, v) -> dict:
+    """Everything the aggregate metrics need from one question, so they can be
+    recomputed from saved records when a run resumes."""
+    return {
+        "refused": g.refused,
+        "parse_failed": g.parse_failed,
+        "misplaced_refusal": g.misplaced_refusal,
+        "n_claims": v.n_claims,
+        "n_supported": v.n_supported,
+        "n_partial": v.n_partial,
+        "n_unsupported": v.n_unsupported,
+        "n_disputed": v.n_disputed,
+        "n_citation_repaired": v.n_citation_repaired,
+        "n_panel_judged": v.n_panel_judged,
+        "n_panel_agreed": v.n_panel_agreed,
+        "quote_counts": {s: v.n_quote(s) for s in _QUOTE_STATUSES},
+        "claims": _claim_detail(g, v),
+        # Keep the raw output of malformed generations for diagnosis
+        # (reports are gitignored, so this never leaves the machine).
+        **({"raw": g.raw[:2000]} if g.parse_failed else {}),
+    }
+
+
 def eval_grounding(
     strategy: str, golden: dict, llm: LLMClient, limit: int | None = None,
-    traps_only: bool = False, answerable_only: bool = False,
+    traps_only: bool = False, answerable_only: bool = False, fresh: bool = False,
 ) -> dict:
+    """Grounding / refusal metrics. Each question's record is appended to
+    eval_progress.jsonl as soon as it is scored, so an interrupted run (guard
+    stop, crash, closed session) resumes where it stopped when started again
+    with the same settings; ``fresh`` ignores saved records. The progress file
+    is renamed once the run completes, so the next run starts fresh."""
     from src.pipeline import ask
     from src.verify import Verifier
 
@@ -144,56 +209,37 @@ def eval_grounding(
 
     verifier = Verifier(llm=llm)
     print(f"[grounding] verifier {verifier.describe()}")
-    # Pool claim counts across questions (micro-average) rather than averaging
-    # per-question rates, which would down-weight questions with many claims.
-    n_claims = n_supported = n_partial = n_unsupported = 0
-    # Cross-check tallies: disputed verdicts, quote-grounding outcomes, and how
-    # often panel judges agreed (claims judged by >= 2 judges).
-    n_disputed = n_panel_judged = n_panel_agreed = 0
-    n_repaired = 0  # mangled citation ids recovered via the verbatim quote
-    quote_counts = {s: 0 for s in ("verbatim", "near", "not_found", "missing")}
-    parse_failures = 0
-    misplaced_refusals = 0   # refusal marker wrapped in a <claim> (format error)
-    # Answer-level counts on answerable questions. Every retrieval question has
-    # a known answer in the corpus, so refusing one is an over-refusal — the
-    # counterweight that stops "refuse everything" from scoring perfectly.
-    n_over_refused = n_answered = n_answers_with_halluc = 0
-    answer_detail = []
-    for qi, it in enumerate(retrieval_items, 1):
+    config.REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    progress_path = config.REPORT_DIR / PROGRESS_NAME
+    signature = _run_signature(strategy, llm, verifier)
+    done = {} if fresh else _load_progress(progress_path, signature)
+    todo = [("answerable", it) for it in retrieval_items] + [("trap", it) for it in trap_items]
+    n_resumed = sum(_question_key(k, it) in done for k, it in todo)
+    if n_resumed:
+        print(f"[grounding] resuming: {n_resumed}/{len(todo)} questions already scored "
+              f"(run {signature}; --fresh to start over)")
+
+    def scored(kind: str, it: dict) -> tuple[dict, bool]:
+        key = _question_key(kind, it)
+        if key in done:
+            return done[key], True
         t0 = time.time()
         bundle = ask(it["question"], strategy=strategy, llm=llm, verifier=verifier)
+        rec = _question_record(bundle.generation, bundle.verification)
+        rec["seconds"] = round(time.time() - t0)
+        with progress_path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps({"run": signature, "key": key, "record": rec},
+                               ensure_ascii=False) + "\n")
+        done[key] = rec
+        return rec, False
+
+    answer_detail = []
+    for qi, it in enumerate(retrieval_items, 1):
+        rec, resumed = scored("answerable", it)
         print(f"  [answerable {qi}/{len(retrieval_items)}] {it['id']}: "
-              f"{bundle.verification.n_claims} claim(s), refused={bundle.generation.refused} "
-              f"({time.time() - t0:.0f}s)", flush=True)
-        g, v = bundle.generation, bundle.verification
-        parse_failures += int(g.parse_failed)
-        misplaced_refusals += int(g.misplaced_refusal)
-        n_over_refused += int(g.refused)
-        if v.n_claims:
-            n_answered += 1
-            n_answers_with_halluc += int(v.n_unsupported > 0)
-        n_claims += v.n_claims
-        n_supported += v.n_supported
-        n_partial += v.n_partial
-        n_unsupported += v.n_unsupported
-        n_disputed += v.n_disputed
-        n_repaired += v.n_citation_repaired
-        n_panel_judged += v.n_panel_judged
-        n_panel_agreed += v.n_panel_agreed
-        for status in quote_counts:
-            quote_counts[status] += v.n_quote(status)
-        answer_detail.append({
-            "id": it["id"],
-            "refused": g.refused,
-            "parse_failed": g.parse_failed,
-            "n_claims": v.n_claims,
-            "n_unsupported": v.n_unsupported,
-            "n_disputed": v.n_disputed,
-            "claims": _claim_detail(g, v),
-            # Keep the raw output of malformed generations for diagnosis
-            # (reports are gitignored, so this never leaves the machine).
-            **({"raw": g.raw[:2000]} if g.parse_failed else {}),
-        })
+              f"{rec['n_claims']} claim(s), refused={rec['refused']} "
+              + ("(resumed)" if resumed else f"({rec['seconds']}s)"), flush=True)
+        answer_detail.append({"id": it["id"], **rec})
 
     # Trap questions. What counts as correct depends on the trap type:
     #   far_absent / near_absent -> the topic is not in the corpus: must refuse.
@@ -204,32 +250,32 @@ def eval_grounding(
     # "safe" (no unsupported or disputed claim) is recorded for every type.
     trap_detail = []
     for qi, it in enumerate(trap_items, 1):
-        t0 = time.time()
-        bundle = ask(it["question"], strategy=strategy, llm=llm, verifier=verifier)
-        g, v = bundle.generation, bundle.verification
+        rec, resumed = scored("trap", it)
         kind = it.get("type", "far_absent")
         # Malformed output (no claims, no marker) is NOT a correct refusal.
-        safe = v.n_unsupported == 0 and v.n_disputed == 0 and not g.parse_failed
-        correct = g.refused if kind in MUST_REFUSE else safe
-        print(f"  [trap {qi}/{len(trap_items)}] {it['id']} ({kind}): refused={g.refused} "
-              f"claims={v.n_claims} correct={correct} ({time.time() - t0:.0f}s)", flush=True)
-        parse_failures += int(g.parse_failed)
-        misplaced_refusals += int(g.misplaced_refusal)
-        trap_detail.append({
-            "id": it["id"],
-            "type": kind,
-            "refused": g.refused,
-            "correct": correct,
-            "safe": safe,
-            "n_claims": v.n_claims,
-            "n_unsupported": v.n_unsupported,
-            "n_disputed": v.n_disputed,
-            "parse_failed": g.parse_failed,
-            "misplaced_refusal": g.misplaced_refusal,
-            "claims": _claim_detail(g, v),
-        })
+        safe = rec["n_unsupported"] == 0 and rec["n_disputed"] == 0 and not rec["parse_failed"]
+        correct = rec["refused"] if kind in MUST_REFUSE else safe
+        print(f"  [trap {qi}/{len(trap_items)}] {it['id']} ({kind}): refused={rec['refused']} "
+              f"claims={rec['n_claims']} correct={correct} "
+              + ("(resumed)" if resumed else f"({rec['seconds']}s)"), flush=True)
+        trap_detail.append({"id": it["id"], "type": kind, "correct": correct, "safe": safe, **rec})
 
-    n_traps = len(trap_items)
+    # Pool claim counts across questions (micro-average) rather than averaging
+    # per-question rates, which would down-weight questions with many claims.
+    def total(rows, field):
+        return sum(r[field] for r in rows)
+
+    every = answer_detail + trap_detail
+    n_claims = total(answer_detail, "n_claims")
+    n_supported = total(answer_detail, "n_supported")
+    n_partial = total(answer_detail, "n_partial")
+    n_unsupported = total(answer_detail, "n_unsupported")
+    quote_counts = {s: sum(r["quote_counts"][s] for r in answer_detail) for s in _QUOTE_STATUSES}
+    # Answer-level counts on answerable questions. Every retrieval question has
+    # a known answer in the corpus, so refusing one is an over-refusal — the
+    # counterweight that stops "refuse everything" from scoring perfectly.
+    answered = [r for r in answer_detail if r["n_claims"]]
+
     must_refuse = [d for d in trap_detail if d["type"] in MUST_REFUSE]
     traps_by_type = {}
     for kind in sorted({d["type"] for d in trap_detail}):
@@ -240,33 +286,42 @@ def eval_grounding(
             "refusal_rate": _ratio(sum(d["refused"] for d in sub), len(sub)),
             "safe_rate": _ratio(sum(d["safe"] for d in sub), len(sub)),
         }
+
+    # Complete: retire the progress file so the next run starts fresh.
+    if progress_path.exists():
+        progress_path.replace(progress_path.with_name(f"eval_progress.done-{signature}.jsonl"))
+
     return {
         "strategy": strategy,
         "n_retrieval_scored": len(retrieval_items),
-        "n_traps_scored": n_traps,
+        "n_traps_scored": len(trap_items),
+        "n_resumed": n_resumed,
+        "run_signature": signature,
         "n_claims_total": n_claims,
         "n_supported": n_supported,
         "n_partial": n_partial,
         "n_unsupported": n_unsupported,
-        "n_disputed": n_disputed,
+        "n_disputed": total(answer_detail, "n_disputed"),
         "verifier": verifier.describe(),
         "quote_counts": quote_counts,
         # Claims whose quote is absent from the cited passage: fabricated citations.
         "fabricated_quote_rate": _ratio(quote_counts["not_found"], n_claims),
-        "panel_agreement_rate": _ratio(n_panel_agreed, n_panel_judged),
-        "n_citation_repaired": n_repaired,
+        "panel_agreement_rate": _ratio(total(answer_detail, "n_panel_agreed"),
+                                       total(answer_detail, "n_panel_judged")),
+        "n_citation_repaired": total(answer_detail, "n_citation_repaired"),
         "citation_precision_strict": _ratio(n_supported, n_claims),
         "citation_precision_lenient": _ratio(n_supported + n_partial, n_claims),
         "hallucination_rate": _ratio(n_unsupported, n_claims),
         # Refusal correctness covers only traps that must be refused.
         "refusal_correctness": _ratio(sum(d["refused"] for d in must_refuse), len(must_refuse)),
         "traps_by_type": traps_by_type,
-        "over_refusal_rate": _ratio(n_over_refused, len(retrieval_items)),
-        "n_answered": n_answered,
+        "over_refusal_rate": _ratio(total(answer_detail, "refused"), len(retrieval_items)),
+        "n_answered": len(answered),
         # Share of non-refused answers containing at least one unsupported claim.
-        "answer_hallucination_rate": _ratio(n_answers_with_halluc, n_answered),
-        "parse_failures": parse_failures,
-        "misplaced_refusals": misplaced_refusals,
+        "answer_hallucination_rate": _ratio(sum(r["n_unsupported"] > 0 for r in answered),
+                                            len(answered)),
+        "parse_failures": total(every, "parse_failed"),
+        "misplaced_refusals": total(every, "misplaced_refusal"),
         "answer_detail": answer_detail,
         "trap_detail": trap_detail,
     }
@@ -422,6 +477,8 @@ def main():
                     help="LLM pass on trap questions only (skip the answerable ones)")
     ap.add_argument("--answerable-only", action="store_true",
                     help="LLM pass on answerable questions only (skip the traps)")
+    ap.add_argument("--fresh", action="store_true",
+                    help="ignore questions saved by an interrupted run and start over")
     ap.add_argument("--llm-limit", type=int, default=None,
                     help="cap #retrieval and #trap questions for the LLM pass (quick runs)")
     args = ap.parse_args()
@@ -455,7 +512,7 @@ def main():
             results["llm_limit"] = args.llm_limit
             g = eval_grounding(args.llm_strategy, golden, llm, limit=args.llm_limit,
                                traps_only=args.traps_only,
-                               answerable_only=args.answerable_only)
+                               answerable_only=args.answerable_only, fresh=args.fresh)
             results["grounding"] = [g]
             print(f"[grounding:{args.llm_strategy}] precision strict/lenient="
                   f"{g['citation_precision_strict']}/{g['citation_precision_lenient']} "
