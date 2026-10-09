@@ -22,6 +22,7 @@ PDFs) page it came from.
 **Contents:**
 [Results](#results) ·
 [Architecture](#architecture) ·
+[Prompt & context engineering](#prompt--context-engineering) ·
 [Setup](#setup) ·
 [Usage](#usage) ·
 [Evaluation methodology](#evaluation-methodology) ·
@@ -242,6 +243,42 @@ Why these choices:
   rather than silently resolved.
 - **Format errors are counted separately** — parse failures and misplaced
   refusals are reported on their own and never folded into hallucination numbers.
+
+### Prompt & context engineering
+
+What the model sees, and in what shape, is designed rather than left to
+defaults — and each choice is measured.
+
+**Generator prompt (citation-forcing).** Every claim must come back as XML:
+`<claim citation_ids=...>` plus a verbatim `<quote>` from the cited passage, or
+the explicit refusal marker "查無直接支持此說法的段落". This turns "is it
+grounded?" into a string check before any LLM judge runs. A tolerant parser
+handles unclosed tags and a refusal marker placed inside a claim, and format
+errors are counted separately. An ungrounded `--baseline` prompt exists for
+comparison. Generator prompt `v2` (opt-in, under evaluation; see
+`GENERATOR_PROMPT` below) adds source-language quotes, passage-type labels so
+hypotheses and methods are never stated as findings, explicit attribution of
+cited studies, and answers to negative facts.
+
+**Context assembly.**
+- *Chunking is a context decision*: section-aware chunks never cross a section
+  boundary and carry section №, paragraph span and page. On the dissertation
+  they beat fixed-size chunks at Hit@5 (100% vs 88%; MRR 0.952 vs 0.794).
+- *Hybrid retrieval* (dense ⊕ BM25, RRF) fills the top-5 context window, so
+  exact technical terms are not lost to embedding blur.
+- *Judges get isolated context*: only the claim and its passage, never the
+  generator's reasoning, to avoid self-confirmation.
+- *Missing context is fixed in the context, not the model*: the claim audit
+  traced false rejections to chunks that lacked their section heading and to
+  quotes split across chunks. Showing the heading and checking quotes across
+  retrieved chunks raised strict citation precision from 84% to 97% (31
+  claims; see Results).
+
+**Judge prompts, iterated against a benchmark.** Each version below was added
+to fix a failure measured on the judge validation set — e.g. v1 → v2 cut
+qwen2.5's false-accept rate on the held-out split from 27% to 4% by adding an
+explicit evidence-strength field. Judges answer in JSON, and a
+self-contradicting vote is downgraded rather than trusted.
 
 ### Judge prompts
 
