@@ -35,6 +35,8 @@ question ──► hybrid retrieval (dense ⊕ BM25, RRF) ──► top-5 passag
               1. judge panel       independent LLM judges, unanimous rule;
                                    accept/reject disagreement -> "disputed"
               2. fallbacks         NLI (optional) -> lexical overlap
+              3. rule checks       plan/prediction read as a result -> an accepted
+                                   claim becomes "disputed" (PLAN_RESULT_RULE)
                                                                     │
             ✔ supported / ◐ partial / ⚖ disputed / ✘ unsupported, with locator (§, page)
 ```
@@ -231,18 +233,35 @@ saved in `eval_results.json` (local; contains corpus text). Reports:
 `eval/reports/eval_report_phi4v3.md`, `eval_report_phi4v3_detail.md`,
 `eval_results_phi4v3_detail.json`, and the pilot's `eval_report_phi4v3.md`.
 
+**Plan-as-result rule** (`verify.plan_as_result`, `PLAN_RESULT_RULE`, default
+`flag`; 2026-10-09, evaluated offline, no model run). Fires when the claim
+asserts a finding (zh/en result cues), carries no hedge (將/預計/假設/will …),
+and the source plans or predicts — the quote's sentences, or without a quote a
+passage sentence that plans an assessment or predicts an outcome. Then an
+accepted verdict becomes `disputed` (`reject` → unsupported).
+
+| Check | Result |
+|---|---|
+| Real regression case REG-T19 (all judges approved it) | **flagged** |
+| Synthetic plan→result, dissertation | 11/11 (dev 5/5, test 6/6) — circular: built with the same cues |
+| True validation claims (originals, both corpora) | **0/100 flagged** — weak test, originals with "will" are exempt via the hedge |
+| Real system claims (two per-claim runs) | **0/31, 0/31 flagged** |
+| Pilot REG-T14 (misattribution, not plan→result) | not flagged, as expected |
+| phi4 false-accept, dissertation held-out, + rule | **3/55 → 1/55**, true claims flagged 0/28 (same with and without heading); the remaining miss is an overclaim |
+
+One real positive only, so recall is unknown; the residual risk is a true
+finding cited from a future-tense methods passage, hence review (`disputed`)
+rather than rejection by default. Unit tests: `tests/test_verify_rules.py`
+(19 tests, generic texts, also cover quote spans and headings).
+
 ## 5. Known weaknesses and open findings
 
-1. **Plan read as result — still open.** The generator restated a planned
-   assessment (future tense) as a reported finding. All three judges approve
-   it under v2 **and under v3**. v3 does catch the synthetic version
-   (deepseek-r1: 91%), so the synthetic items are easier than the real
-   error: the real claim is a Chinese paraphrase of an English future-tense
-   passage, not "The results showed that" + the source sentence. Options:
-   harder plan→result items shaped like real outputs (paraphrased, Chinese
-   claim / English passage), human-labelled items, and a rule-based check
-   (cited passage has planning/future markers + claim asserts a result →
-   flag) that does not depend on the judge noticing.
+1. **Plan read as result — mitigated by a rule (2026-10-09, §4).** The
+   generator restated a planned assessment (future tense) as a reported
+   finding; all judges approved it under v2 and v3. The rule check now flags
+   that real case and sends it to review. Still open: recall on real outputs
+   (one known positive), and harder plan→result items shaped like real outputs
+   (paraphrased, Chinese claim / English passage).
 2. **Cited study attributed to this study — partly addressed.** v3 helps on
    "Author et al. found → This study found" swaps, but the pilot paper's
    background-statement swaps stay at ≤ 40% detection.
@@ -359,11 +378,9 @@ audit of every non-supported claim (§4).
      Quote checks still use the bare text. The judge validation set
      (`judge-eval`) still passes bare passages, so its numbers are not directly
      comparable on items where the heading matters.
-2. **Close the plan→result gap (next).** The real case is still approved under v3,
-   and phi4 misses 2/6 synthetic items: add harder items shaped like real
-   generator outputs, and/or a rule-based check (planning/future markers in the
-   cited passage + a result-asserting claim → flag) that does not rely on the
-   judge.
+2. ~~Close the plan→result gap~~ — rule check done (§4). Optional follow-ups:
+   rerun the trap questions with per-claim detail (~1.5–2 h, needs approval)
+   to see the rule on real trap outputs, and add harder plan→result items.
 3. `check` cost under phi4: it judges each sentence against up to five
    passages (45 s – ~4 min per sentence on CPU). Consider judging only the top
    one or two passages; measure the effect on its verdicts first.
@@ -471,4 +488,5 @@ audit of every non-supported claim (§4).
 | `257ca4c`, `c29e747` | Per-claim detail in eval results; `--answerable-only`; `OLLAMA_NUM_THREAD`; system results under the new default and claim audit |
 | `370f48b`, `a1e3f3d` | Quotes may span retrieved chunks; judges see the section heading; corrected diagnosis |
 | `c93d081` | Confirmation rerun: strict precision 97% |
-| (this commit) | `judge-eval --with-heading`; headings do not make phi4 more lenient |
+| `bf1c42b`, `8371906` | `judge-eval --with-heading`; headings do not make phi4 more lenient |
+| (this commit) | Plan-as-result rule check; unit tests (`tests/`) |

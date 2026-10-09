@@ -163,12 +163,17 @@ question ──► hybrid retrieval (dense ⊕ BM25, RRF) ──► (rerank) ─
             verification cascade, per claim, cheapest first:
               0. quote grounding   the verbatim quote must appear in a retrieved
                                    passage (no LLM). A mangled or wrong chunk id
-                                   is repaired by the quote when it is unique;
-                                   otherwise the claim is rejected as fabricated
-              1. judge panel       independent LLM judges see only claim + passage;
-                                   unanimous rule; accept/reject disagreement
+                                   is repaired by the quote when it is unique; a
+                                   quote running across chunks is accepted when
+                                   every sentence is found; otherwise the claim
+                                   is rejected as fabricated
+              1. judge panel       independent LLM judges see only claim +
+                                   passage (with its section heading); unanimous
+                                   rule; accept/reject disagreement
                                    → "disputed" (human-review queue)
               2. fallbacks         NLI (optional) → lexical overlap
+              3. rule checks       plan/prediction read as a result → an
+                                   accepted claim becomes "disputed" (no LLM)
                                                                     │
             ✔ supported / ◐ partial / ⚖ disputed / ✘ unsupported, with locator (§, page)
 ```
@@ -292,6 +297,7 @@ verification are stand-ins (pipeline shape only).
 | `PANEL_RULE` | `unanimous` | `unanimous` or `majority` |
 | `VERIFY_PROMPT` | `v3` | Judge prompt version |
 | `QUOTE_REQUIRED` | off | `1` also rejects claims without a supporting quote |
+| `PLAN_RESULT_RULE` | `flag` | Plan or prediction read as a result: `flag` → disputed, `reject` → unsupported, `off` |
 
 ### Local Ollama notes
 
@@ -396,6 +402,9 @@ python cli.py judge-build                            # build the known-answer se
 python cli.py judge-eval --judges ollama:phi4:latest ollama:gemma3:12b --prompts v2 v3 --split test
 python cli.py judge-eval --types plan_to_result attribution_swap --limit 10
 python cli.py judge-eval --with-heading               # passages shown with their section heading
+
+# 6. Unit tests for the deterministic verification rules (no LLM, no corpus)
+python -m pytest tests
 ```
 
 `check` is the writer-facing use: it splits your paragraph into sentences,
@@ -544,12 +553,17 @@ Ollama clients right before launching.
 
 ## Known limitations
 
-1. **Plan read as result.** The generator once restated a planned assessment
-   as a reported finding, and every judge approves that real case under v2 and
-   v3, although v3 catches most synthetic versions (phi4 4/6 on the
-   dissertation's held-out split; that split holds no real regression case). Real errors are paraphrased
-   (often a Chinese claim over an English passage) and harder than the
-   synthetic items.
+1. **Plan read as result — mitigated by a rule.** The generator once restated a
+   planned assessment as a reported finding, and every judge approved that real
+   case. A deterministic check now flags it: the claim asserts a finding without
+   hedging while the source sentence plans or predicts (the quote's sentences,
+   or, without a quote, a passage sentence planning an assessment or predicting
+   an outcome). It catches the real case and sends it to review as `disputed`;
+   offline it flagged 0 of 100 true validation claims and 0 of 31 real system
+   claims, and lowered phi4's false-accept on the dissertation's held-out split
+   from 3/55 to 1/55. Caveats: one real positive only; the synthetic items share
+   the rule's cues; a true finding cited from a future-tense methods passage
+   could still be flagged, which is why the default is review, not rejection.
 2. **Background statements attributed to this study.** v3 catches most
    "Author et al. found → This study found" swaps, but on the pilot paper at
    most 40% of swaps of background statements.
@@ -585,9 +599,9 @@ Ollama clients right before launching.
     strict precision 84% → 97% on the dissertation's answerable questions.
 4b. ~~Check that the section heading does not raise false-accept~~ — done; it
     does not.
-5. **Close the plan→result gap (next):** harder items shaped like real generator outputs,
-   and a rule-based check (planning/future markers in the cited passage + a
-   result-asserting claim → flag) that does not depend on the judge.
+5. ~~Plan→result rule check~~ — done (`PLAN_RESULT_RULE`). Still useful:
+   harder plan→result items shaped like real generator outputs, and real
+   positives to measure the rule's recall.
 6. Generator prompt: answer negative facts, attribute cited studies explicitly,
    keep quotes in the source language, refuse only in `<unsupported_note>`.
 7. Resumable `run_eval` (save per question).
@@ -618,6 +632,7 @@ eval/
   judge_eval.py        scores judges / panels / prompt versions (vote cache)
   resource_guard.py    stops long local-LLM runs on RAM / CPU / swap overload
 data/golden/           example schemas (real golden and judge sets are local)
+tests/                 unit tests for the deterministic verification rules
 docs/METHODOLOGY.md    design write-up
 HANDOFF.md             current state, open findings and next steps
 ```
