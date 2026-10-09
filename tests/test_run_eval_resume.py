@@ -77,7 +77,7 @@ def test_metrics(env, monkeypatch):
     assert res["n_claims_total"] == 4 and res["citation_precision_strict"] == 0.5
     assert res["hallucination_rate"] == 0.25 and res["refusal_correctness"] == 1.0
     assert res["traps_by_type"]["false_premise"]["correct_rate"] == 1.0
-    assert res["n_resumed"] == 0
+    assert res["n_resumed"] == 0 and res["n_unjudged"] == 0
 
 
 def test_interrupted_run_resumes_and_matches_a_full_run(env, monkeypatch):

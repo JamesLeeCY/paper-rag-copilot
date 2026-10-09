@@ -180,6 +180,8 @@ def _question_record(g, v) -> dict:
         "n_citation_repaired": v.n_citation_repaired,
         "n_panel_judged": v.n_panel_judged,
         "n_panel_agreed": v.n_panel_agreed,
+        # Claims no judge could vote on (timeout, error): sent to review.
+        "n_unjudged": sum(x.method == "none" for x in v.verdicts),
         "quote_counts": {s: v.n_quote(s) for s in _QUOTE_STATUSES},
         "claims": _claim_detail(g, v),
         # Keep the raw output of malformed generations for diagnosis
@@ -320,6 +322,8 @@ def eval_grounding(
         # Share of non-refused answers containing at least one unsupported claim.
         "answer_hallucination_rate": _ratio(sum(r["n_unsupported"] > 0 for r in answered),
                                             len(answered)),
+        # Across answerable and trap questions; these count as disputed above.
+        "n_unjudged": sum(r.get("n_unjudged", 0) for r in every),
         "parse_failures": total(every, "parse_failed"),
         "misplaced_refusals": total(every, "misplaced_refusal"),
         "answer_detail": answer_detail,
@@ -519,7 +523,7 @@ def main():
                   f"halluc={g['hallucination_rate']} "
                   f"answer_halluc={g['answer_hallucination_rate']} "
                   f"refusal={g['refusal_correctness']} over_refusal={g['over_refusal_rate']} "
-                  f"parse_failures={g['parse_failures']}")
+                  f"parse_failures={g['parse_failures']} unjudged={g['n_unjudged']}")
 
     config.REPORT_DIR.mkdir(parents=True, exist_ok=True)
     (config.REPORT_DIR / "eval_results.json").write_text(

@@ -28,6 +28,20 @@ def strip_thinking(text: str) -> str:
     return _THINK_RE.sub("", text).strip()
 
 
+def request_timeout(prompt_chars: int, max_tokens: int) -> float:
+    """Seconds to wait for a local generation on CPU.
+
+    Covers both phases: reading the prompt and writing up to ``max_tokens``.
+    The prompt is estimated at ~2.5 characters per token (mixed Chinese and
+    English) and weighted at half a generated token, since prompt evaluation
+    is faster per token. Sizing by output alone (the earlier rule) let a judge
+    reading a long passage on 3 threads time out at 300 s.
+    """
+    prompt_tokens = prompt_chars / 2.5
+    work = max_tokens + 0.5 * prompt_tokens
+    return max(300.0, 60.0 + work * config.OLLAMA_SECONDS_PER_TOKEN)
+
+
 class LLMClient:
     def __init__(self, backend: str | None = None, model: str | None = None):
         self.backend = backend or config.LLM_BACKEND
@@ -124,9 +138,7 @@ class LLMClient:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        # Local generation on CPU can be slow; give it room in proportion to
-        # how many tokens it may produce.
-        timeout = max(300.0, 60.0 + max_tokens * config.OLLAMA_SECONDS_PER_TOKEN)
+        timeout = request_timeout(len(system) + len(user), max_tokens)
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.loads(resp.read().decode("utf-8"))
         content = data["message"].get("content", "")

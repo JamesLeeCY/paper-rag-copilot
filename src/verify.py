@@ -466,6 +466,14 @@ class Verifier:
                 reason = next(r for name, r in reasons.items() if votes[name] == label)
             return ClaimVerdict(statement, [], label, reason, "panel", votes)
 
+        if self.judges:
+            # Judges are configured but none returned a usable vote (timeout,
+            # connection error, unparsable output). The lexical fallback cannot
+            # read Chinese claims and would reject them silently, so send the
+            # claim to review instead of guessing.
+            return ClaimVerdict(statement, [], "disputed",
+                                "judge unavailable (no usable vote); needs review", "none")
+
         nli = self._nli_label(statement, passage)
         if nli:
             return ClaimVerdict(statement, [], nli[0], nli[1], "nli")

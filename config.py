@@ -133,9 +133,11 @@ OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b-instruct")
 # reporting the "thinking" capability get this many extra tokens. Measured:
 # ~1,200 tokens (~4 min on CPU) for one deepseek-r1:8b judgment.
 OLLAMA_THINK_BUDGET = int(os.environ.get("OLLAMA_THINK_BUDGET", "2000"))
-# Request timeout scales with the token limit: max(300 s, 60 s + limit x this).
+# Request timeout scales with the work: max(300 s, 60 s + (output limit +
+# half the estimated prompt tokens) x this); see llm.request_timeout.
 # CPU-only generation measured ~5 tokens/s (0.2 s/token); 0.4 leaves a 2x
-# margin. A fixed 300 s cut off a deepseek-r1 judgment still thinking.
+# margin. A fixed 300 s cut off a deepseek-r1 judgment still thinking, and an
+# output-only rule let phi4 time out reading long passages on 3 threads.
 OLLAMA_SECONDS_PER_TOKEN = float(os.environ.get("OLLAMA_SECONDS_PER_TOKEN", "0.4"))
 # CPU threads Ollama may use for this project's requests (sent per request as
 # the num_thread option, so other projects sharing the server are unaffected).
