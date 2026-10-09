@@ -190,6 +190,12 @@ QUOTE_REQUIRED = os.environ.get("QUOTE_REQUIRED", "0") == "1"
 # this error, so it is checked without them. "flag" turns an accepted claim
 # into "disputed" (human review), "reject" into "unsupported", "off" disables.
 PLAN_RESULT_RULE = os.environ.get("PLAN_RESULT_RULE", "flag")
+# Generator prompt version (src/generate.py). "v2" adds: quotes in the source
+# language, hypotheses/methods never stated as findings (with passage-type
+# labels in the context), cited studies attributed explicitly, negative facts
+# answered, the refusal marker only in <unsupported_note>. "v1" is the
+# validated original; v2 becomes the default only after its rerun.
+GENERATOR_PROMPT = os.environ.get("GENERATOR_PROMPT", "v1")
 
 # The exact string the model must emit when nothing supports a claim. The
 # evaluation harness matches on this to score refusal correctness.

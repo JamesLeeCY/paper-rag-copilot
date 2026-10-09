@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import statistics
 import time
 from datetime import datetime
@@ -143,6 +144,7 @@ def _run_signature(strategy: str, llm: LLMClient, verifier) -> str:
     code = "".join((src / f).read_text(encoding="utf-8")
                    for f in ("generate.py", "verify.py", "retrieve.py"))
     parts = [strategy, llm.describe(), verifier.describe(), config.VERIFY_PROMPT,
+             config.GENERATOR_PROMPT,
              config.PLAN_RESULT_RULE, str(config.QUOTE_REQUIRED), str(config.FINAL_TOP_K),
              config.EMBED_MODEL, str(config.RERANK_ENABLED), code]
     return hashlib.sha256("\x00".join(parts).encode("utf-8")).hexdigest()[:16]
@@ -166,6 +168,18 @@ def _load_progress(path: Path, signature: str) -> dict[str, dict]:
     return done
 
 
+_CJK_RE = re.compile(r"[㐀-鿿]")
+
+
+def is_translated_quote(quote: str, passages: list[str]) -> bool:
+    """A quote in Chinese while every cited passage is (almost) Chinese-free:
+    the generator translated the source sentence instead of copying it."""
+    if not _CJK_RE.search(quote or ""):
+        return False
+    text = "".join(passages)
+    return bool(text) and len(_CJK_RE.findall(text)) / len(text) < 0.05
+
+
 def _question_record(g, v) -> dict:
     """Everything the aggregate metrics need from one question, so they can be
     recomputed from saved records when a run resumes."""
@@ -183,6 +197,11 @@ def _question_record(g, v) -> dict:
         "n_panel_agreed": v.n_panel_agreed,
         # Claims no judge could vote on (timeout, error): sent to review.
         "n_unjudged": sum(x.method == "none" for x in v.verdicts),
+        # Quotes translated instead of copied (format error; the quote check
+        # then rejects them as fabricated).
+        "n_translated_quotes": sum(
+            is_translated_quote(c.quote, [p.text for p in g.passages if p.chunk_id in c.citation_ids])
+            for c in g.claims),
         "quote_counts": {s: v.n_quote(s) for s in _QUOTE_STATUSES},
         "claims": _claim_detail(g, v),
         # Keep the raw output of malformed generations for diagnosis
@@ -342,6 +361,8 @@ def eval_grounding(
                                             len(answered)),
         # Across answerable and trap questions; these count as disputed above.
         "n_unjudged": sum(r.get("n_unjudged", 0) for r in every),
+        "n_translated_quotes": sum(r.get("n_translated_quotes", 0) for r in every),
+        "generator_prompt": config.GENERATOR_PROMPT,
         "parse_failures": total(every, "parse_failed"),
         "misplaced_refusals": total(every, "misplaced_refusal"),
         "answer_detail": answer_detail,
@@ -440,13 +461,14 @@ def write_report(results: dict, path: Path) -> None:
         A("### 2b. Answer level (refusal behaviour)")
         A("")
         A("| Strategy | Refusal Correctness (traps) | Over-refusal Rate (answerable) "
-          "| Answer Hallucination Rate | Answered | Parse Failures | Misplaced Refusals |")
-        A("|---|---|---|---|---|---|---|")
+          "| Answer Hallucination Rate | Answered | Parse Failures | Misplaced Refusals "
+          "| Translated Quotes |")
+        A("|---|---|---|---|---|---|---|---|")
         for g in results["grounding"]:
             A(f"| {g['strategy']} | {ci(g, 'refusal_correctness')} "
               f"| {ci(g, 'over_refusal_rate')} | {ci(g, 'answer_hallucination_rate')} "
               f"| {g['n_answered']}/{g['n_retrieval_scored']} | {g['parse_failures']} "
-              f"| {g.get('misplaced_refusals', 0)} |")
+              f"| {g.get('misplaced_refusals', 0)} | {g.get('n_translated_quotes', 'n/a')} |")
         A("")
         A("> Refusal correctness and over-refusal must be read together: a system "
           "that refuses everything scores 100% on the first and 100% (worst) on the "
@@ -553,7 +575,8 @@ def main():
                   f"halluc={g['hallucination_rate']} "
                   f"answer_halluc={g['answer_hallucination_rate']} "
                   f"refusal={g['refusal_correctness']} over_refusal={g['over_refusal_rate']} "
-                  f"parse_failures={g['parse_failures']} unjudged={g['n_unjudged']}")
+                  f"parse_failures={g['parse_failures']} unjudged={g['n_unjudged']} "
+                  f"translated_quotes={g['n_translated_quotes']} prompt={g['generator_prompt']}")
 
     config.REPORT_DIR.mkdir(parents=True, exist_ok=True)
     (config.REPORT_DIR / "eval_results.json").write_text(

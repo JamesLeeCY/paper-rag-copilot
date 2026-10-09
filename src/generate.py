@@ -36,6 +36,28 @@ SYSTEM_GROUNDED = f"""你是一個嚴格的學術文獻查證助理。你只能�
   <unsupported_note>（若有查無依據的部分，在此列出；若無則留空）</unsupported_note>
 </answer>"""
 
+SYSTEM_GROUNDED_V2 = f"""你是一個嚴格的學術文獻查證助理。你只能根據下方提供的「檢索段落」回答問題。
+
+規則：
+1. 每一個論點（claim）都必須用一個 <claim> 標籤，並在 citation_ids 屬性列出支持它的段落編號（可多個，逗號分隔）。段落編號就是每段檢索段落開頭方括號內的字串（例如 c_section_0003），必須原樣照抄，不可改寫或自行編造。
+2. 不可以使用任何檢索段落以外的知識、常識或推論來補足論點。
+3. 如果檢索到的段落無法直接支持某個論點，禁止生成該論點；改為在 <unsupported_note> 中誠實說明：「{config.REFUSAL_MARKER}」。
+4. 若問題完全沒有任何段落可支持，整個 <answer> 內不得有任何 <claim>，只在 <unsupported_note> 寫「{config.REFUSAL_MARKER}」。這個拒答標記只能出現在 <unsupported_note> 內，絕不可放進 <claim>。
+5. 論點內容要貼近原文證據強度，不得誇大（例如把「相關」寫成「造成」）。
+6. 每個 <claim> 內必須附一個 <quote>，逐字複製被引段落中最直接支持該論點的一句原文。即使論點用中文寫，<quote> 也必須保持段落的原文語言（英文段落就照抄英文），不可翻譯、改寫或摘要，也不可把不相鄰的句子拼在一起。
+7. 每段檢索段落開頭標有「段落類型」。類型為「研究假設」或「研究方法」的段落，描述的是研究的預測、計畫或程序，不是研究結果：引用它們時只能寫成「研究假設……」「研究預計……」「研究採用……」，絕不可寫成「研究發現／結果顯示／證實了……」。要陳述研究結果，只能引用類型為「研究結果」或「討論」的段落。
+8. 如果段落中的發現屬於被引用的其他研究（例如「Smith et al. (2020) found ...」），論點必須寫明是該研究的發現（例如「Smith 等人（2020）的研究發現……」），不可寫成本研究的結果。
+9. 如果段落明確寫出否定的事實（例如某項分析沒有顯著差異、某件事沒有做、某結果未被觀察到），這也是有依據的答案：請照實寫成論點並附上引文，不要拒答。
+
+只輸出以下 XML，不要有其他文字：
+<answer>
+  <claim citation_ids="段落編號,段落編號">論點內容<quote>逐字原文句子</quote></claim>
+  ...
+  <unsupported_note>（若有查無依據的部分，在此列出；若無則留空）</unsupported_note>
+</answer>"""
+
+GROUNDED_PROMPTS = {"v1": SYSTEM_GROUNDED, "v2": SYSTEM_GROUNDED_V2}
+
 SYSTEM_BASELINE = """You are a helpful research assistant. Answer the user's
 question about the dissertation as completely and fluently as you can. Write a
 few sentences of prose."""
@@ -68,14 +90,61 @@ class GenerationResult:
 # --------------------------------------------------------------------------
 # Context assembly
 # --------------------------------------------------------------------------
-def build_context(passages: list[Passage]) -> str:
+def build_context(passages: list[Passage], version: str = "v1") -> str:
     blocks = []
     for p in passages:
-        sec = f"§{p.section_number} {p.section}".strip()
-        blocks.append(
-            f"[{p.chunk_id}] (來源: {p.source}, {sec})\n{p.text}"
-        )
+        if version == "v1":
+            sec = f"§{p.section_number} {p.section}".strip()
+            blocks.append(f"[{p.chunk_id}] (來源: {p.source}, {sec})\n{p.text}")
+        else:
+            heading = " > ".join(p.section_path) or f"§{p.section_number} {p.section}".strip()
+            blocks.append(f"[{p.chunk_id}] (來源: {p.source}；章節: {heading}；"
+                          f"段落類型: {passage_type(p)})\n{p.text}")
     return "\n\n---\n\n".join(blocks)
+
+
+# Passage type from the heading path, innermost heading first (a "Hypotheses"
+# subsection inside a methods chapter is a hypothesis passage). Checked in
+# order; the first match wins.
+_PASSAGE_TYPES = (
+    ("研究假設", re.compile(r"hypothes[ie]s|研究假設|假設", re.I)),
+    ("研究結果", re.compile(r"\bresults?\b|findings|研究結果|結果", re.I)),
+    ("討論", re.compile(r"discussion|conclusions?|limitations?|implications?|討論|結論", re.I)),
+    ("研究方法", re.compile(r"method|materials|participants|procedure|design|measure|"
+                        r"protocol|acquisition|analysis|stimul|instrument|研究方法|方法", re.I)),
+    ("背景", re.compile(r"introduction|background|literature|review|theory|theoretical|"
+                      r"research questions?|aims?|objectives?|緒論|背景|文獻", re.I)),
+)
+
+
+def _match(heading: str, skip_hypotheses: bool = True) -> str | None:
+    for label, rx in _PASSAGE_TYPES:
+        if skip_hypotheses and label == "研究假設":
+            continue
+        if rx.search(heading):
+            return label
+    return None
+
+
+def passage_type(p: Passage) -> str:
+    """研究假設 / 研究結果 / 討論 / 研究方法 / 背景 / 其他, from the headings.
+
+    The chapter (outermost heading) decides, because subsection titles carry
+    misleading words ("1.3 What Determines the Efficacy of Design ..." sits in
+    the Introduction). One exception: an innermost "Hypotheses" heading marks a
+    hypothesis passage wherever it sits — and only the innermost, since a
+    chapter titled "... and Hypotheses" also holds background. If the chapter
+    title is unlabelled, inner headings decide, innermost first."""
+    path = [h for h in (list(p.section_path) or [p.section]) if h]
+    if not path:
+        return "其他"
+    if _PASSAGE_TYPES[0][1].search(path[-1]):
+        return "研究假設"
+    for heading in [path[0]] + path[:0:-1]:
+        label = _match(heading)
+        if label:
+            return label
+    return "其他"
 
 
 # --------------------------------------------------------------------------
@@ -137,13 +206,14 @@ def generate(
     grounded: bool = True,
 ) -> GenerationResult:
     llm = llm or LLMClient()
-    context = build_context(passages)
+    version = config.GENERATOR_PROMPT if grounded else "v1"
+    context = build_context(passages, version)
 
     if grounded:
         user = f"檢索段落：\n\n{context}\n\n---\n\n問題：{query}"
         if not llm.available:
             return _mock_grounded(query, passages)
-        raw = llm.complete(SYSTEM_GROUNDED, user)
+        raw = llm.complete(GROUNDED_PROMPTS[version], user)
         res = parse_grounded(raw, query)
     else:
         user = f"Context passages:\n\n{context}\n\n---\n\nQuestion: {query}"
