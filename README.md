@@ -615,7 +615,13 @@ Ollama clients right before launching.
    from 3/55 to 1/55. On a hand-written hard set (plans restated as findings
    in natural Chinese) it caught 7 of 12 — every one using a result cue word,
    none of the 5 phrased without one — with 0 of 14 controls flagged, so its
-   recall depends on wording and the judge remains the main line of defence.
+   recall depends on wording. **phi4 is weak on the same items**: it caught
+   4 of 12 (33% [14–61], all only as partial), approved 4 hypotheses restated
+   as findings although the passage heading said "Hypotheses", and rejected 2
+   of 6 correctly hedged plans. Judge + rule caught 8 of 12 and miss the same
+   cue-free items, so this gap is still open; a structural rule (unhedged
+   claim citing a Hypotheses section → review) and generator-side prevention
+   are next.
    Caveats: the synthetic items share the rule's cues; a true finding cited
    from a future-tense methods passage could still be flagged, which is why the
    default is review, not rejection.

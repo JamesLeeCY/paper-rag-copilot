@@ -256,7 +256,34 @@ the rule's result cues), 6 plans kept as plans, 8 real results paraphrased in
 Chinese; gold relative to the cited passage. Rule offline: **7/12 caught — all
 7 with cue words, none of the 5 without** — and 0/14 controls flagged. The
 rule's recall depends on the claim's wording; it was deliberately not tuned on
-this set (the only real test of it). phi4 scoring on the set is the next step.
+this set (the only real test of it).
+
+**phi4 on the hard set** (2026-10-10 04:20–05:10, v3 + heading, 3 threads,
+`judge_report_hard.md`, local): on realistic plan→result items **phi4 is
+weak**.
+
+| | Caught (not accepted as supported), 12 plan items | False rejections, 14 controls |
+|---|---|---|
+| phi4 alone | 33% [14–61] (4/12) — all four only `partially_supported`, none `unsupported` | 14% [4–40] (2/14) — both hedged-plan controls |
+| rule alone | 58% [32–81] (7/12) | 0/14 |
+| phi4 + rule | 67% [39–86] (8/12) | 14% (2/14) |
+
+Of the 5 cue-free items the combination caught 1. The 4 still accepted all
+restate a sentence from a **Hypotheses section** as a finding, and phi4
+approved them although the heading it was shown says "Hypotheses". It judged
+all 8 real-result paraphrases correctly but rejected two correctly hedged
+plans — it appears to match content, not study stage. So the v3
+`plan_as_result` check barely works for Chinese claims over English
+hypothesis passages, and the rule and the judge miss the same items.
+
+Planned response, in order: (1) a structural rule — an unhedged claim citing
+a chunk from a Hypotheses section is flagged regardless of wording (designed
+after seeing this set, so it needs separate validation: false flags on real
+outputs, and a fresh hard set); (2) fold "do not state hypotheses or methods as
+findings" plus passage-type labels into the generator prompt work (§7);
+(3) a v4 judge prompt that makes the judge name the supporting sentence's
+type (result / hypothesis / plan / background) before its verdict, if (1)
+and (2) are not enough.
 
 One real positive only, so recall is unknown; the residual risk is a true
 finding cited from a future-tense methods passage, hence review (`disputed`)
