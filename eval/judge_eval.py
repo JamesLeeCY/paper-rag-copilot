@@ -27,6 +27,7 @@ from datetime import datetime
 from itertools import combinations
 
 import config
+from eval import stats
 from eval.judge_set import load_items
 from src.verify import VERIFY_PROMPTS, Verifier, _parse_judge_spec, aggregate_votes
 
@@ -146,10 +147,15 @@ def score(items: list[dict], preds: dict[str, str]) -> dict:
             ok = sum(p != "supported" if it["gold_label"] != "supported" else p == "supported"
                      for it, p in sub)
         by_type[kind] = {"n": len(sub), "correct": _r(ok, len(sub))}
+    fa = sum(p == "supported" for _, p in neg)
+    fr = sum(p != "supported" for _, p in pos)
     return {
         "n": len(items),
-        "false_accept_rate": _r(sum(p == "supported" for _, p in neg), len(neg)),
-        "false_reject_rate": _r(sum(p != "supported" for _, p in pos), len(pos)),
+        "false_accept_rate": _r(fa, len(neg)),
+        "false_reject_rate": _r(fr, len(pos)),
+        # Counts and 95% Wilson intervals (eval/stats.py) for the report.
+        "false_accept": stats.rate(fa, len(neg)),
+        "false_reject": stats.rate(fr, len(pos)),
         "accuracy_3class": _r(sum(g == p for g, p in zip(gold, pred)), len(items)),
         "kappa": _kappa(gold, pred),
         "disputed_rate": _r(pred.count("disputed"), len(items)),
@@ -175,14 +181,19 @@ def write_report(results: dict, path) -> None:
     A("| Judge / Panel | n | False-accept ↓ | False-reject ↓ | Accuracy (3-class) | κ | Disputed | Unparsed |")
     A("|---|---|---|---|---|---|---|---|")
     for name, s in results["scores"].items():
-        A(f"| {name} | {s['n']} | **{pct(s['false_accept_rate'])}** | {pct(s['false_reject_rate'])} "
+        fa = stats.fmt(s["false_accept"], bold=True) if "false_accept" in s else f"**{pct(s['false_accept_rate'])}**"
+        fr = stats.fmt(s["false_reject"]) if "false_reject" in s else pct(s["false_reject_rate"])
+        A(f"| {name} | {s['n']} | {fa} | {fr} "
           f"| {pct(s['accuracy_3class'])} | {s['kappa'] if s['kappa'] is not None else 'n/a'} "
           f"| {pct(s['disputed_rate'])} | {pct(s['unparsed_rate'])} |")
     A("")
     A("> **False-accept** = gold not supported but judged `supported` — a hallucination "
       "let through; the number that matters most. **False-reject** = gold supported "
       "but judged otherwise. A `disputed` panel verdict is not an accept, so panels "
-      "trade false-accepts for disputed items routed to human review.")
+      "trade false-accepts for disputed items routed to human review. "
+      "Brackets: 95% Wilson confidence interval in percentage points, then counts; "
+      "with these sample sizes, differences inside overlapping intervals are not "
+      "evidence of a real difference.")
     A("")
     A("## 2. Correct rate by perturbation type")
     A("")
@@ -212,7 +223,8 @@ def main(argv=None):
     ap.add_argument("--prompts", nargs="+", choices=list(VERIFY_PROMPTS),
                     default=[config.VERIFY_PROMPT],
                     help="judge prompt version(s) to score, e.g. --prompts v1 v2 to compare")
-    ap.add_argument("--split", choices=["dev", "test", "all"], default="all")
+    ap.add_argument("--split", choices=["dev", "test", "hard", "all"], default="all",
+                    help="'hard' = hand-written items shaped like real errors (judge_set_hard.jsonl)")
     ap.add_argument("--types", nargs="+", default=None,
                     help="only these item types, e.g. --types plan_to_result attribution_swap regression")
     ap.add_argument("--limit", type=int, default=None, help="score only the first N items (quick run)")

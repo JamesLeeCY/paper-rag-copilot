@@ -35,6 +35,7 @@ from datetime import datetime
 from pathlib import Path
 
 import config
+from eval import stats
 from src.retrieve import Retriever
 from src.llm import LLMClient
 
@@ -293,8 +294,25 @@ def eval_grounding(
     if progress_path.exists():
         progress_path.replace(progress_path.with_name(f"eval_progress.done-{signature}.jsonl"))
 
+    n_partial_ok = n_supported + n_partial
+    must_refused = sum(d["refused"] for d in must_refuse)
+    # Counts with 95% Wilson intervals (eval/stats.py) for the headline rates.
+    counts = {
+        "citation_precision_strict": stats.rate(n_supported, n_claims),
+        "citation_precision_lenient": stats.rate(n_partial_ok, n_claims),
+        "hallucination_rate": stats.rate(n_unsupported, n_claims),
+        "refusal_correctness": stats.rate(must_refused, len(must_refuse)),
+        "over_refusal_rate": stats.rate(total(answer_detail, "refused"), len(retrieval_items)),
+        "answer_hallucination_rate": stats.rate(sum(r["n_unsupported"] > 0 for r in answered),
+                                                len(answered)),
+        **{f"trap_correct:{k}": stats.rate(sum(d["correct"] for d in trap_detail if d["type"] == k),
+                                           v["n"])
+           for k, v in traps_by_type.items()},
+    }
+
     return {
         "strategy": strategy,
+        "counts": counts,
         "n_retrieval_scored": len(retrieval_items),
         "n_traps_scored": len(trap_items),
         "n_resumed": n_resumed,
@@ -378,6 +396,11 @@ def write_report(results: dict, path: Path) -> None:
         def pct(x):
             return f"{x:.0%}" if x is not None else "n/a"
 
+        def ci(g, key):
+            """Rate with its 95% interval and counts when stored, else the plain rate."""
+            c = g.get("counts", {}).get(key)
+            return stats.fmt(c) if c else pct(g.get(key))
+
         A("### 2a. Claim level")
         A("")
         A("| Strategy | Citation Precision (strict) | Citation Precision (lenient) "
@@ -386,13 +409,17 @@ def write_report(results: dict, path: Path) -> None:
         for g in results["grounding"]:
             counts = (f"{g['n_claims_total']} ({g['n_supported']}/{g['n_partial']}/"
                       f"{g['n_disputed']}/{g['n_unsupported']})")
-            A(f"| {g['strategy']} | {pct(g['citation_precision_strict'])} "
-              f"| {pct(g['citation_precision_lenient'])} | {pct(g['hallucination_rate'])} "
+            A(f"| {g['strategy']} | {ci(g, 'citation_precision_strict')} "
+              f"| {ci(g, 'citation_precision_lenient')} | {ci(g, 'hallucination_rate')} "
               f"| {counts} |")
         A("")
         A("> Strict = `supported` only; lenient = `supported` + `partially_supported`. "
           "`disputed` (judges disagree) counts as neither support nor hallucination. "
-          "Micro-averaged over claims pooled across answerable questions.")
+          "Micro-averaged over claims pooled across answerable questions. "
+          "Brackets: 95% Wilson confidence interval in percentage points, then counts. "
+          "Claims are pooled, so the interval treats them as independent although "
+          "claims from one answer are correlated; read it as a lower bound on the "
+          "uncertainty.")
         A("")
         A("### 2a′. Cross-check (quote grounding + judge panel)")
         A("")
@@ -416,8 +443,8 @@ def write_report(results: dict, path: Path) -> None:
           "| Answer Hallucination Rate | Answered | Parse Failures | Misplaced Refusals |")
         A("|---|---|---|---|---|---|---|")
         for g in results["grounding"]:
-            A(f"| {g['strategy']} | {pct(g['refusal_correctness'])} "
-              f"| {pct(g['over_refusal_rate'])} | {pct(g['answer_hallucination_rate'])} "
+            A(f"| {g['strategy']} | {ci(g, 'refusal_correctness')} "
+              f"| {ci(g, 'over_refusal_rate')} | {ci(g, 'answer_hallucination_rate')} "
               f"| {g['n_answered']}/{g['n_retrieval_scored']} | {g['parse_failures']} "
               f"| {g.get('misplaced_refusals', 0)} |")
         A("")
@@ -437,8 +464,11 @@ def write_report(results: dict, path: Path) -> None:
             A("")
             A("| Type | n | Correct | Refused | Safe (no rejected/disputed claim) |")
             A("|---|---|---|---|---|")
+            g0c = results["grounding"][0].get("counts", {})
             for kind, t in tbt.items():
-                A(f"| {kind} | {t['n']} | {pct(t['correct_rate'])} | {pct(t['refusal_rate'])} "
+                correct = (stats.fmt(g0c[f"trap_correct:{kind}"]) if f"trap_correct:{kind}" in g0c
+                           else pct(t["correct_rate"]))
+                A(f"| {kind} | {t['n']} | {correct} | {pct(t['refusal_rate'])} "
                   f"| {pct(t['safe_rate'])} |")
             A("")
             A("> far_absent / near_absent: correct = refused (the topic is not in the corpus; "

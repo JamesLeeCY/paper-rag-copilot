@@ -35,6 +35,9 @@ from src.ingest import load_chunks
 SYNTHETIC_PATH = config.GOLDEN_DIR / "judge_set_synthetic.jsonl"
 HUMAN_PATH = config.GOLDEN_DIR / "judge_set_human.jsonl"
 REGRESSION_PATH = config.GOLDEN_DIR / "judge_set_regression.jsonl"
+# Hand-written items shaped like real generator errors (paraphrased Chinese
+# claims over English passages) with matched controls; local, like the others.
+HARD_PATH = config.GOLDEN_DIR / "judge_set_hard.jsonl"
 
 GOLD = {
     "original": "supported",
@@ -364,7 +367,8 @@ def load_items(include_human: bool = True) -> list[dict]:
     """
     items = [json.loads(l) for l in SYNTHETIC_PATH.open(encoding="utf-8")]
     if include_human:
-        for path, source in ((HUMAN_PATH, "human"), (REGRESSION_PATH, "regression")):
+        for path, source in ((HUMAN_PATH, "human"), (REGRESSION_PATH, "regression"),
+                             (HARD_PATH, "hard")):
             if not path.exists():
                 continue
             for line in path.open(encoding="utf-8"):

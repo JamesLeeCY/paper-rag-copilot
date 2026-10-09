@@ -146,7 +146,7 @@ def build_parser():
                     help='judge specs "backend:model" (default: JUDGES env / generator backend)')
     je.add_argument("--prompts", nargs="+", default=None,
                     help="judge prompt version(s), e.g. --prompts v1 v2 to compare")
-    je.add_argument("--split", choices=["dev", "test", "all"], default="all")
+    je.add_argument("--split", choices=["dev", "test", "hard", "all"], default="all")
     je.add_argument("--types", nargs="+", default=None, help="only these item types")
     je.add_argument("--limit", type=int, default=None)
     je.add_argument("--with-heading", action="store_true",
