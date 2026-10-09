@@ -474,6 +474,19 @@ audit of every non-supported claim (§4).
      Quote checks still use the bare text. The judge validation set
      (`judge-eval`) still passes bare passages, so its numbers are not directly
      comparable on items where the heading matters.
+0. **Generator prompt v2 — rerun in progress (2026-10-10).** `GENERATOR_PROMPT=v2`
+   (default still `v1`): quotes in the source language; each passage is
+   labelled with its heading path and a type (研究假設 / 研究方法 / 研究結果 /
+   討論 / 背景 — from the chapter, except an innermost "Hypotheses" heading),
+   and hypothesis/methods passages may only be reported as plans; findings of
+   cited studies attributed to them; negative facts answered; the refusal
+   marker only in `<unsupported_note>`. Evaluation adds a translated-quote
+   count (v1 baseline: dissertation 0/35 claims, pilot 1/21; misplaced
+   refusals 13 / 12) and 6 local `hypothesis_bait` traps (dissertation;
+   reported separately) that tempt restating a hypothesis as a finding, to
+   test the structural rule on real outputs. Watch: rule 7 may raise refusals
+   when only methods passages are retrieved; rule 9 may turn "not mentioned"
+   into "did not happen".
 2. ~~Close the plan→result gap~~ — rule check done (§4); traps and the pilot
    paper rerun with all fixes (§4); timeout fix confirmed on the two claims
    that had timed out (§4). Optional: harder plan→result items.
