@@ -75,7 +75,17 @@ lenient**: the three false rejections became supported, and the more serious
 generator error is still flagged. The milder one (same imprecise wording, core
 facts right) now passes. A check on the judge validation set (below) found that
 the heading does not make phi4 more lenient, so this is most likely judge
-variance on a borderline claim. Trap questions were not rerun with the fixes. On
+variance on a borderline claim.
+
+**After all fixes** (traps for both corpora and the full pilot paper, rerun
+2026-10-09): far- and near-absent traps unchanged (dissertation 100% / 89%,
+pilot 100% / 100%); pilot answerable 89% strict / 95% lenient (was 90% / 95%);
+false-premise traps 67% in both corpora (was 100% / 83%). Of those four
+misses, two were judge timeouts on a long prompt that the lexical fallback then
+rejected (both since fixed: the timeout covers prompt reading, and a claim no
+judge could vote on goes to review), one was a translated quote, and one a
+generator claim the judge correctly rejected. Still no false claim shown as
+supported. On
 the pilot paper all four generator errors under the previous default were
 caught as well (three rejected, one disputed).
 
@@ -171,7 +181,9 @@ question ──► hybrid retrieval (dense ⊕ BM25, RRF) ──► (rerank) ─
                                    passage (with its section heading); unanimous
                                    rule; accept/reject disagreement
                                    → "disputed" (human-review queue)
-              2. fallbacks         NLI (optional) → lexical overlap
+              2. fallbacks         a judge that times out or errors → "disputed"
+                                   (review); with no judge configured at all:
+                                   NLI (optional) → lexical overlap
               3. rule checks       plan/prediction read as a result → an
                                    accepted claim becomes "disputed" (no LLM)
                                                                     │
@@ -291,7 +303,7 @@ verification are stand-ins (pipeline shape only).
 | `OLLAMA_HOST` | `http://localhost:11434` | Ollama server |
 | `OLLAMA_MODEL` | `qwen2.5:7b-instruct` | Generator model |
 | `OLLAMA_THINK_BUDGET` | `2000` | Extra tokens for models with the `thinking` capability (see below) |
-| `OLLAMA_SECONDS_PER_TOKEN` | `0.4` | Request timeout = max(300 s, 60 s + token limit × this) |
+| `OLLAMA_SECONDS_PER_TOKEN` | `0.4` | Request timeout = max(300 s, 60 s + (output limit + ½ × prompt tokens) × this) |
 | `OLLAMA_NUM_THREAD` | `0` (Ollama default) | CPU threads per request for this project, e.g. `3` on a shared machine (raise `OLLAMA_SECONDS_PER_TOKEN` too) |
 | `JUDGES` | `ollama:phi4:latest` | Comma-separated `backend:model` judge list |
 | `PANEL_RULE` | `unanimous` | `unanimous` or `majority` |
@@ -592,8 +604,10 @@ Ollama clients right before launching.
    it was dropped as a judge; its Stage B result above is invalid.
 8. **Small samples.** Judge rates rest on 55–83 items and system rates on
    20–51 questions; no confidence intervals are reported yet.
-9. **Verification is slow on CPU.** Each phi4 judgment takes 38–50 s, so
-   `check` on a long paragraph can take several minutes (see Setup).
+9. **Verification is slow on CPU.** Each phi4 judgment takes 38–50 s (longer
+   with `OLLAMA_NUM_THREAD=3`), so `check` on a long paragraph can take several
+   minutes (see Setup). A judgment that still times out sends the claim to
+   review rather than guessing; `n_unjudged` in the eval results counts these.
 10. **Chunk boundaries.** A chunk judged alone can lack context a true claim
     relies on, and a quote can run across two chunks. Both are now mitigated
     (section heading shown to the judge; quotes checked sentence by sentence

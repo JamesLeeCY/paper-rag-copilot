@@ -254,6 +254,40 @@ finding cited from a future-tense methods passage, hence review (`disputed`)
 rather than rejection by default. Unit tests: `tests/test_verify_rules.py`
 (19 tests, generic texts, also cover quote spans and headings).
 
+**Traps (dissertation) and full pilot run after the fixes** (2026-10-09
+14:15–17:16, 3 threads, `eval_results_traps_postfix.json`,
+`nature_walking_2026/eval_results_postfix.json`, local). No false claim shown
+as supported in either corpus.
+
+| | Dissertation, before → after | Pilot, before → after |
+|---|---|---|
+| far-absent refused | 100% → 100% | 100% → 100% |
+| near-absent refused | 89% → 89% | 100% → 100% |
+| false-premise safe | 100% → 67% (4/6) | 83% → 67% (4/6) |
+| Pilot answerable strict / lenient | — | 90% / 95% → 89% / 95% (17/19, 18/19) |
+
+The false-premise drop, item by item: two (one per corpus) were **phi4
+timeouts** — the judge hit the 300 s floor reading a long passage on 3
+threads, and the lexical fallback, which cannot read Chinese, rejected the
+claim ("no content tokens"); one generator claim accepted the false premise and
+phi4 rejected it; one quote was **translated into Chinese**, so the quote check
+called it fabricated (known format drift). The real plan→result trap was
+rejected by phi4 itself this time (reason: plan read as result), so the rule
+had nothing to do; the rule flagged 0 of all trap and pilot claims. Pilot
+non-supported answerable claims: one result not in the cited passage (phi4
+right), one added inference (phi4 reasonable). No quote spanned chunks.
+
+**Fixes after this run** (no model run; tests in `tests/test_judge_failure.py`):
+- `llm.request_timeout`: the timeout now covers reading the prompt as well as
+  writing the output — max(300 s, 60 s + (output limit + ½ × prompt chars /
+  2.5) × `OLLAMA_SECONDS_PER_TOKEN`); a judge on a ~3,500-character prompt at
+  0.8 now gets ~860 s instead of 300 s.
+- A claim no configured judge could vote on (timeout, error, unparsable) is now
+  `disputed` ("judge unavailable; needs review") instead of going to the
+  lexical fallback, which is kept only for runs with no judge at all. It still
+  counts as not safe for false-premise traps (conservative); `n_unjudged` in
+  the eval results shows how many claims this was.
+
 ## 5. Known weaknesses and open findings
 
 1. **Plan read as result — mitigated by a rule (2026-10-09, §4).** The
@@ -378,9 +412,10 @@ audit of every non-supported claim (§4).
      Quote checks still use the bare text. The judge validation set
      (`judge-eval`) still passes bare passages, so its numbers are not directly
      comparable on items where the heading matters.
-2. ~~Close the plan→result gap~~ — rule check done (§4). Optional follow-ups:
-   rerun the trap questions with per-claim detail (~1.5–2 h, needs approval)
-   to see the rule on real trap outputs, and add harder plan→result items.
+2. ~~Close the plan→result gap~~ — rule check done (§4); traps and the pilot
+   paper rerun with all fixes (§4). **Next:** rerun the two trap questions
+   whose judge timed out (dissertation T24, pilot T14) to confirm the timeout
+   fix (~15 min, needs approval). Optional: harder plan→result items.
 3. `check` cost under phi4: it judges each sentence against up to five
    passages (45 s – ~4 min per sentence on CPU). Consider judging only the top
    one or two passages; measure the effect on its verdicts first.
@@ -496,4 +531,5 @@ audit of every non-supported claim (§4).
 | `c93d081` | Confirmation rerun: strict precision 97% |
 | `bf1c42b`, `8371906` | `judge-eval --with-heading`; headings do not make phi4 more lenient |
 | `901bf30`, `2c004da` | Plan-as-result rule check; unit tests (`tests/`) |
-| (this commit) | Resumable `eval --with-llm` (`--fresh`) |
+| `846ec63`, `a8d8257` | Resumable `eval --with-llm` (`--fresh`) |
+| (this commit) | Traps + pilot after fixes; timeout covers the prompt; judge failure → review |
