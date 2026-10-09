@@ -387,8 +387,14 @@ audit of every non-supported claim (§4).
 4. Generator prompt: answer negative facts; attribute cited studies
    explicitly; keep quotes in the source language; put refusals only in
    `<unsupported_note>`.
-5. Resumable `run_eval` (save per question) — the tool's background tasks are
-   killed after ~30 min; long runs are launched detached for now.
+5. ~~Resumable `run_eval`~~ — done 2026-10-09: each scored question is
+   appended to `eval/reports/eval_progress.jsonl` with a run signature (models,
+   prompt, rule settings, top-k, embedding model, hash of generate/verify/
+   retrieve code); rerunning the same command skips saved questions; the file
+   is renamed when the run completes; `--fresh` ignores it. Aggregates were
+   checked identical to the previous implementation on fake data
+   (`tests/test_run_eval_resume.py`). Long runs are still best launched
+   detached.
 6. Human-labelled judge items (`data/golden/judge_set_human.jsonl`, schema in
    `judge_set_human.example.jsonl`) — owner's task, not started.
 7. Confidence intervals in reports; grounded vs baseline prompt comparison.
@@ -489,4 +495,5 @@ audit of every non-supported claim (§4).
 | `370f48b`, `a1e3f3d` | Quotes may span retrieved chunks; judges see the section heading; corrected diagnosis |
 | `c93d081` | Confirmation rerun: strict precision 97% |
 | `bf1c42b`, `8371906` | `judge-eval --with-heading`; headings do not make phi4 more lenient |
-| (this commit) | Plan-as-result rule check; unit tests (`tests/`) |
+| `901bf30`, `2c004da` | Plan-as-result rule check; unit tests (`tests/`) |
+| (this commit) | Resumable `eval --with-llm` (`--fresh`) |

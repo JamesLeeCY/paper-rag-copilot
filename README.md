@@ -396,6 +396,7 @@ python cli.py eval --with-llm
 python cli.py eval --with-llm --llm-limit 3          # quick sample for a slow local model
 python cli.py eval --with-llm --traps-only           # trap questions only
 python cli.py eval --with-llm --answerable-only      # answerable questions only
+python cli.py eval --with-llm --fresh                # ignore an interrupted run's saved questions
 
 # 5. Judge validation
 python cli.py judge-build                            # build the known-answer set (no LLM)
@@ -526,9 +527,20 @@ python -u -m eval.resource_guard --log-every-s 300 --models phi4:latest gemma3:1
 When it stops a job, the guard unloads only the Ollama models named in
 `--models` (the job's own). Other loaded models are left alone, because the
 Ollama server may be shared with other projects and a model loaded mid-run may
-be theirs; without `--models` nothing is unloaded. Every judge vote is written
-to the cache as soon as it is cast, so a stopped `judge-eval` resumes where it
-left off when rerun; the report is written only at the end.
+be theirs; without `--models` nothing is unloaded.
+
+Both long jobs **resume after an interruption** (guard stop, crash, closed
+session): rerun the same command and only the missing work is done; reports
+are written at the end.
+
+- `judge-eval` caches every vote as soon as it is cast.
+- `eval --with-llm` appends each scored question to
+  `eval/reports/eval_progress.jsonl`. Saved questions are reused only by a run
+  with the same signature — same models, judge prompt, rule settings, top-k,
+  embedding model, and the same generation / verification / retrieval code —
+  so a resumed run never mixes answers produced under different conditions.
+  When the run completes the file is renamed (`eval_progress.done-<run>.jsonl`)
+  and the next run starts fresh; `--fresh` ignores saved questions on demand.
 
 | Flag | Default | Stops the run when |
 |---|---|---|
@@ -604,7 +616,7 @@ Ollama clients right before launching.
    positives to measure the rule's recall.
 6. Generator prompt: answer negative facts, attribute cited studies explicitly,
    keep quotes in the source language, refuse only in `<unsupported_note>`.
-7. Resumable `run_eval` (save per question).
+7. ~~Resumable `run_eval`~~ — done (saves each question; resumes on rerun).
 8. Human-labelled judge items; confidence intervals; grounded vs baseline prompt
    comparison.
 
