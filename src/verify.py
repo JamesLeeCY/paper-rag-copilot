@@ -198,6 +198,10 @@ def with_heading(text: str, heading: str) -> str:
     return f"（章節：{heading}）\n{text}" if heading else text
 
 
+def _heading_of(p) -> str:
+    return p.heading() if hasattr(p, "heading") else getattr(p, "section", "")
+
+
 def _judge_passage(p) -> str:
     """Passage as shown to a judge: its section heading, then the text.
 
@@ -205,8 +209,7 @@ def _judge_passage(p) -> str:
     study or analysis it belongs to); that context usually sits in the heading.
     Quote checks use the bare text, never this.
     """
-    heading = p.heading() if hasattr(p, "heading") else getattr(p, "section", "")
-    return with_heading(p.text, heading)
+    return with_heading(p.text, _heading_of(p))
 
 
 def _judge_passage_by_id(result: GenerationResult, chunk_id: str) -> str:
@@ -270,19 +273,40 @@ _CLAIM_RESULT_RE = re.compile(
     r"|improved|reduced|increased|decreased|enhanced|maintained|sustained|effective)\b", re.I)
 # ...unless the claim itself reports it as a plan or prediction.
 _CLAIM_HEDGE_RE = re.compile(
-    r"將|将|預計|预计|計畫|計劃|计划|預定|预定|假設|假设|預期|预期|預測|预测|擬|拟|旨在|期望"
+    r"將|将|會|会|預計|预计|計畫|計劃|计划|預定|预定|假設|假设|預期|预期|預測|预测|擬|拟|旨在|期望"
     r"|\bwill\b|\bexpect|\bhypothes|\bpredict|\bplan(?:s|ned)?\b|\bpropos|\baims?\b", re.I)
 
 
-def plan_as_result(statement: str, quote: str, passages: list[str]) -> str:
+# A section that holds hypotheses only: any unhedged claim citing it states a
+# hypothesis as fact, whatever its wording.
+_HYPOTHESIS_SECTION_RE = re.compile(r"hypothes[ie]s|研究假設|研究假设|假設|假设", re.I)
+
+
+def plan_as_result(statement: str, quote: str, passages: list[str],
+                   headings: list[str] | None = None) -> str:
     """Reason string if the claim reads a plan/prediction as a result, else "".
 
-    Deterministic, so it does not depend on a judge noticing the tense: the
-    claim must assert a finding without hedging, and the source must plan or
-    predict — the quote's own sentences when there is a quote, otherwise a
-    passage sentence that plans an assessment or predicts an outcome.
+    Deterministic, so it does not depend on a judge noticing the tense. Two
+    routes, both requiring a claim that does not hedge (將/會/預期/假設/will …):
+      * structural — a cited passage sits in a Hypotheses section (its
+        ``headings``); a hypothesis restated without hedging is a finding the
+        source does not report, whatever words the claim uses;
+      * wording — the claim asserts a finding (result cues) and the source
+        plans or predicts: the quote's own sentences when there is a quote,
+        otherwise a passage sentence that plans an assessment or predicts an
+        outcome.
     """
-    if not _CLAIM_RESULT_RE.search(statement) or _CLAIM_HEDGE_RE.search(statement):
+    if _CLAIM_HEDGE_RE.search(statement):
+        return ""
+    for h in headings or []:
+        # Only the innermost heading: a chapter titled "... and Hypotheses" also
+        # holds background and research questions; its "x.y Hypotheses"
+        # subsection holds hypotheses only.
+        innermost = h.split(" > ")[-1]
+        if _HYPOTHESIS_SECTION_RE.search(innermost):
+            return (f"rule: plan read as result — the cited passage is in a hypotheses "
+                    f"section ({innermost!r}) but the claim states it as a finding")
+    if not _CLAIM_RESULT_RE.search(statement):
         return ""
     if _norm(quote):
         hits = [s for s in _SENT_SPLIT_RE.split(quote.strip()) if _PLAN_SRC_RE.search(s)]
@@ -481,12 +505,13 @@ class Verifier:
         return ClaimVerdict(statement, [], label, reason, "lexical")
 
     @staticmethod
-    def _apply_plan_rule(v: ClaimVerdict, quote: str, passages: list[str]) -> ClaimVerdict:
+    def _apply_plan_rule(v: ClaimVerdict, quote: str, passages: list,
+                         headings: list[str] | None = None) -> ClaimVerdict:
         """Overrule an accepting verdict when the plan-as-result rule fires."""
         mode = config.PLAN_RESULT_RULE
         if mode == "off" or v.label not in ("supported", "partially_supported"):
             return v
-        why = plan_as_result(v.statement, quote, passages)
+        why = plan_as_result(v.statement, quote, passages, headings)
         if why:
             v.label = "disputed" if mode == "flag" else "unsupported"
             v.reason = f"{why}. Judge said: {v.reason}"
@@ -509,8 +534,9 @@ class Verifier:
                 break
         if best is None:
             return ClaimVerdict(statement, [], "unsupported", "no passages retrieved", "lexical")
-        winner = next((p.text for p in passages if p.chunk_id in best.citation_ids), "")
-        return self._apply_plan_rule(best, "", [winner])
+        winner = next((p for p in passages if p.chunk_id in best.citation_ids), None)
+        return self._apply_plan_rule(best, "", [winner.text] if winner else [],
+                                     [_heading_of(winner)] if winner else [])
 
     def _verify_claim(self, claim: Claim, result: GenerationResult) -> ClaimVerdict:
         # Stage 0: the quote must actually appear in one of the cited passages.
@@ -564,8 +590,9 @@ class Verifier:
                 best = v
         best.citation_ids = citation_ids
         best.quote_check = quote_status
-        self._apply_plan_rule(best, claim.quote,
-                              [t for t in (_passage_text(result, c) for c in citation_ids) if t])
+        cited_passages = [p for p in result.passages if p.chunk_id in citation_ids]
+        self._apply_plan_rule(best, claim.quote, [p.text for p in cited_passages],
+                              [_heading_of(p) for p in cited_passages])
         if repaired:
             best.citation_repaired_from = claim.citation_ids
             how = ("quote spans chunks " + " + ".join(citation_ids)

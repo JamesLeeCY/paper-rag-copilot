@@ -70,6 +70,33 @@ def test_plan_rule_uses_the_quote_when_there_is_one():
     assert not plan_as_result(claim, RESULT, [PLAN])      # quoted sentence is a result
 
 
+HYP_HEADING = "2. Research Questions and Hypotheses > 2.1 Study 1 > 2.1.3 Hypotheses"
+HYPOTHESIS = "H1: Walking in a park will lower stress more than walking in a street."
+
+
+@pytest.mark.parametrize("claim", [
+    "公園步行比街道步行更讓人放鬆。",                       # no result cue word at all
+    "Park walks left participants calmer than street walks.",
+])
+def test_structural_rule_flags_any_unhedged_claim_citing_a_hypotheses_section(claim):
+    assert plan_as_result(claim, "", [HYPOTHESIS], [HYP_HEADING])
+    assert not plan_as_result(claim, "", [HYPOTHESIS], ["2.1.2 Methods"])  # wording route: no cue
+
+
+@pytest.mark.parametrize("claim", [
+    "研究假設公園步行會比街道步行更能降低壓力。",
+    "研究預期公園步行比街道步行更讓人放鬆。",
+    "The study expected park walks to lower stress more than street walks.",
+])
+def test_structural_rule_spares_a_hypothesis_reported_as_one(claim):
+    assert not plan_as_result(claim, "", [HYPOTHESIS], [HYP_HEADING])
+
+
+def test_structural_rule_reads_only_the_innermost_heading():
+    chapter_only = "2. Research Questions and Hypotheses > 2.1 Study 1 > 2.1.1 Background"
+    assert not plan_as_result("公園步行比街道步行更讓人放鬆。", "", [HYPOTHESIS], [chapter_only])
+
+
 @pytest.mark.parametrize("mode,expected", [
     ("flag", "disputed"), ("reject", "unsupported"), ("off", "supported")])
 def test_plan_rule_overrules_an_accepting_judge(monkeypatch, mode, expected):

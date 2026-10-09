@@ -276,6 +276,20 @@ plans — it appears to match content, not study stage. So the v3
 `plan_as_result` check barely works for Chinese claims over English
 hypothesis passages, and the rule and the judge miss the same items.
 
+**Structural rule added (2026-10-10, no model run):** an unhedged claim whose
+cited chunk's *innermost* heading is a Hypotheses section ("x.y.3 Hypotheses";
+4 chunks in the dissertation, none in the pilot) is flagged whatever its
+wording; "會" joined the hedge words. Matching the full heading path first
+false-flagged 2 background / research-question sentences, because the chapter
+title also says "Hypotheses" — hence innermost only. Results: hard set
+phi4 + rule false-accept 8/12 → **0/12** (not independent: the rule was
+designed after seeing these items); held-out unchanged at 1/55 FA, 2/28 FR;
+false flags on independent data **0/100** true validation claims and **0/87**
+real system claims. No unseen positives remain (all 4 hypothesis chunks are
+in the hard set), so recall must be checked on real generator outputs — trap
+questions that tempt citing a hypotheses section, in the generator-prompt
+rerun.
+
 Planned response, in order: (1) a structural rule — an unhedged claim citing
 a chunk from a Hypotheses section is flagged regardless of wording (designed
 after seeing this set, so it needs separate validation: false flags on real

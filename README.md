@@ -619,9 +619,13 @@ Ollama clients right before launching.
    4 of 12 (33% [14–61], all only as partial), approved 4 hypotheses restated
    as findings although the passage heading said "Hypotheses", and rejected 2
    of 6 correctly hedged plans. Judge + rule caught 8 of 12 and miss the same
-   cue-free items, so this gap is still open; a structural rule (unhedged
-   claim citing a Hypotheses section → review) and generator-side prevention
-   are next.
+   cue-free items. A **structural route** now closes most of that gap: an
+   unhedged claim citing a chunk whose innermost heading is a Hypotheses
+   section is flagged whatever its wording. With it, phi4 + rule let 0 of 12
+   hard items through — but the route was designed after seeing them, so that
+   is not an independent test; on independent data it flagged 0 of 100 true
+   validation claims and 0 of 87 real system claims. It only helps documents
+   that put hypotheses under their own heading.
    Caveats: the synthetic items share the rule's cues; a true finding cited
    from a future-tense methods passage could still be flagged, which is why the
    default is review, not rejection.
