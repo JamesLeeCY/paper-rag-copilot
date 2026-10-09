@@ -215,6 +215,17 @@ two real generator errors, the more serious one is still flagged partial; the
 milder one (same imprecise wording, core facts right) is now **supported** —
 judge variance or the heading making phi4 more lenient; unresolved (§7 step 1).
 Reports: `eval_report_phi4v3_fix.md`, `eval_results_phi4v3_fix.json` (local).
+
+**Does the section heading make phi4 more lenient? No** (2026-10-09
+09:15–10:55, `judge-eval --with-heading`, dissertation held-out split, 83 items,
+3 threads). False-accept 5% (3/55) and false-reject 7% (2/28), identical to the
+bare run; accuracy 82% vs 81%, κ 0.73 vs 0.71. Every error type caught at the
+same rate. Only 3/83 verdicts changed, all between partially_supported and
+unsupported (both count as caught), in both directions; no item crossed
+accept/reject. So both audit fixes stay, and the milder generator error that
+passed in the confirmation rerun is most likely judge variance on a borderline
+claim. Thread count (3 vs all cores) did not change verdicts either. Reports:
+`judge_report_stageB1_heading.md`, `judge_results_stageB1_heading.json` (local).
 Per-claim detail (claim, quote, cited passage, verdict, votes, reason) is now
 saved in `eval_results.json` (local; contains corpus text). Reports:
 `eval/reports/eval_report_phi4v3.md`, `eval_report_phi4v3_detail.md`,
@@ -333,13 +344,11 @@ run (§4); default judge set to phi4 alone with prompt v3 (owner's decision,
 plus a per-claim rerun of the dissertation's answerable questions and an
 audit of every non-supported claim (§4).
 
-1. **Check that the section heading does not make the judge more lenient.**
-   `judge-eval` still gives judges bare passages; give it the same
-   `（章節：…）` prefix (judge items carry a chunk id, so the heading can be
-   looked up) and rerun phi4 on the dissertation's held-out split (83 items);
-   compare false-accept with 5% (§4). Keep both fixes if it does not rise.
-   Done before this: the two audit fixes were confirmed by a rerun (§4).
-   What they are (implemented 2026-10-08, offline-tested on the real chunks):
+1. ~~Check that the section heading does not make the judge more lenient~~ —
+   done 2026-10-09: no change in false-accept or false-reject (§4).
+   `judge-eval --with-heading` shows judges the same `（章節：…）` prefix as the
+   live verifier (shared `verify.with_heading`). The two audit fixes
+   (implemented 2026-10-08, confirmed by a rerun, §4):
    - `verify.quote_span`: a quote not found in one passage is accepted when
      every sentence is (near-)verbatim in some retrieved passage; the claim is
      then judged against all spanned chunks (recorded as a citation repair).
@@ -350,7 +359,7 @@ audit of every non-supported claim (§4).
      Quote checks still use the bare text. The judge validation set
      (`judge-eval`) still passes bare passages, so its numbers are not directly
      comparable on items where the heading matters.
-2. **Close the plan→result gap.** The real case is still approved under v3,
+2. **Close the plan→result gap (next).** The real case is still approved under v3,
    and phi4 misses 2/6 synthetic items: add harder items shaped like real
    generator outputs, and/or a rule-based check (planning/future markers in the
    cited passage + a result-asserting claim → flag) that does not rely on the
@@ -461,4 +470,5 @@ audit of every non-supported claim (§4).
 | `a113f24`, `5345aee` | Guard unloads only its own models; default judge phi4 + prompt v3; Stage B step 1 results |
 | `257ca4c`, `c29e747` | Per-claim detail in eval results; `--answerable-only`; `OLLAMA_NUM_THREAD`; system results under the new default and claim audit |
 | `370f48b`, `a1e3f3d` | Quotes may span retrieved chunks; judges see the section heading; corrected diagnosis |
-| (this commit) | Confirmation rerun: strict precision 97% |
+| `c93d081` | Confirmation rerun: strict precision 97% |
+| (this commit) | `judge-eval --with-heading`; headings do not make phi4 more lenient |

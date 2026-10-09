@@ -73,9 +73,9 @@ heading). ¹ A confirmation rerun of the 26 answerable questions with both fixes
 (the generator produced the same 31 claims) reached **97% strict / 100%
 lenient**: the three false rejections became supported, and the more serious
 generator error is still flagged. The milder one (same imprecise wording, core
-facts right) now passes — either judge variance or the heading making the judge
-more lenient; checking that on the judge validation set is the next step.
-Trap questions were not rerun with the fixes. On
+facts right) now passes. A check on the judge validation set (below) found that
+the heading does not make phi4 more lenient, so this is most likely judge
+variance on a borderline claim. Trap questions were not rerun with the fixes. On
 the pilot paper all four generator errors under the previous default were
 caught as well (three rejected, one disputed).
 
@@ -134,6 +134,11 @@ better:
 *FA = false-accept, FR = false-reject.* Detection by error type on the
 dissertation (phi4 / panel): negation, number, conjunction and swapped passage
 100% / 100%; overclaim 96% / 100%; **plan→result 67% / 83%** (n=6).
+
+**Section heading shown to the judge** (as the live verifier now does;
+`judge-eval --with-heading`): phi4 on the dissertation's held-out split scored
+the same 5% FA / 7% FR, with every error type caught at the same rate; 3 of 83
+verdicts moved between partial and unsupported, none across accept/reject.
 
 Takeaways: the generator model is the weakest judge of its own output (qwen2.5
 barely moves under v3); **phi4 is the strongest single judge and consistent
@@ -390,6 +395,7 @@ python cli.py eval --with-llm --answerable-only      # answerable questions only
 python cli.py judge-build                            # build the known-answer set (no LLM)
 python cli.py judge-eval --judges ollama:phi4:latest ollama:gemma3:12b --prompts v2 v3 --split test
 python cli.py judge-eval --types plan_to_result attribution_swap --limit 10
+python cli.py judge-eval --with-heading               # passages shown with their section heading
 ```
 
 `check` is the writer-facing use: it splits your paragraph into sentences,
@@ -577,9 +583,9 @@ Ollama clients right before launching.
    claim-by-claim audit (Results).
 4a. ~~Quote spanning chunks; section heading shown to the judge~~ — done;
     strict precision 84% → 97% on the dissertation's answerable questions.
-4b. **Check on the judge validation set that the section heading does not raise
-    false-accept** (next).
-5. Close the plan→result gap: harder items shaped like real generator outputs,
+4b. ~~Check that the section heading does not raise false-accept~~ — done; it
+    does not.
+5. **Close the plan→result gap (next):** harder items shaped like real generator outputs,
    and a rule-based check (planning/future markers in the cited passage + a
    result-asserting claim → flag) that does not depend on the judge.
 6. Generator prompt: answer negative facts, attribute cited studies explicitly,
