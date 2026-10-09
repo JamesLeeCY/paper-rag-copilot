@@ -251,6 +251,51 @@ def check_quote(quote: str, passages: list[str]) -> str:
 _SENT_SPLIT_RE = re.compile(r"(?<=[.!?。！？])\s+")
 
 
+# --------------------------------------------------------------------------
+# Rule check: a plan or prediction read as a result
+# --------------------------------------------------------------------------
+# Source side: the sentence plans or predicts (future, hypothesis, aim).
+_PLAN_SRC_RE = re.compile(
+    r"\b(?:will|shall)\b|\bexpect(?:s|ed)? (?:to|that)\b|\bhypothesi[sz]e|\bhypothes[ie]s\b"
+    r"|\bpredict(?:s|ed)?\b|\baims? to\b|\bplan(?:s|ned)? to\b", re.I)
+# ...and, when there is no quote to pin the sentence, it plans an assessment
+# or predicts an outcome (not merely a procedure such as recruitment).
+_PLAN_OUTCOME_RE = re.compile(
+    r"assess|evaluat|measur|follow-up|outcome|effect|benefit|improv|reduc|increas|enhanc"
+    r"|differ|compar", re.I)
+# Claim side: asserts a finding.
+_CLAIM_RESULT_RE = re.compile(
+    r"顯示|显示|發現|发现|證實|证实|表明|揭示|顯著|显著|改善|提升|降低|減少|减少|增加|保持|維持|维持|有效"
+    r"|\b(?:found|showed|shown|revealed|demonstrated|indicated|confirmed|significant(?:ly)?"
+    r"|improved|reduced|increased|decreased|enhanced|maintained|sustained|effective)\b", re.I)
+# ...unless the claim itself reports it as a plan or prediction.
+_CLAIM_HEDGE_RE = re.compile(
+    r"將|将|預計|预计|計畫|計劃|计划|預定|预定|假設|假设|預期|预期|預測|预测|擬|拟|旨在|期望"
+    r"|\bwill\b|\bexpect|\bhypothes|\bpredict|\bplan(?:s|ned)?\b|\bpropos|\baims?\b", re.I)
+
+
+def plan_as_result(statement: str, quote: str, passages: list[str]) -> str:
+    """Reason string if the claim reads a plan/prediction as a result, else "".
+
+    Deterministic, so it does not depend on a judge noticing the tense: the
+    claim must assert a finding without hedging, and the source must plan or
+    predict — the quote's own sentences when there is a quote, otherwise a
+    passage sentence that plans an assessment or predicts an outcome.
+    """
+    if not _CLAIM_RESULT_RE.search(statement) or _CLAIM_HEDGE_RE.search(statement):
+        return ""
+    if _norm(quote):
+        hits = [s for s in _SENT_SPLIT_RE.split(quote.strip()) if _PLAN_SRC_RE.search(s)]
+    else:
+        hits = [s for p in passages for s in _SENT_SPLIT_RE.split(p)
+                if _PLAN_SRC_RE.search(s) and _PLAN_OUTCOME_RE.search(s)]
+    if not hits:
+        return ""
+    where = "quoted" if _norm(quote) else "passage"
+    return (f"rule: plan read as result — the {where} sentence plans or predicts "
+            f"({_PLAN_SRC_RE.search(hits[0]).group(0)!r}) but the claim reports a finding")
+
+
 def quote_span(quote: str, passages: list) -> list | None:
     """Passages that together contain every sentence of ``quote``, or None.
 
@@ -427,6 +472,18 @@ class Verifier:
         label, reason = _lexical_label(statement, passage)
         return ClaimVerdict(statement, [], label, reason, "lexical")
 
+    @staticmethod
+    def _apply_plan_rule(v: ClaimVerdict, quote: str, passages: list[str]) -> ClaimVerdict:
+        """Overrule an accepting verdict when the plan-as-result rule fires."""
+        mode = config.PLAN_RESULT_RULE
+        if mode == "off" or v.label not in ("supported", "partially_supported"):
+            return v
+        why = plan_as_result(v.statement, quote, passages)
+        if why:
+            v.label = "disputed" if mode == "flag" else "unsupported"
+            v.reason = f"{why}. Judge said: {v.reason}"
+        return v
+
     def verify_statement(self, statement: str, passages: list) -> ClaimVerdict:
         """Judge a user-written statement directly against retrieved passages.
 
@@ -443,8 +500,9 @@ class Verifier:
             if best.label == "supported":
                 break
         if best is None:
-            best = ClaimVerdict(statement, [], "unsupported", "no passages retrieved", "lexical")
-        return best
+            return ClaimVerdict(statement, [], "unsupported", "no passages retrieved", "lexical")
+        winner = next((p.text for p in passages if p.chunk_id in best.citation_ids), "")
+        return self._apply_plan_rule(best, "", [winner])
 
     def _verify_claim(self, claim: Claim, result: GenerationResult) -> ClaimVerdict:
         # Stage 0: the quote must actually appear in one of the cited passages.
@@ -498,6 +556,8 @@ class Verifier:
                 best = v
         best.citation_ids = citation_ids
         best.quote_check = quote_status
+        self._apply_plan_rule(best, claim.quote,
+                              [t for t in (_passage_text(result, c) for c in citation_ids) if t])
         if repaired:
             best.citation_repaired_from = claim.citation_ids
             how = ("quote spans chunks " + " + ".join(citation_ids)

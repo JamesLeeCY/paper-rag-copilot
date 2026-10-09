@@ -183,6 +183,11 @@ VERIFY_PROMPT = os.environ.get("VERIFY_PROMPT", "v3")
 QUOTE_MATCH_THRESHOLD = 0.9
 # If True, a claim without a <quote> is marked unsupported outright.
 QUOTE_REQUIRED = os.environ.get("QUOTE_REQUIRED", "0") == "1"
+# Rule-based check for a plan or prediction read as a result (source sentence
+# in future / hypothesis form, claim asserting a finding). Judges have approved
+# this error, so it is checked without them. "flag" turns an accepted claim
+# into "disputed" (human review), "reject" into "unsupported", "off" disables.
+PLAN_RESULT_RULE = os.environ.get("PLAN_RESULT_RULE", "flag")
 
 # The exact string the model must emit when nothing supports a claim. The
 # evaluation harness matches on this to score refusal correctness.
