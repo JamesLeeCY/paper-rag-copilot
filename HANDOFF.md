@@ -203,6 +203,18 @@ recorded here):
   some retrieved chunk, and judge against all chunks it spans.
 
 With the two fixes, strict precision on this run would be 28/31 (90%).
+
+**Confirmation rerun with both fixes** (2026-10-08 22:37 – 10-09 00:18,
+3 threads, 26 answerable questions; the generator produced the **same 31
+claims** as the per-claim run, so the difference is the fixes plus judge
+variance): strict / lenient precision **97% / 100% (30/31)**, 0 unsupported,
+0 fabricated quotes, 0 over-refusal, 0 parse failures. The spanning quote was
+accepted (recorded as "quote spans chunks …"); the claim missing section
+context and the one phi4 had judged too strict both became supported. Of the
+two real generator errors, the more serious one is still flagged partial; the
+milder one (same imprecise wording, core facts right) is now **supported** —
+judge variance or the heading making phi4 more lenient; unresolved (§7 step 1).
+Reports: `eval_report_phi4v3_fix.md`, `eval_results_phi4v3_fix.json` (local).
 Per-claim detail (claim, quote, cited passage, verdict, votes, reason) is now
 saved in `eval_results.json` (local; contains corpus text). Reports:
 `eval/reports/eval_report_phi4v3.md`, `eval_report_phi4v3_detail.md`,
@@ -321,9 +333,13 @@ run (§4); default judge set to phi4 alone with prompt v3 (owner's decision,
 plus a per-claim rerun of the dissertation's answerable questions and an
 audit of every non-supported claim (§4).
 
-1. **Rerun the 26 answerable questions to confirm the two audit fixes**
-   (`eval --with-llm --answerable-only`, ~1.5 h with `OLLAMA_NUM_THREAD=3`).
-   Both are implemented (2026-10-08) and pass offline tests on the real chunks:
+1. **Check that the section heading does not make the judge more lenient.**
+   `judge-eval` still gives judges bare passages; give it the same
+   `（章節：…）` prefix (judge items carry a chunk id, so the heading can be
+   looked up) and rerun phi4 on the dissertation's held-out split (83 items);
+   compare false-accept with 5% (§4). Keep both fixes if it does not rise.
+   Done before this: the two audit fixes were confirmed by a rerun (§4).
+   What they are (implemented 2026-10-08, offline-tested on the real chunks):
    - `verify.quote_span`: a quote not found in one passage is accepted when
      every sentence is (near-)verbatim in some retrieved passage; the claim is
      then judged against all spanned chunks (recorded as a citation repair).
@@ -443,4 +459,6 @@ audit of every non-supported claim (§4).
 | `01e8580` | Scaled Ollama timeout; failed judge casts no vote; re-judge cached `unparsed` |
 | `5eed641` | deepseek-r1 dropped as a judge |
 | `a113f24`, `5345aee` | Guard unloads only its own models; default judge phi4 + prompt v3; Stage B step 1 results |
-| (this commit) | Per-claim detail in eval results; `--answerable-only`; `OLLAMA_NUM_THREAD`; system results under the new default and claim audit |
+| `257ca4c`, `c29e747` | Per-claim detail in eval results; `--answerable-only`; `OLLAMA_NUM_THREAD`; system results under the new default and claim audit |
+| `370f48b`, `a1e3f3d` | Quotes may span retrieved chunks; judges see the section heading; corrected diagnosis |
+| (this commit) | Confirmation rerun: strict precision 97% |

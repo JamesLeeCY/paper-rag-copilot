@@ -47,9 +47,9 @@ below (2026-10-07). "Previous" below means judges `qwen2.5:7b-instruct` +
 | | Dissertation, previous | **Dissertation, current** | Pilot, previous | **Pilot, current** | Target |
 |---|---|---|---|---|---|
 | Retrieval Hit@5 (section-aware) | 100% (MRR 0.952) | 100% (MRR 0.952) | 95% | 95% | ≥ 90% |
-| Strict citation precision | 96% (26/27) | **84%** (26/31) | 90% (18/20) | 90% (18/20) | ≥ 95% |
-| Lenient citation precision | 96% | 97% | 90% | **95%** | — |
-| Claim / answer hallucination rate | 0% / 0% | 3% / 4% | 10% / 11% | **5% / 5%** | low |
+| Strict citation precision | 96% (26/27) | 84% (26/31) → **97% (30/31)**¹ | 90% (18/20) | 90% (18/20) | ≥ 95% |
+| Lenient citation precision | 96% | 97% → **100%**¹ | 90% | **95%** | — |
+| Claim / answer hallucination rate | 0% / 0% | 3% / 4% → **0% / 0%**¹ | 10% / 11% | **5% / 5%** | low |
 | Must-refuse traps refused | 95% | 95% | 100% | 100% | ≥ 90% |
 | False-premise traps safe | 83% | **100%** | 67% | **83%** | — |
 | Over-refusal on answerable questions | 0% | 0% | 5% | 5% | low |
@@ -69,8 +69,13 @@ default's lower strict precision on the dissertation was audited claim by claim
 
 Two fixes follow from this, both now in the code (a quote may span retrieved
 chunks if every sentence is found; the judge sees each passage's section
-heading); with them, strict precision on that run would be 90% (28/31) — to be
-confirmed by a rerun. On
+heading). ¹ A confirmation rerun of the 26 answerable questions with both fixes
+(the generator produced the same 31 claims) reached **97% strict / 100%
+lenient**: the three false rejections became supported, and the more serious
+generator error is still flagged. The milder one (same imprecise wording, core
+facts right) now passes — either judge variance or the heading making the judge
+more lenient; checking that on the judge validation set is the next step.
+Trap questions were not rerun with the fixes. On
 the pilot paper all four generator errors under the previous default were
 caught as well (three rejected, one disputed).
 
@@ -570,8 +575,10 @@ Ollama clients right before launching.
 3. ~~Choose a panel without the generator model~~ — phi4 alone, prompt v3.
 4. ~~Rerun the system evaluation under the new default~~ — done, with a
    claim-by-claim audit (Results).
-4a. Quote spanning chunks; section heading shown to the judge — implemented;
-    **rerun the answerable questions to confirm** (next).
+4a. ~~Quote spanning chunks; section heading shown to the judge~~ — done;
+    strict precision 84% → 97% on the dissertation's answerable questions.
+4b. **Check on the judge validation set that the section heading does not raise
+    false-accept** (next).
 5. Close the plan→result gap: harder items shaped like real generator outputs,
    and a rule-based check (planning/future markers in the cited passage + a
    result-asserting claim → flag) that does not depend on the judge.
