@@ -474,6 +474,17 @@ audit of every non-supported claim (§4).
      Quote checks still use the bare text. The judge validation set
      (`judge-eval`) still passes bare passages, so its numbers are not directly
      comparable on items where the heading matters.
+00. **Judge prompt v4 — implemented 2026-10-10, under evaluation** (opt-in,
+   `judge-eval --prompts v4`; default stays v3). The judge first classifies
+   the best supporting sentence (`source_stage`: result / hypothesis /
+   plan_or_method / background / other_study), the claim (`claim_stage`:
+   finding / hypothesis_or_plan / method / background) and the claim's
+   attribution; `verify.stage_verdict` then forces `unsupported` for a finding
+   drawn from a hypothesis/plan/method sentence or another study's result
+   claimed for this study, instead of trusting the judge's own flag (phi4
+   rarely set v3's). Output limit 400 tokens for v4. Plan: stage 2a on the hard
+   set (development data — the failure modes shaped v4), then 2b regression on
+   both held-out splits if 2a helps.
 0. **Generator prompt v2 — evaluated 2026-10-10; not adopted, default stays
    v1 (owner's decision).** Full rerun of both corpora (06:20–12:16, 3 threads,
    alongside another project's job; `eval_results_v2.json`, local). No false

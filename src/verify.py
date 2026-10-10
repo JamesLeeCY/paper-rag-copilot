@@ -99,7 +99,67 @@ VERIFY_SYSTEM_V3 = """你是一個嚴格的 entailment 判斷器。給你一個�
 - unsupported：數字或效果方向與原文矛盾；把假設或計畫寫成結果（plan_as_result 為 true）；把其他研究的結果歸給本研究（misattributed 為 true）；原文與論點無關，或原文並未提供支持該論點的證據。
 不要用原文以外的常識來補足。"""
 
-VERIFY_PROMPTS = {"v1": VERIFY_SYSTEM_V1, "v2": VERIFY_SYSTEM_V2, "v3": VERIFY_SYSTEM_V3}
+# v4: on realistic items phi4 rarely set v3's plan_as_result flag — it matched
+# content, not study stage. v4 makes the judge classify the source sentence
+# and the claim first; the verdict for a stage or attribution mismatch is then
+# decided in code (stage_verdict), not left to the judge's own flag.
+VERIFY_SYSTEM_V4 = """你是一個嚴格的 entailment 判斷器。給你一個「論點」和一段「原文」，
+你只判斷：這段原文是否直接支持這個論點？
+
+第一步：先分類，再判斷。
+A. 在原文中找出最能支持論點的那一句，判斷它的類型（source_stage）：
+   - "result"：本研究已經得到的結果或觀察（過去式的發現、統計結果）。
+   - "hypothesis"：假設、預期、預測（hypothesize, expect, predict, H1/H2 等編號，或寫在 Hypotheses 章節）。
+   - "plan_or_method"：研究計畫、程序或方法（will, will be, aim to, plan to, is designed to；如何招募、測量、分析）。
+   - "background"：一般背景、理論或研究動機。
+   - "other_study"：被引用的其他研究的結果（作者與年份，如 Smith et al., 2020；「先前研究」「a previous study」）。
+B. 判斷論點的類型（claim_stage）：
+   - "finding"：把某件事寫成已經發現或證實的結果（顯示、發現、證實、降低了、提升了、有差異……）。
+   - "hypothesis_or_plan"：明確寫成假設、預期或計畫（研究假設、預期、預計、將、會……）。
+   - "method"：描述研究怎麼做（招募、測量、分析程序）。
+   - "background"：一般背景或理論。
+C. 論點把結果歸給誰（claim_attribution）："this_study"（本研究）、"other_study"（明確寫出其他研究）、"none"（沒有提到）。
+
+第二步：依序檢查：
+1. 內容：論點的每一部分是否都出現在原文中？數字、效果方向（增加／減少）、對象是否完全一致？
+2. 證據強度：論點的確定程度是否高於原文？原文說「相關」而論點說「造成」，或原文說「可能」而論點說「必定／證明」，都屬於論點較強。
+3. 範圍：原文限定的樣本、條件或情境，論點是否擴大成普遍結論？
+4. 研究階段：原文是假設、計畫或方法，而論點寫成發現，原文就不支持該論點；即使內容相同也一樣。
+5. 歸屬：原文是其他研究的結果，而論點寫成本研究的結果，原文就不支持該論點。
+
+只輸出 JSON（不要多餘文字），欄位依此順序：
+{"source_stage": "result" | "hypothesis" | "plan_or_method" | "background" | "other_study", "claim_stage": "finding" | "hypothesis_or_plan" | "method" | "background", "claim_attribution": "this_study" | "other_study" | "none", "strength": "same" | "claim_stronger" | "claim_weaker", "label": "supported" | "partially_supported" | "unsupported", "reason": "簡短理由"}
+
+判斷準則：
+- supported：內容完全一致，確定程度與範圍不超過原文，且研究階段與歸屬都正確。論點若明確寫成假設或計畫，而原文正是該假設或計畫，也屬於 supported。
+- partially_supported：原文只支持論點的一部分；或論點的確定程度、範圍超過原文。
+- unsupported：數字或效果方向與原文矛盾；原文是假設、計畫或方法而論點寫成發現；原文是其他研究的結果而論點寫成本研究的結果；原文與論點無關，或原文並未提供支持該論點的證據。
+不要用原文以外的常識來補足。"""
+
+VERIFY_PROMPTS = {"v1": VERIFY_SYSTEM_V1, "v2": VERIFY_SYSTEM_V2, "v3": VERIFY_SYSTEM_V3,
+                  "v4": VERIFY_SYSTEM_V4}
+
+_SOURCE_STAGES = {"result", "hypothesis", "plan_or_method", "background", "other_study"}
+_CLAIM_STAGES = {"finding", "hypothesis_or_plan", "method", "background"}
+
+
+def stage_verdict(data: dict) -> str:
+    """v4: verdict forced by the judge's own classification, or "" to keep its label.
+
+    A finding drawn from a hypothesis, plan or method sentence, or another
+    study's result claimed for this study, is unsupported whatever label the
+    judge chose. Unknown or missing fields decide nothing.
+    """
+    src = str(data.get("source_stage", "")).strip().lower()
+    claim = str(data.get("claim_stage", "")).strip().lower()
+    attribution = str(data.get("claim_attribution", "")).strip().lower()
+    if src not in _SOURCE_STAGES or claim not in _CLAIM_STAGES:
+        return ""
+    if src in ("hypothesis", "plan_or_method") and claim == "finding":
+        return "unsupported"
+    if src == "other_study" and attribution == "this_study":
+        return "unsupported"
+    return ""
 VERIFY_SYSTEM = VERIFY_PROMPTS[config.VERIFY_PROMPT]
 
 
@@ -444,7 +504,8 @@ class Verifier:
             raw = llm.complete(
                 prompt or VERIFY_SYSTEM,
                 f"原文：\n{passage}\n\n論點：\n{statement}",
-                max_tokens=300,
+                # v4 writes three classification fields before its verdict.
+                max_tokens=400 if (prompt or VERIFY_SYSTEM) is VERIFY_SYSTEM_V4 else 300,
                 json_mode=True,
             )
         except (OSError, ValueError) as e:   # timeouts, connection errors, bad JSON body
@@ -468,6 +529,11 @@ class Verifier:
         # claimed for this one, is not support of any degree.
         if _flag(data.get("plan_as_result")) or _flag(data.get("misattributed")):
             label = "unsupported"
+        # v4: the judge's classification of source and claim decides a stage
+        # or attribution mismatch, not its own label.
+        forced = stage_verdict(data)
+        if forced:
+            label = forced
         return label, data.get("reason", "")
 
     def _judge(self, statement: str, passage: str) -> ClaimVerdict:
