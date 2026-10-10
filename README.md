@@ -255,10 +255,13 @@ the explicit refusal marker "查無直接支持此說法的段落". This turns "
 grounded?" into a string check before any LLM judge runs. A tolerant parser
 handles unclosed tags and a refusal marker placed inside a claim, and format
 errors are counted separately. An ungrounded `--baseline` prompt exists for
-comparison. Generator prompt `v2` (opt-in, under evaluation; see
-`GENERATOR_PROMPT` below) adds source-language quotes, passage-type labels so
-hypotheses and methods are never stated as findings, explicit attribution of
-cited studies, and answers to negative facts.
+comparison. Generator prompt `v2` (opt-in; see `GENERATOR_PROMPT` below) adds
+source-language quotes, passage-type labels so hypotheses and methods are never
+stated as findings, explicit attribution of cited studies, and answers to
+negative facts. Measured on both corpora it improved trap answers but added
+format errors for the 7B generator (more misplaced refusal markers, a copied
+template placeholder), so v1 remains the default — a longer, stricter prompt
+is not automatically a better one for a small model.
 
 **Context assembly.**
 - *Chunking is a context decision*: section-aware chunks never cross a section
