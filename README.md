@@ -373,7 +373,7 @@ verification are stand-ins (pipeline shape only).
 | `PANEL_RULE` | `unanimous` | `unanimous` or `majority` |
 | `VERIFY_PROMPT` | `v3` | Judge prompt version |
 | `QUOTE_REQUIRED` | off | `1` also rejects claims without a supporting quote |
-| `GENERATOR_PROMPT` | `v1` | Generator prompt; `v2` adds source-language quotes, passage-type labels (hypotheses/methods never stated as findings), explicit attribution of cited studies, negative facts answered, refusal marker only in `<unsupported_note>` — under evaluation |
+| `GENERATOR_PROMPT` | `v1` | Generator prompt; `v2` adds source-language quotes, passage-type labels (hypotheses/methods never stated as findings), explicit attribution of cited studies, negative facts answered, refusal marker only in `<unsupported_note>`. Evaluated, not adopted: better on trap questions, but more format errors on answerable ones (see Known limitations) |
 | `PLAN_RESULT_RULE` | `flag` | Plan or prediction read as a result: `flag` → disputed, `reject` → unsupported, `off` |
 
 ### Local Ollama notes
@@ -675,7 +675,13 @@ Ollama clients right before launching.
 4. **Negative facts.** "The paper says X was not done" tends to be refused
    (over-refusal).
 5. **Format drift.** The refusal marker inside `<claim>`, translated quotes and
-   unclosed tags occur; all are handled and counted, not hidden.
+   unclosed tags occur; all are handled and counted, not hidden. A stricter
+   generator prompt (v2) did not fix this for the 7B generator: on the
+   dissertation it raised trap scores (near-absent 89% → 100%, false-premise
+   67% → 83%) but doubled misplaced refusal markers (13 → 25), copied a
+   template placeholder as a citation id, and lowered strict precision 97% →
+   90% through citation errors on true claims — all within the intervals, so
+   v1 stays the default.
 6. **Judges are not deterministic.** The same pair can get different votes
    across runs; decide on larger sets or repeated runs.
 7. **Reasoning-model judges are too slow on CPU.** With room for its thinking,

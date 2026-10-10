@@ -474,8 +474,36 @@ audit of every non-supported claim (§4).
      Quote checks still use the bare text. The judge validation set
      (`judge-eval`) still passes bare passages, so its numbers are not directly
      comparable on items where the heading matters.
-0. **Generator prompt v2 — rerun in progress (2026-10-10).** `GENERATOR_PROMPT=v2`
-   (default still `v1`): quotes in the source language; each passage is
+0. **Generator prompt v2 — evaluated 2026-10-10; not adopted, default stays
+   v1 (owner's decision).** Full rerun of both corpora (06:20–12:16, 3 threads,
+   alongside another project's job; `eval_results_v2.json`, local). No false
+   claim shown as supported under either prompt; all differences are inside
+   the 95% intervals.
+
+   | | Dissertation v1 → v2 | Pilot v1 → v2 |
+   |---|---|---|
+   | Strict / lenient precision | 97% / 100% → 90% / 90% (26/29) | 89% / 95% → 89% / 100% |
+   | Unsupported claims | 0 → 3 | 1 → 0 |
+   | Misplaced refusal markers | 13 → **25** | 12 → 15 |
+   | Translated quotes | 0 → 0 | 1 → 0 |
+   | Near-absent / false-premise traps | 89% / 67% → 100% / 83% | 100% / 67% → 83% / 83% |
+   | Hypothesis-bait traps (6) | — → 6/6 safe | — |
+
+   Audit: the three new dissertation rejections are citation/format errors on
+   true claims — a result cited to a methods passage (rule 7 not followed),
+   the template placeholder "段落編號" copied as the citation id (new failure),
+   and two sentences merged into one quote (stitching, though forbidden). All
+   other non-supported claims were judged correctly by phi4. Per rule: the
+   source-language rule removed the one translated quote; attribution (rule 8)
+   had no visible effect; negative facts (rule 9) did not lower over-refusal;
+   the emphatic refusal rule backfired (more markers inside <claim>). The bait
+   traps never cited a hypotheses section, so the structural rule's recall on
+   real outputs is still unmeasured. If revisited (v2.1): a real example id in
+   the template instead of the placeholder, a positive or separate refusal tag
+   instead of the "never put it in <claim>" wording, and drop rules 8–9 to
+   shorten the prompt for the 7B generator.
+
+   What v2 contains (`GENERATOR_PROMPT=v2`): quotes in the source language; each passage is
    labelled with its heading path and a type (研究假設 / 研究方法 / 研究結果 /
    討論 / 背景 — from the chapter, except an innermost "Hypotheses" heading),
    and hypothesis/methods passages may only be reported as plans; findings of
