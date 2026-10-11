@@ -136,8 +136,44 @@ C. 論點把結果歸給誰（claim_attribution）："this_study"（本研究）
 - unsupported：數字或效果方向與原文矛盾；原文是假設、計畫或方法而論點寫成發現；原文是其他研究的結果而論點寫成本研究的結果；原文與論點無關，或原文並未提供支持該論點的證據。
 不要用原文以外的常識來補足。"""
 
+# v5: v4 regressed on held-out data (overclaim detection 24/25 → 12/25)
+# because it dropped v3's hedge/overclaim word lists. v5 keeps v3 verbatim —
+# lists, checks and flags — and only adds v4's classification step and fields,
+# so stage_verdict can still decide stage and attribution mismatches in code.
+VERIFY_SYSTEM_V5 = VERIFY_SYSTEM_V3.replace(
+    "請依序檢查：",
+    """第一步：先分類，再判斷。
+A. 在原文中找出最能支持論點的那一句，判斷它的類型（source_stage）：
+   - "result"：本研究已經得到的結果或觀察（過去式的發現、統計結果）。
+   - "hypothesis"：假設、預期、預測（hypothesize, expect, predict, H1/H2 等編號，或寫在 Hypotheses 章節）。
+   - "plan_or_method"：研究計畫、程序或方法（will, will be, aim to, plan to, is designed to；如何招募、測量、分析）。
+   - "background"：一般背景、理論或研究動機。
+   - "other_study"：被引用的其他研究的結果（作者與年份，如 Smith et al., 2020；「先前研究」「a previous study」）。
+B. 判斷論點的類型（claim_stage）：
+   - "finding"：把某件事寫成已經發現或證實的結果（顯示、發現、證實、降低了、提升了、有差異……）。
+   - "hypothesis_or_plan"：明確寫成假設、預期或計畫（研究假設、預期、預計、將、會……）。
+   - "method"：描述研究怎麼做（招募、測量、分析程序）。
+   - "background"：一般背景或理論。
+C. 論點把結果歸給誰（claim_attribution）："this_study"（本研究）、"other_study"（明確寫出其他研究）、"none"（沒有提到）。
+
+第二步：請依序檢查：""",
+    1,
+).replace(
+    '{"strength": "same" | "claim_stronger" | "claim_weaker", "plan_as_result"',
+    '{"source_stage": "result" | "hypothesis" | "plan_or_method" | "background" | "other_study", '
+    '"claim_stage": "finding" | "hypothesis_or_plan" | "method" | "background", '
+    '"claim_attribution": "this_study" | "other_study" | "none", '
+    '"strength": "same" | "claim_stronger" | "claim_weaker", "plan_as_result"',
+    1,
+).replace(
+    "- supported：內容完全一致，確定程度與範圍不超過原文，且研究階段與歸屬都正確。",
+    "- supported：內容完全一致，確定程度與範圍不超過原文，且研究階段與歸屬都正確。"
+    "論點若明確寫成假設或計畫，而原文正是該假設或計畫，也屬於 supported。",
+    1,
+)
+
 VERIFY_PROMPTS = {"v1": VERIFY_SYSTEM_V1, "v2": VERIFY_SYSTEM_V2, "v3": VERIFY_SYSTEM_V3,
-                  "v4": VERIFY_SYSTEM_V4}
+                  "v4": VERIFY_SYSTEM_V4, "v5": VERIFY_SYSTEM_V5}
 
 _SOURCE_STAGES = {"result", "hypothesis", "plan_or_method", "background", "other_study"}
 _CLAIM_STAGES = {"finding", "hypothesis_or_plan", "method", "background"}
@@ -504,8 +540,9 @@ class Verifier:
             raw = llm.complete(
                 prompt or VERIFY_SYSTEM,
                 f"原文：\n{passage}\n\n論點：\n{statement}",
-                # v4 writes three classification fields before its verdict.
-                max_tokens=400 if (prompt or VERIFY_SYSTEM) is VERIFY_SYSTEM_V4 else 300,
+                # v4/v5 write three classification fields before their verdict.
+                max_tokens=400 if (prompt or VERIFY_SYSTEM) in (VERIFY_SYSTEM_V4,
+                                                                VERIFY_SYSTEM_V5) else 300,
                 json_mode=True,
             )
         except (OSError, ValueError) as e:   # timeouts, connection errors, bad JSON body

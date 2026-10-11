@@ -69,6 +69,42 @@ def test_v3_replies_are_unaffected():
     assert judge.calls[0]["max_tokens"] == 300
 
 
+def test_v5_keeps_every_v3_line():
+    v3, v5 = VERIFY_PROMPTS["v3"], VERIFY_PROMPTS["v5"]
+    kept = [l for l in v3.splitlines() if l.strip() and not l.startswith(('{"strength"', "請依序檢查"))]
+    missing = [l for l in kept if l not in v5]
+    # Only the supported criterion line is extended (its v3 text is a prefix).
+    assert all(l.startswith("- supported：") for l in missing)
+    for cue in ("may, might, could", "will, always, prove", "plan_as_result", "misattributed"):
+        assert cue in v5
+
+
+def test_v5_adds_the_classification_step_and_fields():
+    v5 = VERIFY_PROMPTS["v5"]
+    assert "第一步：先分類" in v5 and "第二步：請依序檢查" in v5
+    assert "論點若明確寫成假設或計畫" in v5
+    line = next(l for l in v5.splitlines() if l.startswith('{"source_stage"'))
+    order = ["source_stage", "claim_stage", "claim_attribution", "strength",
+             "plan_as_result", "misattributed", "label", "reason"]
+    positions = [line.index(f'"{f}"') for f in order]
+    assert positions == sorted(positions)
+
+
+def test_v5_reply_uses_both_flags_and_stages():
+    stage = FakeJudge(reply("supported", source_stage="plan_or_method", claim_stage="finding",
+                            claim_attribution="none", plan_as_result=False, misattributed=False))
+    assert Verifier._llm_vote(stage, "c", "p", prompt=VERIFY_PROMPTS["v5"])[0] == "unsupported"
+    assert stage.calls[0]["max_tokens"] == 400
+    flag = FakeJudge(reply("supported", source_stage="result", claim_stage="finding",
+                           claim_attribution="this_study", plan_as_result=False, misattributed=True))
+    assert Verifier._llm_vote(flag, "c", "p", prompt=VERIFY_PROMPTS["v5"])[0] == "unsupported"
+    overclaim = FakeJudge(json.dumps({"source_stage": "result", "claim_stage": "finding",
+                                      "claim_attribution": "this_study", "strength": "claim_stronger",
+                                      "plan_as_result": False, "misattributed": False,
+                                      "label": "supported", "reason": "fake"}))
+    assert Verifier._llm_vote(overclaim, "c", "p", prompt=VERIFY_PROMPTS["v5"])[0] == "partially_supported"
+
+
 def test_v4_prompt_lists_every_field_in_order():
     order = ["source_stage", "claim_stage", "claim_attribution", "strength", "label", "reason"]
     line = next(l for l in VERIFY_SYSTEM_V4.splitlines() if l.startswith('{"source_stage"'))

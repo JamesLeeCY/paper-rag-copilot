@@ -292,6 +292,8 @@ Set with `VERIFY_PROMPT`; compare with `judge-eval --prompts v1 v2 v3`.
 | `v1` | Plain entailment: supported / partially_supported / unsupported | Superseded |
 | `v2` | Explicit evidence-strength field; a claim stronger than its source (overclaim) cannot be `supported` | Previous default |
 | `v3` | Two extra checks: a plan, hypothesis or planned measure restated as a result (`plan_as_result`), and another study's finding claimed for this study (`misattributed`); either one forces `unsupported` | **Default** (validated with phi4) |
+| `v4` | The judge first classifies the supporting sentence (result / hypothesis / plan_or_method / background / other_study) and the claim; code forces `unsupported` for a finding drawn from a hypothesis/plan, or another study's result claimed for this one. Shortened by dropping v3's hedge/overclaim word lists | Not adopted: better on plan→result, but false-accept rose 5% → 25% on held-out data because overclaim detection collapsed |
+| `v5` | v3 kept verbatim plus v4's classification step and fields | Under evaluation |
 
 Judges answer in JSON. A self-contradicting vote (`claim_stronger` but labelled
 `supported`) is downgraded to `partially_supported`.

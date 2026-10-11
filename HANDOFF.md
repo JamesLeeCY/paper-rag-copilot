@@ -474,8 +474,21 @@ audit of every non-supported claim (§4).
      Quote checks still use the bare text. The judge validation set
      (`judge-eval`) still passes bare passages, so its numbers are not directly
      comparable on items where the heading matters.
-00. **Judge prompt v4 — implemented 2026-10-10, under evaluation** (opt-in,
-   `judge-eval --prompts v4`; default stays v3). The judge first classifies
+00. **Judge prompt v4 — evaluated 2026-10-11; not adopted (regression).**
+   Stage 2a (hard set, development data): plan items caught 33% → 75% (with
+   rule 100%), control false-reject 14% → 7%. **Stage 2b (held-out) showed a
+   large regression**: false-accept dissertation 5% [2–15] → 25% [16–38]
+   (14/55), pilot 6% → 23% [12–39] (8/35; pilot v3 votes lacked headings,
+   a minor confound); false-reject unchanged (7%) / 5% → 0%. Cause:
+   **overclaim detection collapsed** (dissertation 24/25 → 12/25) because v4
+   dropped v3's explicit lists of hedge and overclaim words to shorten the
+   prompt; attribution swaps also slipped. Synthetic plan→result improved
+   (4/6 → 6/6), but v3 + the structural rule already caught all 12 hard plan
+   items. Lesson: removing concrete cue lists from a 7–14B judge's prompt
+   costs more than the shorter prompt gains, and a development set without
+   overclaims could not show it. Next: v5 = v3 kept verbatim + v4's
+   classification fields appended.
+   Original v4 description: (opt-in, `judge-eval --prompts v4`; default stays v3). The judge first classifies
    the best supporting sentence (`source_stage`: result / hypothesis /
    plan_or_method / background / other_study), the claim (`claim_stage`:
    finding / hypothesis_or_plan / method / background) and the claim's
