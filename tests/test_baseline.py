@@ -37,11 +37,23 @@ def test_split_keeps_decimals_and_abbreviations_together():
     ("The authors didn't report it.", True),
     ("文中未提及皮質醇。", True),
     ("資料中沒有相關數據。", True),
+    ("The thesis does not explicitly report sleep outcomes.", True),
+    ("This was not directly mentioned in the text.", True),
     ("Walking reduced stress.", False),
     ("研究發現步行改善了情緒。", False),
 ])
 def test_refusal_hint(text, abstains):
     assert bool(run_eval.REFUSAL_HINT_RE.search(text)) is abstains
+
+
+@pytest.mark.parametrize("text,denies", [
+    ("The work does not explicitly report this. It focused on walking instead.", True),
+    ("It focused on walking instead. The work does not report this.", False),
+    ("Walking reduced stress.", False),
+    ("", False),
+])
+def test_opens_with_denial(text, denies):
+    assert run_eval.opens_with_denial(text) is denies
 
 
 class FakeEmbedder:

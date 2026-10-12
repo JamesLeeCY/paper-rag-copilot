@@ -487,6 +487,19 @@ audit of every non-supported claim (§4).
    answerable + 25 traps (~5 h). Caveats: not a paired comparison (generator
    randomness), baseline judged against 2 of 5 passages, refusal detection is a
    heuristic, off-topic true sentences count as unsupported.
+
+   2-0 calibration (2026-10-12 15:12–17:36, phi4 shared with another
+   project's phi4 job at matched `OLLAMA_NUM_THREAD=2`/`OLLAMA_NUM_CTX=8192`):
+   splitting was clean on all 6 answers (decimals and statistics intact).
+   One abstention was missed ("does not *explicitly* report") and judged
+   unsupported → the regex now allows one adverb between negation and verb.
+   All 3 far_absent traps opened by denying the premise, then added related,
+   mostly supported content, so none counts as a refusal under the shared
+   definition (abstains and makes no claim; same rule as the grounded arm).
+   The baseline report now adds a secondary trap metric, "opens by denying
+   the premise" (`leading_denial`). Speed while sharing phi4: ~24 min per
+   question, ~7 min per judged sentence; the fix changes the run signature, so
+   2-1 reruns the 6 calibration questions.
 000. **Judge prompt v5 — evaluated 2026-10-12; not adopted. Judge prompt work
    closed; default stays v3 (owner's decision).** v5 = v3 verbatim + v4's
    classification step and fields (phi4, with headings, 3 threads, run

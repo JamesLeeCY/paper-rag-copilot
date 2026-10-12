@@ -175,10 +175,13 @@ def _load_progress(path: Path, signature: str) -> dict[str, dict]:
 # --------------------------------------------------------------------------
 _BULLET_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+")
 _SPLIT_RE = re.compile(r"(?<=[。！？!?])\s*|(?<=\.)\s+(?=[A-Z0-9\"'(（「])|\n+")
-# An abstention rather than a claim ("the text does not mention X").
+# An abstention rather than a claim ("the text does not mention X"). One
+# adverb may sit between the negation and the verb ("does not explicitly
+# report"); missing it sent a denial to the judge in calibration.
 REFUSAL_HINT_RE = re.compile(
-    r"not (?:mentioned|stated|reported|provided|specified|discussed|available|described)"
-    r"|(?:does|do|did)(?:n't| not) (?:mention|provide|contain|specify|discuss|report|state|describe|include)"
+    r"not (?:\w+ly )?(?:mentioned|stated|reported|provided|specified|discussed|available|described)"
+    r"|(?:does|do|did)(?:n't| not) (?:\w+ly )?"
+    r"(?:mention|provide|contain|specify|discuss|report|state|describe|include)"
     r"|no (?:information|mention|data|details)|cannot (?:be )?(?:determined|answered|determine|answer)"
     r"|unable to|there is no (?:information|mention|evidence)"
     r"|未提及|沒有提到|没有提到|無法|无法|未說明|未说明|沒有提供|没有提供|並未提到|并未提到|資料中沒有|未有相關",
@@ -194,6 +197,15 @@ def split_sentences(text: str) -> list[str]:
         if len(s) >= 10:
             out.append(s)
     return out
+
+
+def opens_with_denial(text: str) -> bool:
+    """The answer's first sentence abstains ("the text does not report X"),
+    whatever follows. Secondary trap metric for the baseline arm: a strict
+    refusal also requires no further claims, and the baseline often denies
+    the premise, then adds related content."""
+    sentences = split_sentences(text)
+    return bool(sentences) and bool(REFUSAL_HINT_RE.search(sentences[0]))
 
 
 def _closest(sentence: str, passages: list, embedder, k: int = 2) -> list:
@@ -323,6 +335,7 @@ def eval_grounding(
         rec = _question_record(g, v)
         if baseline:
             rec["raw"] = g.raw[:3000]   # the prose answer, for the refusal audit (local only)
+            rec["leading_denial"] = opens_with_denial(g.raw)
         rec["seconds"] = round(time.time() - t0)
         with progress_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps({"run": signature, "key": key, "record": rec},
@@ -404,6 +417,9 @@ def eval_grounding(
                                            v["n"])
            for k, v in traps_by_type.items()},
     }
+    if baseline:
+        counts["trap_leading_denial"] = stats.rate(
+            sum(d.get("leading_denial", False) for d in must_refuse), len(must_refuse))
 
     return {
         "strategy": strategy,
@@ -582,6 +598,14 @@ def write_report(results: dict, path: Path) -> None:
               "correct = safe — refusing or correcting the premise with supported claims "
               "both pass. Refusal correctness above covers only the must-refuse types.")
             A("")
+            if "trap_leading_denial" in g0c:
+                A(f"Opens by denying the premise (must-refuse traps, baseline): "
+                  f"{stats.fmt(g0c['trap_leading_denial'])}")
+                A("")
+                A("> Secondary metric: the first sentence abstains, whatever follows. It is "
+                  "not a refusal under the shared definition (abstains and makes no claim), "
+                  "which both arms are scored by.")
+                A("")
         A("> Targets (spec §1.3): Citation grounding ≥ **95%** supported (strict); "
           "trap refusal rate ≥ **90%**.")
         A("")
