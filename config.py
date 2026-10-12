@@ -144,6 +144,11 @@ OLLAMA_SECONDS_PER_TOKEN = float(os.environ.get("OLLAMA_SECONDS_PER_TOKEN", "0.4
 # 0 = Ollama's default (all physical cores). Set e.g. 3 to leave room for other
 # jobs; generation and judging slow down roughly in proportion.
 OLLAMA_NUM_THREAD = int(os.environ.get("OLLAMA_NUM_THREAD", "0"))
+# Context window per request (num_ctx); 0 = Ollama's default. Ollama keeps one
+# runner per model file and reloads it whenever a request's num_thread or
+# num_ctx differs from the loaded runner's, so when another project uses the
+# same model, matching its settings lets requests queue instead of reloading.
+OLLAMA_NUM_CTX = int(os.environ.get("OLLAMA_NUM_CTX", "0"))
 
 # Back-compat: some modules refer to LLM_MODEL as the active model name.
 LLM_MODEL = CLAUDE_MODEL if LLM_BACKEND == "claude" else OLLAMA_MODEL

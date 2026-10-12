@@ -130,6 +130,8 @@ class LLMClient:
         }
         if config.OLLAMA_NUM_THREAD > 0:
             payload["options"]["num_thread"] = config.OLLAMA_NUM_THREAD
+        if config.OLLAMA_NUM_CTX > 0:
+            payload["options"]["num_ctx"] = config.OLLAMA_NUM_CTX
         if json_mode:
             payload["format"] = "json"
         req = urllib.request.Request(
