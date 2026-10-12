@@ -474,6 +474,30 @@ audit of every non-supported claim (§4).
      Quote checks still use the bare text. The judge validation set
      (`judge-eval`) still passes bare passages, so its numbers are not directly
      comparable on items where the heading matters.
+000. **Judge prompt v5 — evaluated 2026-10-12; not adopted. Judge prompt work
+   closed; default stays v3 (owner's decision).** v5 = v3 verbatim + v4's
+   classification step and fields (phi4, with headings, 3 threads, run
+   alongside another project's qwen3 job, 05:34–10:31).
+
+   | | v3 | v4 | v5 | v5 + rule |
+   |---|---|---|---|---|
+   | Dissertation held-out FA / FR | 5% / 7% | 25% / 7% | 7% [3–17] / 4% [1–18] | same as v5 |
+   | Pilot held-out FA / FR (v3 without heading) | 6% / 5% | 23% / 0% | 14% [6–29] / 0% | same as v5 |
+   | Dissertation overclaim caught | 24/25 | 12/25 | 22/25 | — |
+   | Hard plan items caught (cue-free) | 4/12 (1/5) | 9/12 (2/5) | 5/12 (0/5) | **12/12 (5/5)** |
+   | Hard controls false-reject | 2/14 | 1/14 | 1/14 | 1/14 |
+
+   Neither criterion met: no held-out regression (pilot +3 false accepts:
+   a negation, a swapped passage, an overclaim) and a hard-set gain (5/12 vs
+   4/12). v5 did not inherit v4's hard-set gain, so v4's gain came from a
+   shift in leniency (more plan items rejected, many more overclaims
+   accepted), not from better stage understanding. What works is v3 plus the
+   two deterministic rules (wording + structural): held-out FA 5–6% and all 12
+   hard plan items stopped, with no extra judge time (v4/v5 outputs are longer,
+   ~20% slower). Lesson: for a 7–14B judge, restructuring the prompt moved its
+   strictness, not its understanding; deterministic checks were more reliable
+   than further prompt iterations. v4 and v5 stay in the code, opt-in, for
+   comparison.
 00. **Judge prompt v4 — evaluated 2026-10-11; not adopted (regression).**
    Stage 2a (hard set, development data): plan items caught 33% → 75% (with
    rule 100%), control false-reject 14% → 7%. **Stage 2b (held-out) showed a
