@@ -74,6 +74,8 @@ def cmd_eval(args):
         sys.argv.append("--answerable-only")
     if args.fresh:
         sys.argv.append("--fresh")
+    if args.baseline:
+        sys.argv.append("--baseline")
     eval_main()
 
 
@@ -132,6 +134,8 @@ def build_parser():
                    help="LLM pass on trap questions only")
     e.add_argument("--answerable-only", action="store_true",
                    help="LLM pass on answerable questions only")
+    e.add_argument("--baseline", action="store_true",
+                   help="ungrounded baseline arm, judged sentence by sentence")
     e.add_argument("--fresh", action="store_true",
                    help="ignore questions saved by an interrupted run and start over")
     e.set_defaults(func=cmd_eval)

@@ -135,7 +135,7 @@ PROGRESS_NAME = "eval_progress.jsonl"
 _QUOTE_STATUSES = ("verbatim", "near", "not_found", "missing")
 
 
-def _run_signature(strategy: str, llm: LLMClient, verifier) -> str:
+def _run_signature(strategy: str, llm: LLMClient, verifier, arm: str = "grounded") -> str:
     """Identifies a grounding run. Saved per-question records are reused only
     by a run with the same signature: same models, prompts, knobs and the same
     generation / verification / retrieval code, so a resumed run never mixes
@@ -143,7 +143,9 @@ def _run_signature(strategy: str, llm: LLMClient, verifier) -> str:
     src = Path(__file__).resolve().parents[1] / "src"
     code = "".join((src / f).read_text(encoding="utf-8")
                    for f in ("generate.py", "verify.py", "retrieve.py"))
-    parts = [strategy, llm.describe(), verifier.describe(), config.VERIFY_PROMPT,
+    if arm == "baseline":   # sentence splitting and refusal detection live here
+        code += Path(__file__).read_text(encoding="utf-8")
+    parts = [arm, strategy, llm.describe(), verifier.describe(), config.VERIFY_PROMPT,
              config.GENERATOR_PROMPT,
              config.PLAN_RESULT_RULE, str(config.QUOTE_REQUIRED), str(config.FINAL_TOP_K),
              config.EMBED_MODEL, str(config.RERANK_ENABLED), code]
@@ -166,6 +168,71 @@ def _load_progress(path: Path, signature: str) -> dict[str, dict]:
             if row.get("run") == signature:
                 done[row["key"]] = row["record"]
     return done
+
+
+# --------------------------------------------------------------------------
+# Baseline arm: an ungrounded prose answer, judged sentence by sentence
+# --------------------------------------------------------------------------
+_BULLET_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+")
+_SPLIT_RE = re.compile(r"(?<=[。！？!?])\s*|(?<=\.)\s+(?=[A-Z0-9\"'(（「])|\n+")
+# An abstention rather than a claim ("the text does not mention X").
+REFUSAL_HINT_RE = re.compile(
+    r"not (?:mentioned|stated|reported|provided|specified|discussed|available|described)"
+    r"|(?:does|do|did)(?:n't| not) (?:mention|provide|contain|specify|discuss|report|state|describe|include)"
+    r"|no (?:information|mention|data|details)|cannot (?:be )?(?:determined|answered|determine|answer)"
+    r"|unable to|there is no (?:information|mention|evidence)"
+    r"|未提及|沒有提到|没有提到|無法|无法|未說明|未说明|沒有提供|没有提供|並未提到|并未提到|資料中沒有|未有相關",
+    re.I)
+
+
+def split_sentences(text: str) -> list[str]:
+    """Sentences of a prose answer (Chinese or English punctuation, lines,
+    list bullets). Fragments under 10 characters are dropped."""
+    out = []
+    for part in _SPLIT_RE.split(text or ""):
+        s = _BULLET_RE.sub("", part or "").strip().strip("*").strip()
+        if len(s) >= 10:
+            out.append(s)
+    return out
+
+
+def _closest(sentence: str, passages: list, embedder, k: int = 2) -> list:
+    """The k context passages most similar to the sentence (cosine)."""
+    if len(passages) <= k:
+        return list(passages)
+    import numpy as np
+
+    q = np.asarray(embedder.encode_queries([sentence])[0], dtype=float)
+    P = np.asarray(embedder.encode_passages([p.text for p in passages]), dtype=float)
+    sims = P @ q / (np.linalg.norm(P, axis=1) * np.linalg.norm(q) + 1e-9)
+    return [passages[i] for i in np.argsort(-sims)[:k]]
+
+
+def baseline_bundle(question: str, strategy: str, llm, verifier, k: int = 2):
+    """Answer with the ungrounded baseline prompt over the same top-k context
+    the grounded arm gets, then judge every non-abstaining sentence against
+    its k closest context passages (early stop on support), as `check` does.
+
+    Returns (generation, verification) shaped like the grounded arm's, so the
+    same per-question record and metrics apply. ``refused`` = the answer
+    abstains (refusal phrase) and makes no claim."""
+    from src.generate import Claim, GenerationResult, generate
+    from src.retrieve import get_retriever
+    from src.verify import VerificationReport
+
+    retriever = get_retriever(strategy)
+    passages = retriever.search(question)
+    g = generate(question, passages, llm=llm, grounded=False)
+    sentences = split_sentences(g.raw)
+    claims_text = [s for s in sentences if not REFUSAL_HINT_RE.search(s)]
+    verdicts = [verifier.verify_statement(s, _closest(s, passages, retriever.embedder, k))
+                for s in claims_text]
+    gen = GenerationResult(
+        query=question, raw=g.raw, mode="baseline", passages=passages,
+        refused=bool(REFUSAL_HINT_RE.search(g.raw)) and not claims_text,
+        claims=[Claim(statement=s, citation_ids=v.citation_ids) for s, v in zip(claims_text, verdicts)],
+    )
+    return gen, VerificationReport(query=question, verdicts=verdicts)
 
 
 _CJK_RE = re.compile(r"[㐀-鿿]")
@@ -213,6 +280,7 @@ def _question_record(g, v) -> dict:
 def eval_grounding(
     strategy: str, golden: dict, llm: LLMClient, limit: int | None = None,
     traps_only: bool = False, answerable_only: bool = False, fresh: bool = False,
+    baseline: bool = False,
 ) -> dict:
     """Grounding / refusal metrics. Each question's record is appended to
     eval_progress.jsonl as soon as it is scored, so an interrupted run (guard
@@ -233,7 +301,8 @@ def eval_grounding(
     print(f"[grounding] verifier {verifier.describe()}")
     config.REPORT_DIR.mkdir(parents=True, exist_ok=True)
     progress_path = config.REPORT_DIR / PROGRESS_NAME
-    signature = _run_signature(strategy, llm, verifier)
+    arm = "baseline" if baseline else "grounded"
+    signature = _run_signature(strategy, llm, verifier, arm)
     done = {} if fresh else _load_progress(progress_path, signature)
     todo = [("answerable", it) for it in retrieval_items] + [("trap", it) for it in trap_items]
     n_resumed = sum(_question_key(k, it) in done for k, it in todo)
@@ -246,8 +315,14 @@ def eval_grounding(
         if key in done:
             return done[key], True
         t0 = time.time()
-        bundle = ask(it["question"], strategy=strategy, llm=llm, verifier=verifier)
-        rec = _question_record(bundle.generation, bundle.verification)
+        if baseline:
+            g, v = baseline_bundle(it["question"], strategy, llm, verifier)
+        else:
+            bundle = ask(it["question"], strategy=strategy, llm=llm, verifier=verifier)
+            g, v = bundle.generation, bundle.verification
+        rec = _question_record(g, v)
+        if baseline:
+            rec["raw"] = g.raw[:3000]   # the prose answer, for the refusal audit (local only)
         rec["seconds"] = round(time.time() - t0)
         with progress_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps({"run": signature, "key": key, "record": rec},
@@ -309,8 +384,9 @@ def eval_grounding(
             "safe_rate": _ratio(sum(d["safe"] for d in sub), len(sub)),
         }
 
-    # Complete: retire the progress file so the next run starts fresh.
-    if progress_path.exists():
+    # Complete: retire the progress file so the next run starts fresh. A
+    # sampled run (--llm-limit) keeps it, so the full run reuses its questions.
+    if progress_path.exists() and not limit:
         progress_path.replace(progress_path.with_name(f"eval_progress.done-{signature}.jsonl"))
 
     n_partial_ok = n_supported + n_partial
@@ -407,7 +483,15 @@ def write_report(results: dict, path: Path) -> None:
         A("")
 
     if results.get("grounding"):
-        A(f"## 2. Grounding / Hallucination / Refusal (LLM: `{results.get('llm_backend','?')}`)")
+        arm = results["grounding"][0].get("arm", "grounded")
+        A(f"## 2. Grounding / Hallucination / Refusal (LLM: `{results.get('llm_backend','?')}`, "
+          f"arm: `{arm}`)")
+        if arm == "baseline":
+            A("")
+            A("> Baseline arm: ungrounded prose answers over the same context passages, split "
+              "into sentences; each non-abstaining sentence is judged against its 2 closest "
+              "context passages. \"Refused\" = the answer only abstains. Claim counts are "
+              "sentences; quote columns do not apply.")
         A("")
         g0 = results["grounding"][0]
         A(f"_Scored on {g0.get('n_retrieval_scored','?')} retrieval questions and "
@@ -533,6 +617,9 @@ def main():
                     help="LLM pass on trap questions only (skip the answerable ones)")
     ap.add_argument("--answerable-only", action="store_true",
                     help="LLM pass on answerable questions only (skip the traps)")
+    ap.add_argument("--baseline", action="store_true",
+                    help="ungrounded baseline arm: prose answers over the same context, "
+                         "judged sentence by sentence (for the grounded-vs-baseline comparison)")
     ap.add_argument("--fresh", action="store_true",
                     help="ignore questions saved by an interrupted run and start over")
     ap.add_argument("--llm-limit", type=int, default=None,
@@ -568,7 +655,9 @@ def main():
             results["llm_limit"] = args.llm_limit
             g = eval_grounding(args.llm_strategy, golden, llm, limit=args.llm_limit,
                                traps_only=args.traps_only,
-                               answerable_only=args.answerable_only, fresh=args.fresh)
+                               answerable_only=args.answerable_only, fresh=args.fresh,
+                               baseline=args.baseline)
+            g["arm"] = "baseline" if args.baseline else "grounded"
             results["grounding"] = [g]
             print(f"[grounding:{args.llm_strategy}] precision strict/lenient="
                   f"{g['citation_precision_strict']}/{g['citation_precision_lenient']} "

@@ -474,6 +474,19 @@ audit of every non-supported claim (§4).
      Quote checks still use the bare text. The judge validation set
      (`judge-eval`) still passes bare passages, so its numbers are not directly
      comparable on items where the heading matters.
+0000. **Grounded vs baseline comparison — in progress (2026-10-12).**
+   `eval --with-llm --baseline`: the ungrounded `SYSTEM_BASELINE` prompt over
+   the same top-5 context; the prose answer is split into sentences
+   (`split_sentences`), abstentions ("does not mention", 未提及 …,
+   `REFUSAL_HINT_RE`) are not claims, and every other sentence is judged by
+   phi4 v3 against its 2 closest context passages (embedding similarity,
+   early stop). Output has the grounded arm's shape, so metrics, intervals and
+   resume are shared; the arm is part of the run signature. The grounded arm
+   reuses existing v1 results. Plan: 2-0 calibration (3 answerable + 3 traps,
+   audit splitting and refusal detection), then 2-1 the dissertation's 26
+   answerable + 25 traps (~5 h). Caveats: not a paired comparison (generator
+   randomness), baseline judged against 2 of 5 passages, refusal detection is a
+   heuristic, off-topic true sentences count as unsupported.
 000. **Judge prompt v5 — evaluated 2026-10-12; not adopted. Judge prompt work
    closed; default stays v3 (owner's decision).** v5 = v3 verbatim + v4's
    classification step and fields (phi4, with headings, 3 threads, run

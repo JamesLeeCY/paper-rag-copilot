@@ -103,6 +103,15 @@ def test_completed_run_retires_its_progress(env, monkeypatch):
     assert len(calls) == 6
 
 
+def test_a_sampled_run_keeps_its_questions_for_the_full_run(env, monkeypatch):
+    monkeypatch.setattr(src.pipeline, "ask", make_ask([]))
+    run_eval.eval_grounding("section", GOLDEN, NS(describe=lambda: "fake:gen"), limit=1)
+    assert (env / run_eval.PROGRESS_NAME).exists()          # not retired
+    calls = []
+    assert run(monkeypatch, calls)["n_resumed"] == 2        # R1 and T1 reused
+    assert len(calls) == 4
+
+
 def test_fresh_ignores_saved_questions(env, monkeypatch):
     with pytest.raises(Interrupted):
         run(monkeypatch, [], fail_on=3)
