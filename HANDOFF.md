@@ -500,6 +500,25 @@ audit of every non-supported claim (§4).
    the premise" (`leading_denial`). Speed while sharing phi4: ~24 min per
    question, ~7 min per judged sentence; the fix changes the run signature, so
    2-1 reruns the 6 calibration questions.
+
+   2-1 (2026-10-12/13) is incomplete: 37/57 saved (26 answerable + 11 of 31
+   traps). It was stopped by the guard (swap +2.6 GB from another program),
+   then the machine crashed twice (bugcheck 0x7E at 23:54; power-loss style
+   reset ~01:13), so local runs are paused until the hardware is checked.
+   Answerable comparison on the saved records (phi4 v3, same questions and
+   retrieval; Wilson 95%): strict precision grounded 97% [84–99] (30/31) vs
+   baseline 87% [78–92] (84/97); hallucination 0% [0–11] vs 4% [2–10];
+   answers with an unsupported claim 0/26 vs 4/26 (McNemar exact p = 0.125).
+   Audit of the 13 non-supported baseline sentences: 4 partials were split
+   fragments (group labels like "X vs. Y" cut at "vs.") → the splitter now skips
+   common abbreviations (affects R06 and R22 only); at least 2 unsupported
+   sentences have their evidence in the context but not in the 2 closest
+   passages the judge saw; 1 label contradicts its own reason. The baseline's
+   error rates are therefore overstated. Next (after the hardware check):
+   re-judge the non-supported sentences against all 5 passages as a
+   sensitivity analysis, then finish the 20 traps. The splitter change alters
+   the baseline run signature, so finishing reruns the saved questions unless
+   their verdicts are reused.
 000. **Judge prompt v5 — evaluated 2026-10-12; not adopted. Judge prompt work
    closed; default stays v3 (owner's decision).** v5 = v3 verbatim + v4's
    classification step and fields (phi4, with headings, 3 threads, run

@@ -174,7 +174,13 @@ def _load_progress(path: Path, signature: str) -> dict[str, dict]:
 # Baseline arm: an ungrounded prose answer, judged sentence by sentence
 # --------------------------------------------------------------------------
 _BULLET_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+")
-_SPLIT_RE = re.compile(r"(?<=[。！？!?])\s*|(?<=\.)\s+(?=[A-Z0-9\"'(（「])|\n+")
+# No break after a common abbreviation: "A vs. B" in a sentence was cut into
+# fragments the judge could only rate as partial (2-1 run, answerable set).
+_ABBREV = ("vs", "Vs", "cf", "Cf", "al", "Fig", "fig", "Figs", "figs", "Eq", "eq",
+           "No", "no", "Dr", "Mr", "Ms", "approx", "e.g", "E.g", "i.e", "I.e")
+_NOT_ABBREV = "".join(rf"(?<!\b{re.escape(a)}\.)" for a in _ABBREV)
+_SPLIT_RE = re.compile(r"(?<=[。！？!?])\s*|(?<=\.)" + _NOT_ABBREV
+                       + r"\s+(?=[A-Z0-9\"'(（「])|\n+")
 # An abstention rather than a claim ("the text does not mention X"). One
 # adverb may sit between the negation and the verb ("does not explicitly
 # report"); missing it sent a denial to the judge in calibration.

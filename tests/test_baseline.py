@@ -30,6 +30,17 @@ def test_split_keeps_decimals_and_abbreviations_together():
         "The p value was 0.04 overall."]   # "It held." is under 10 chars
 
 
+def test_split_skips_abbreviations():
+    text = ("The model had fixed effects for Group (Walk vs. Rest) and Time (Day 1 vs. "
+            "Day 2). Results matched earlier work (Smith et al. 2020; cf. Fig. 3), e.g. Table 2. "
+            "A second sentence follows here.")
+    assert run_eval.split_sentences(text) == [
+        "The model had fixed effects for Group (Walk vs. Rest) and Time (Day 1 vs. Day 2).",
+        "Results matched earlier work (Smith et al. 2020; cf. Fig. 3), e.g. Table 2.",
+        "A second sentence follows here.",
+    ]
+
+
 @pytest.mark.parametrize("text,abstains", [
     ("The text does not mention cortisol.", True),
     ("This is not reported in the passages.", True),
