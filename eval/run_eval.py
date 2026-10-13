@@ -135,7 +135,8 @@ PROGRESS_NAME = "eval_progress.jsonl"
 _QUOTE_STATUSES = ("verbatim", "near", "not_found", "missing")
 
 
-def _run_signature(strategy: str, llm: LLMClient, verifier, arm: str = "grounded") -> str:
+def _run_signature(strategy: str, llm: LLMClient, verifier, arm: str = "grounded",
+                   reuse_from: str = "") -> str:
     """Identifies a grounding run. Saved per-question records are reused only
     by a run with the same signature: same models, prompts, knobs and the same
     generation / verification / retrieval code, so a resumed run never mixes
@@ -149,6 +150,8 @@ def _run_signature(strategy: str, llm: LLMClient, verifier, arm: str = "grounded
              config.GENERATOR_PROMPT,
              config.PLAN_RESULT_RULE, str(config.QUOTE_REQUIRED), str(config.FINAL_TOP_K),
              config.EMBED_MODEL, str(config.RERANK_ENABLED), code]
+    if reuse_from:          # answers and verdicts carried over from that run
+        parts.append(f"reuse:{reuse_from}")
     return hashlib.sha256("\x00".join(parts).encode("utf-8")).hexdigest()[:16]
 
 
@@ -226,10 +229,15 @@ def _closest(sentence: str, passages: list, embedder, k: int = 2) -> list:
     return [passages[i] for i in np.argsort(-sims)[:k]]
 
 
-def baseline_bundle(question: str, strategy: str, llm, verifier, k: int = 2):
+def baseline_bundle(question: str, strategy: str, llm, verifier, k: int = 2,
+                    raw: str | None = None, cached: dict | None = None):
     """Answer with the ungrounded baseline prompt over the same top-k context
     the grounded arm gets, then judge every non-abstaining sentence against
     its k closest context passages (early stop on support), as `check` does.
+
+    ``raw`` reuses a saved answer instead of generating one; ``cached`` maps a
+    sentence to its saved verdict, so only sentences not judged before go to
+    the judge (see ``reused_verdicts``).
 
     Returns (generation, verification) shaped like the grounded arm's, so the
     same per-question record and metrics apply. ``refused`` = the answer
@@ -240,17 +248,45 @@ def baseline_bundle(question: str, strategy: str, llm, verifier, k: int = 2):
 
     retriever = get_retriever(strategy)
     passages = retriever.search(question)
-    g = generate(question, passages, llm=llm, grounded=False)
-    sentences = split_sentences(g.raw)
+    if raw is None:
+        raw = generate(question, passages, llm=llm, grounded=False).raw
+    cached = cached or {}
+    sentences = split_sentences(raw)
     claims_text = [s for s in sentences if not REFUSAL_HINT_RE.search(s)]
-    verdicts = [verifier.verify_statement(s, _closest(s, passages, retriever.embedder, k))
+    verdicts = [cached[s] if s in cached else
+                verifier.verify_statement(s, _closest(s, passages, retriever.embedder, k))
                 for s in claims_text]
     gen = GenerationResult(
-        query=question, raw=g.raw, mode="baseline", passages=passages,
-        refused=bool(REFUSAL_HINT_RE.search(g.raw)) and not claims_text,
+        query=question, raw=raw, mode="baseline", passages=passages,
+        refused=bool(REFUSAL_HINT_RE.search(raw)) and not claims_text,
         claims=[Claim(statement=s, citation_ids=v.citation_ids) for s, v in zip(claims_text, verdicts)],
     )
     return gen, VerificationReport(query=question, verdicts=verdicts)
+
+
+_RAW_LIMIT = 3000   # saved baseline answers are cut here (see eval_grounding)
+
+
+def reused_verdicts(record: dict) -> dict:
+    """{sentence: ClaimVerdict} from a saved baseline record, for re-scoring
+    its answer after a change to splitting or abstention detection without
+    judging unchanged sentences again."""
+    from src.verify import ClaimVerdict
+
+    return {c["statement"]: ClaimVerdict(c["statement"], list(c["judged_against"]), c["label"],
+                                         c["reason"], c["method"], dict(c.get("votes") or {}),
+                                         c.get("quote_check", ""))
+            for c in record.get("claims", [])}
+
+
+def load_reusable(report_dir: Path, signature: str) -> dict[str, dict]:
+    """Saved baseline records of run ``signature`` whose full answer was kept,
+    from the live progress file or a retired one."""
+    rows = {}
+    for path in (report_dir / PROGRESS_NAME,
+                 report_dir / f"eval_progress.done-{signature}.jsonl"):
+        rows.update(_load_progress(path, signature))
+    return {k: r for k, r in rows.items() if "raw" in r and len(r["raw"]) < _RAW_LIMIT}
 
 
 _CJK_RE = re.compile(r"[㐀-鿿]")
@@ -298,13 +334,18 @@ def _question_record(g, v) -> dict:
 def eval_grounding(
     strategy: str, golden: dict, llm: LLMClient, limit: int | None = None,
     traps_only: bool = False, answerable_only: bool = False, fresh: bool = False,
-    baseline: bool = False,
+    baseline: bool = False, reuse_from: str = "",
 ) -> dict:
     """Grounding / refusal metrics. Each question's record is appended to
     eval_progress.jsonl as soon as it is scored, so an interrupted run (guard
     stop, crash, closed session) resumes where it stopped when started again
     with the same settings; ``fresh`` ignores saved records. The progress file
-    is renamed once the run completes, so the next run starts fresh."""
+    is renamed once the run completes, so the next run starts fresh.
+
+    ``reuse_from`` (baseline arm): take each question's answer from that
+    earlier run's saved records and reuse its verdicts for sentences that
+    split the same way; only new sentences are judged and only questions the
+    earlier run did not reach are generated."""
     from src.pipeline import ask
     from src.verify import Verifier
 
@@ -320,7 +361,12 @@ def eval_grounding(
     config.REPORT_DIR.mkdir(parents=True, exist_ok=True)
     progress_path = config.REPORT_DIR / PROGRESS_NAME
     arm = "baseline" if baseline else "grounded"
-    signature = _run_signature(strategy, llm, verifier, arm)
+    if reuse_from and not baseline:
+        raise ValueError("reuse_from applies to the baseline arm only")
+    signature = _run_signature(strategy, llm, verifier, arm, reuse_from)
+    reusable = load_reusable(config.REPORT_DIR, reuse_from) if reuse_from else {}
+    if reuse_from:
+        print(f"[grounding] reusing answers of run {reuse_from}: {len(reusable)} saved")
     done = {} if fresh else _load_progress(progress_path, signature)
     todo = [("answerable", it) for it in retrieval_items] + [("trap", it) for it in trap_items]
     n_resumed = sum(_question_key(k, it) in done for k, it in todo)
@@ -333,15 +379,23 @@ def eval_grounding(
         if key in done:
             return done[key], True
         t0 = time.time()
-        if baseline:
+        old = reusable.get(key)
+        if baseline and old:
+            g, v = baseline_bundle(it["question"], strategy, llm, verifier,
+                                   raw=old["raw"], cached=reused_verdicts(old))
+        elif baseline:
             g, v = baseline_bundle(it["question"], strategy, llm, verifier)
         else:
             bundle = ask(it["question"], strategy=strategy, llm=llm, verifier=verifier)
             g, v = bundle.generation, bundle.verification
         rec = _question_record(g, v)
         if baseline:
-            rec["raw"] = g.raw[:3000]   # the prose answer, for the refusal audit (local only)
+            rec["raw"] = g.raw[:_RAW_LIMIT]   # the prose answer, for the refusal audit (local only)
             rec["leading_denial"] = opens_with_denial(g.raw)
+            if old:
+                cached = reused_verdicts(old)
+                rec["reused_from"] = reuse_from
+                rec["n_reused_verdicts"] = sum(c.statement in cached for c in g.claims)
         rec["seconds"] = round(time.time() - t0)
         with progress_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps({"run": signature, "key": key, "record": rec},
@@ -465,6 +519,10 @@ def eval_grounding(
         "misplaced_refusals": total(every, "misplaced_refusal"),
         "answer_detail": answer_detail,
         "trap_detail": trap_detail,
+        **({"reuse_from": reuse_from,
+            "n_reused_answers": sum("reused_from" in r for r in every),
+            "n_reused_verdicts": sum(r.get("n_reused_verdicts", 0) for r in every)}
+           if reuse_from else {}),
     }
 
 
@@ -514,6 +572,12 @@ def write_report(results: dict, path: Path) -> None:
               "into sentences; each non-abstaining sentence is judged against its 2 closest "
               "context passages. \"Refused\" = the answer only abstains. Claim counts are "
               "sentences; quote columns do not apply.")
+            g0r = results["grounding"][0]
+            if g0r.get("reuse_from"):
+                A("")
+                A(f"> Re-scored from run `{g0r['reuse_from']}`: {g0r['n_reused_answers']} saved "
+                  f"answers reused, {g0r['n_reused_verdicts']} sentence verdicts carried over "
+                  "unchanged; the remaining sentences and questions were judged in this run.")
         A("")
         g0 = results["grounding"][0]
         A(f"_Scored on {g0.get('n_retrieval_scored','?')} retrieval questions and "
@@ -652,6 +716,9 @@ def main():
                          "judged sentence by sentence (for the grounded-vs-baseline comparison)")
     ap.add_argument("--fresh", action="store_true",
                     help="ignore questions saved by an interrupted run and start over")
+    ap.add_argument("--reuse-from", default="", metavar="SIGNATURE",
+                    help="baseline arm: reuse the answers and unchanged sentence verdicts "
+                         "saved by that earlier run (after a splitting/abstention change)")
     ap.add_argument("--llm-limit", type=int, default=None,
                     help="cap #retrieval and #trap questions for the LLM pass (quick runs)")
     args = ap.parse_args()
@@ -686,7 +753,7 @@ def main():
             g = eval_grounding(args.llm_strategy, golden, llm, limit=args.llm_limit,
                                traps_only=args.traps_only,
                                answerable_only=args.answerable_only, fresh=args.fresh,
-                               baseline=args.baseline)
+                               baseline=args.baseline, reuse_from=args.reuse_from)
             g["arm"] = "baseline" if args.baseline else "grounded"
             results["grounding"] = [g]
             print(f"[grounding:{args.llm_strategy}] precision strict/lenient="

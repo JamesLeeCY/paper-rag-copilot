@@ -133,3 +133,85 @@ def test_baseline_and_grounded_runs_have_different_signatures():
     ver = NS(describe=lambda: "judges=[fake]")
     assert run_eval._run_signature("section", llm, ver, "baseline") != \
         run_eval._run_signature("section", llm, ver, "grounded")
+
+
+def test_signature_records_the_reused_run():
+    llm = NS(describe=lambda: "fake")
+    ver = NS(describe=lambda: "judges=[fake]")
+    assert run_eval._run_signature("section", llm, ver, "baseline", "abc") != \
+        run_eval._run_signature("section", llm, ver, "baseline")
+
+
+def test_reused_verdicts_round_trip(monkeypatch):
+    g, v, _ = run_bundle(monkeypatch, "Walking reduced stress a lot. Sleep quality improved too.")
+    rec = run_eval._question_record(g, v)
+    cached = run_eval.reused_verdicts(rec)
+    assert {s: x.label for s, x in cached.items()} == {
+        "Walking reduced stress a lot.": "supported", "Sleep quality improved too.": "unsupported"}
+    assert cached["Walking reduced stress a lot."].citation_ids == ["c0"]
+
+
+def test_reuse_rescores_saved_answers_and_judges_only_new_sentences(tmp_path, monkeypatch):
+    import json
+
+    import config
+    import src.verify
+
+    judged, generated = [], []
+
+    class CountingVerifier(FakeVerifier):
+        def __init__(self, llm=None):
+            super().__init__()
+
+        def describe(self):
+            return "judges=[fake]"
+
+        def verify_statement(self, statement, passages):
+            judged.append(statement)
+            return super().verify_statement(statement, passages)
+
+    monkeypatch.setattr(config, "REPORT_DIR", tmp_path)
+    monkeypatch.setattr(src.verify, "Verifier", CountingVerifier)
+    monkeypatch.setattr(src.retrieve, "get_retriever",
+                        lambda s: NS(search=lambda q: PASSAGES, embedder=FakeEmbedder()))
+
+    def fake_generate(q, p, llm=None, grounded=True):
+        generated.append(q)
+        return NS(raw="Walking reduced stress here.")
+    monkeypatch.setattr(src.generate, "generate", fake_generate)
+
+    golden = {"retrieval": [{"id": "R1", "question": "q one"}, {"id": "R2", "question": "q two"}],
+              "traps": []}
+    # The old run split "A vs. B" into fragments; its verdict for the first
+    # sentence is reused, the re-joined sentence is judged anew.
+    old_raw = "Walking reduced stress a lot. Mood ratings vs. Sleep scores were both better."
+    old = {"raw": old_raw, "claims": [
+        {"statement": "Walking reduced stress a lot.", "judged_against": ["c0"],
+         "label": "supported", "reason": "old", "method": "llm", "votes": {"fake": "supported"}},
+        {"statement": "Mood ratings vs.", "judged_against": ["c4"],
+         "label": "partially_supported", "reason": "old", "method": "llm", "votes": {}}]}
+    key = run_eval._question_key("answerable", golden["retrieval"][0])
+    (tmp_path / run_eval.PROGRESS_NAME).write_text(
+        json.dumps({"run": "OLDSIG", "key": key, "record": old}) + "\n", encoding="utf-8")
+
+    res = run_eval.eval_grounding("section", golden, NS(describe=lambda: "fake:gen"),
+                                  baseline=True, reuse_from="OLDSIG")
+    r1, r2 = res["answer_detail"]
+    assert generated == ["q two"]                    # R1's answer came from the old run
+    assert judged == ["Mood ratings vs. Sleep scores were both better.",
+                      "Walking reduced stress here."]
+    assert [c["label"] for c in r1["claims"]] == ["supported", "unsupported"]
+    assert r1["claims"][0]["reason"] == "old" and r1["n_reused_verdicts"] == 1
+    assert "reused_from" not in r2
+    assert res["n_reused_answers"] == 1 and res["n_reused_verdicts"] == 1
+
+
+def test_truncated_answers_are_not_reused(tmp_path):
+    import json
+
+    rows = [{"run": "S", "key": "a", "record": {"raw": "x" * 3000, "claims": []}},
+            {"run": "S", "key": "b", "record": {"raw": "short", "claims": []}},
+            {"run": "S", "key": "c", "record": {"claims": []}}]
+    (tmp_path / "eval_progress.done-S.jsonl").write_text(
+        "\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    assert list(run_eval.load_reusable(tmp_path, "S")) == ["b"]

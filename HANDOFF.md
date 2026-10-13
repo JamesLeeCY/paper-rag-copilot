@@ -517,8 +517,11 @@ audit of every non-supported claim (§4).
    error rates are therefore overstated. Next (after the hardware check):
    re-judge the non-supported sentences against all 5 passages as a
    sensitivity analysis, then finish the 20 traps. The splitter change alters
-   the baseline run signature, so finishing reruns the saved questions unless
-   their verdicts are reused.
+   the baseline run signature, so finish with
+   `eval --with-llm --baseline --reuse-from f5f1b8afca127666`: the 37 saved
+   answers are re-split, their 119 unchanged sentence verdicts are carried
+   over, and only 2 re-joined sentences plus the 20 remaining traps go to the
+   models (the report states the reuse counts).
 000. **Judge prompt v5 — evaluated 2026-10-12; not adopted. Judge prompt work
    closed; default stays v3 (owner's decision).** v5 = v3 verbatim + v4's
    classification step and fields (phi4, with headings, 3 threads, run

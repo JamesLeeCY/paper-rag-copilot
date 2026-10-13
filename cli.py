@@ -76,6 +76,8 @@ def cmd_eval(args):
         sys.argv.append("--fresh")
     if args.baseline:
         sys.argv.append("--baseline")
+    if args.reuse_from:
+        sys.argv += ["--reuse-from", args.reuse_from]
     eval_main()
 
 
@@ -138,6 +140,8 @@ def build_parser():
                    help="ungrounded baseline arm, judged sentence by sentence")
     e.add_argument("--fresh", action="store_true",
                    help="ignore questions saved by an interrupted run and start over")
+    e.add_argument("--reuse-from", default="", metavar="SIGNATURE",
+                   help="baseline: reuse answers and unchanged verdicts of that earlier run")
     e.set_defaults(func=cmd_eval)
 
     jb = sub.add_parser("judge-build", help="build the synthetic judge validation set")
