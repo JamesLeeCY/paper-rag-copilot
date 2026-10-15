@@ -555,8 +555,28 @@ audit of every non-supported claim (§4).
    the saved results: every saved verdict's passage is among the recomputed
    ones (retrieval and embeddings deterministic).
 
-   Open: (b) re-judge the
-   baseline's non-supported sentences against all 5 passages (sensitivity).
+   Sensitivity run (2026-10-15 13:46–15:22, scope C, 36 claims, phi4 4
+   threads; local `rejudge_results.json`): 14 labels changed. Grounded →
+   strict 31/31, answers not clean 0/26, traps correct 24/25, bait safe 6/6;
+   baseline → strict 90/94, hallucination 2/94, answers unsupported 2/26,
+   not clean 4/26, must-refuse safe 14/19 (unchanged), bait safe 1/6. Paired
+   p: answers not clean 0.125, answers unsupported 0.5, must-refuse safe
+   0.125, traps correct < 0.001, bait 0.063. Justified flips: baseline R05,
+   R19, R21, R23, R26 (one sentence), B04 (one sentence) — evidence in an
+   unseen passage. Lenient flips (unsupported → partial, counted safe):
+   grounded B02 and baseline B02 (hypothesis stated as confirmed), grounded
+   T25 (false premise accepted); grounded T24 → supported on a circular
+   sentence. Baseline R26's other sentence → disputed by the plan rule (a
+   methods passage in future tense). R06: phi4's reason reads as support but
+   the label is unsupported (owner to check). Conclusion: report the main
+   table as the strict bound and the sensitivity table as the lenient bound;
+   the trap advantage holds under both, the answerable gap does not reach
+   significance once the judge sees all passages.
+
+   Open: (c) owner review of bait items B04/B05 (hypothesis reported as
+   confirmed) and of R06's label; (d) consider a stricter trap rule: a
+   partially supported claim that restates the trap's premise or hypothesis
+   should not count as safe.
 000. **Judge prompt v5 — evaluated 2026-10-12; not adopted. Judge prompt work
    closed; default stays v3 (owner's decision).** v5 = v3 verbatim + v4's
    classification step and fields (phi4, with headings, 3 threads, run

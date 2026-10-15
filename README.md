@@ -168,6 +168,32 @@ Caveats: not paired at the claim level (different outputs from the same
 generator), the baseline is judged against 2 of the 5 passages, and abstention
 detection is a pattern list (audited on these answers, see HANDOFF §7).
 
+**Sensitivity: judge on all 5 passages** (`python -m eval.rejudge`,
+2026-10-15). Every non-supported answerable claim and every unsupported or
+disputed trap claim of *both* arms (36 claims) was re-judged against the
+context passages it had not been judged on, keeping the better label:
+
+| | Grounded | Baseline | Paired test |
+|---|---|---|---|
+| Strict citation precision | 97% → 100% (31/31) | 90% → **96%** [90–98] (90/94) | — |
+| Claim hallucination rate | 0% → 0% | 4% → **2%** [1–7] (2/94) | — |
+| Answers with any non-supported claim | 1/26 → 0/26 | 7/26 → 4/26 | p = 0.031 → 0.125 |
+| Answers with an unsupported claim | 0/26 → 0/26 | 4/26 → 2/26 | p = 0.125 → 0.5 |
+| Must-refuse traps safe | 18/19 → 18/19 | 14/19 → 14/19 | p = 0.125 |
+| All 25 traps correct | 88% → 96% | 24% → 24% | p < 0.001 |
+| Hypothesis-bait traps safe | 5/6 → 6/6 | 0/6 → 1/6 | p = 0.063 |
+
+14 labels changed. Six baseline flips were justified (the evidence was in an
+unseen passage), so the 2-passage view does penalise the baseline. But the
+wider view also made the judge more lenient on traps: a claim stating a
+hypothesis as confirmed (both arms) and one accepting a false premise
+(grounded) moved from unsupported to partially supported, which counts as
+safe. Read the main table as the strict bound and this one as the lenient
+bound. Under both, the grounded arm is far better at refusing what the source
+does not say; on answerable questions the two arms are close once the judge
+sees the evidence, and the grounded arm's advantage there is that every claim
+carries a verbatim, checkable quote.
+
 ### Retrieval — chunking ablation (dissertation)
 
 | Strategy | Hit@1 | Hit@3 | Hit@5 | MRR |
@@ -789,9 +815,10 @@ Ollama clients right before launching.
 8. ~~Confidence intervals~~ — done (Wilson, in both reports). Still open:
    human-labelled judge items.
 9. ~~Grounded vs baseline prompt comparison~~ — done (Results), including the
-   6 hypothesis-bait traps. Still open: re-judging the baseline's
-   non-supported sentences against all 5 passages; review of 2 bait items
-   whose hypothesis the thesis reports as confirmed.
+   6 hypothesis-bait traps and a sensitivity re-judging on all 5 passages.
+   Still open: review of 2 bait items whose hypothesis the thesis reports as
+   confirmed; a stricter trap rule for partially supported claims that
+   restate a premise or hypothesis.
 
 ---
 
