@@ -174,7 +174,7 @@ What the numbers mean, from a manual audit of every baseline trap answer:
 
 Caveats: not paired at the claim level (different outputs from the same
 generator), the baseline is judged against 2 of the 5 passages, and abstention
-detection is a pattern list (audited on these answers, see HANDOFF §7).
+detection is a pattern list (audited on these answers, see HANDOFF §10).
 
 **Sensitivity: judge on all 5 passages** (`python -m eval.rejudge`,
 2026-10-15). Every non-supported answerable claim and every unsupported or

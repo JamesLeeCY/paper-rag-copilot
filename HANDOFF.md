@@ -448,16 +448,184 @@ the two jobs evicted each other's model on every request (~2.5 min per
 judgment instead of ~8 s). A detached waiter resumed Stage A once that job
 exited. Ollama now keeps up to three models loaded, so this should not recur.
 
-## 7. Next steps (in order)
+## 7. Next steps
 
 Every step that runs local models needs the owner's approval of a plan and
-resource assessment first (§8).
+resource assessment first (§8). Completed steps, with their full numbers and
+audits, are in §10 (newest work first under items 0000 → 0, then the older
+numbered items).
 
-Done since the last handoff: deepseek-r1 dropped (§5 item 7); Stage B step 1
-run (§4); default judge set to phi4 alone with prompt v3 (owner's decision,
-2026-10-07; §2); system evaluation rerun on both corpora under the new default,
-plus a per-claim rerun of the dissertation's answerable questions and an
-audit of every non-supported claim (§4).
+**State (2026-10-16).** Defaults: generator qwen2.5:7b-instruct with prompt v1;
+judge phi4 alone, prompt v3, section heading shown; plan-as-result rule
+`flag` with the structural, wording and hypothesis-match routes; quotes may
+span chunks. The grounded vs baseline comparison is finished and reported in
+README (strict bound = main table, lenient bound = sensitivity table): the
+grounded arm refuses what the source does not say far better (25 traps: 88%
+vs 24% correct, p < 0.001); on answerable questions the two arms are close
+once the judge sees every passage; hypothesis bait (revised set) 3/6 vs 0/6
+safe — the grounded generator still restates a hypothesis on half the items,
+and verification catches all three.
+
+Open, in suggested order:
+
+1. **Hardware check (owner).** Unexplained resets (§8); run the memory test
+   before long unattended runs, then install the pending Ollama update and
+   check a few items still behave the same.
+2. **Larger hypothesis-bait set.** 6 items cannot separate the arms (p =
+   0.25) and the hypothesis-match route has one real positive and was tuned
+   on the same outputs. New items from hypotheses or planned analyses whose
+   results are not reported, run on both arms; this is also the route's
+   independent check. Needs local models.
+3. **R06 label (owner).** In the sensitivity run phi4's reason reads as
+   support but its label is unsupported; check which is right.
+4. **`check` cost.** It judges each sentence against up to five passages
+   (45 s – ~4 min per sentence on CPU). Measure the verdict change when only
+   the top one or two passages are judged before changing it.
+5. **Generator prompt v2.1** (v2 not adopted, §10 item 0): a real example id
+   in the template instead of the placeholder, a positive or separate refusal
+   tag, drop rules 8–9 to shorten the prompt for the 7B generator.
+6. **Human-labelled judge items** (`data/golden/judge_set_human.jsonl`,
+   schema in `judge_set_human.example.jsonl`) — owner's task, not started.
+
+## 8. Operational notes
+
+- **Machine stability (unresolved):** five unexpected shutdowns in 60 days
+  (Kernel-Power 41): 2026-09-17 17:50 and 2026-10-12 23:54 with bugcheck
+  0x7E (SYSTEM_THREAD_EXCEPTION_NOT_HANDLED, access violation c0000005), and
+  2026-10-05 12:52, 2026-10-13 ~01:13 and 2026-10-15 ~22:52 with bugcheck 0
+  (reset without a dump). The two 0x7E crashes fault at the same offset inside
+  a kernel module (address ends in `…d15f` both times, different load base),
+  which points at one driver rather than random memory errors; identifying it
+  needs WinDbg on `C:\WINDOWS\MEMORY.DMP` (2026-10-12; no minidumps kept).
+  Read-only checks 2026-10-16: no WHEA hardware-error events in 30 days, all
+  four disks report Healthy, BIOS 308 (2019-03; ASUSPRO D840MB), NVIDIA Quadro
+  driver 2025-08, an Epson projector indirect-display driver from 2019 is
+  installed. Loads differed at each reset (heavy, model loading, near idle).
+  Every eval run saves per question, so a reset loses at most the question in
+  progress; still, run the memory test (`mdsched.exe`) and look at the dump
+  before long unattended runs. Ollama has an update downloaded (0.40.x);
+  install it after the hardware check, not mid-comparison.
+- **Owner's rule for local model runs:** before any test that runs models,
+  measure current RAM / CPU / GPU, check that no other program is using
+  Ollama, and submit an execution plan with a resource assessment (expected
+  peak load, duration, guard thresholds); run only after the owner approves,
+  step by step. A cheap calibration (a few items per new model) first is the
+  accepted way to replace guessed timings with measured ones.
+- **Shared Ollama server:** `D:\side_project\line_chat` runs long `src.community
+  label/critique` jobs (qwen3:8b, phi4) started from other sessions (its
+  `annotate --queue` process stays up and does not block),
+  `D:\2026_manuscripts\Study1\scripts\32_vlm_triage.py` uses `gemma3:4b`, and
+  `Alpha Machine\tg_bot.py` may call `llama3`. Check for them (processes and
+  established connections to port 11434) right before launching, not only at
+  planning time; Ollama holds at most three models, so a third project's model
+  can start evictions. The guard now unloads only the models passed with
+  `--models` (fixed 2026-10-07; it used to unload every loaded model,
+  including other projects').
+- **Limiting this project's CPU use:** `OLLAMA_NUM_THREAD=3` sends `num_thread`
+  with each Ollama request (other projects on the shared server are
+  unaffected); measured: the runner then uses exactly 3.0 cores, total CPU
+  ~40%, and an answerable question takes ~110–400 s instead of ~95–280 s. Raise
+  `OLLAMA_SECONDS_PER_TOKEN` (0.8 was used) so slower generation is not cut
+  off. Other sessions start jobs at any time (`line_rumor_bot` ran a retrieval
+  experiment mid-run on 2026-10-08 and the guard stopped our full-core run), so
+  a capped run is the safer default when the machine is shared.
+- **Long local runs:** launch detached (PowerShell `Start-Process`) under
+  `eval.resource_guard`; tool-managed background tasks stop at ~30 min.
+  Measured load with two judges: CPU ~50–80%, RAM ~45% of 64 GB; with three
+  models resident (qwen2.5 + gemma3:12b + deepseek-r1:8b) RAM ~60%; Stage B
+  step 2 with four judges peaked at CPU 85%, RAM 64%.
+- **Ollama runs CPU-only so several models stay loaded (machine setup).** The
+  machine's GPU (Quadro P620, 2 GB) holds only one model's compute buffer, so
+  with the GPU visible Ollama evicted every other model on each switch —
+  `OLLAMA_MAX_LOADED_MODELS` alone does not help (it already defaults to 3),
+  and `OLLAMA_LLM_LIBRARY=cpu` does not change the scheduler. The fix hides
+  the GPU from Ollama only:
+  - `%LOCALAPPDATA%\OllamaCPU\start_ollama_cpu.cmd` sets
+    `CUDA_VISIBLE_DEVICES=-1` and `OLLAMA_MAX_LOADED_MODELS=3` for the Ollama
+    process and starts `ollama app.exe`; the login shortcut
+    `Startup\Ollama.lnk` now runs this script (original backed up as
+    `%LOCALAPPDATA%\OllamaCPU\Ollama.lnk.original`). `OLLAMA_MAX_LOADED_MODELS=3`
+    is also a user environment variable. `CUDA_VISIBLE_DEVICES` is **not** set
+    user- or machine-wide, so other GPU programs are unaffected.
+  - Measured: 3 models co-resident; switching back to a loaded model costs
+    0.1 s instead of a reload; a judgment on a resident model 9–11 s. Cost:
+    the first, uncached prompt read is slower without the GPU (qwen2.5 ~8 s →
+    ~35 s for ~680 tokens); later items reuse the cached instruction prefix.
+  - **Ollama 0.35+ also finds GPUs through Vulkan.** Ollama auto-updated
+    from 0.9.3 to 0.35.1 on 2026-10-06 (~10:40) and started evicting models
+    again: the scheduler now counted the GPU via `library=Vulkan`, which
+    `CUDA_VISIBLE_DEVICES` does not hide. The script therefore also sets
+    `OLLAMA_VULKAN=0` and `GGML_VK_VISIBLE_DEVICES=-1`. Verified afterwards:
+    phi4 and mistral-nemo stay co-resident, switching back to phi4 takes
+    2.4 s, RAM 50% with both loaded.
+  - Verify with the server log: the `server config` line should show
+    `CUDA_VISIBLE_DEVICES:-1`, `OLLAMA_VULKAN:false` and
+    `GGML_VK_VISIBLE_DEVICES:-1`, and `inference compute` should say
+    `library=cpu`. A log line `predicted to exceed available memory,
+    evicting` means a GPU is visible again. Starting Ollama from the tray or
+    Start menu bypasses the script, and an Ollama update may rewrite the
+    startup shortcut or add another GPU backend — if models start evicting
+    each other again, check the log and re-point `Ollama.lnk` at the script.
+- **Windows:** `cli.py` forces UTF-8 output; shell heredocs can mangle
+  regex escapes and invisible characters (soft hyphens) — write edit scripts
+  to files instead.
+- **Reports are overwritten** each run (`eval_report.md`, `judge_report.md`);
+  copy them before rerunning if you need the previous numbers.
+- A private checklist of these steps is kept as a claude.ai artifact
+  (owner's account).
+
+## 9. Commit trail
+
+| Commit | Change |
+|---|---|
+| `837d030` | `check` verifies the user's sentence; explicit refusal scoring; UTF-8 console |
+| `0353c49` | Strict/lenient precision; micro-averaged claim metrics |
+| `e670d75` | Over-refusal and answer-level hallucination rates |
+| `42e05fe` | Verbatim-quote grounding; multi-model judge panel |
+| `0dfa86b` | Judge validation set and judge/panel scoring |
+| `9f6530a` | Prompt v2 (overclaim check); `<think>` stripping; prompt comparison |
+| `271e5f8` | Validated defaults; `.env` loading; citation-id repair |
+| `0430978` | Misplaced-refusal and wrong-passage handling; progress logging |
+| `b9a3a6b` | Trap tiers; unclosed-tag parsing; golden-set copies ignored |
+| `107fdb9` | Multi-corpus switch; journal PDF ingestion; page locators |
+| `2e3b63c` | PDF hardening on a real article; resource guard |
+| `4a0444f` | Prompt v3; plan→result and attribution items; regression items |
+| `40461dc` | This handoff file (later updates: `e554507` Stage A, `9c85db5` Ollama fix) |
+| `d789ff4` | Token budget for Ollama thinking models (deepseek-r1 empty answers) |
+| `01e8580` | Scaled Ollama timeout; failed judge casts no vote; re-judge cached `unparsed` |
+| `5eed641` | deepseek-r1 dropped as a judge |
+| `a113f24`, `5345aee` | Guard unloads only its own models; default judge phi4 + prompt v3; Stage B step 1 results |
+| `257ca4c`, `c29e747` | Per-claim detail in eval results; `--answerable-only`; `OLLAMA_NUM_THREAD`; system results under the new default and claim audit |
+| `370f48b`, `a1e3f3d` | Quotes may span retrieved chunks; judges see the section heading; corrected diagnosis |
+| `c93d081` | Confirmation rerun: strict precision 97% |
+| `bf1c42b`, `8371906` | `judge-eval --with-heading`; headings do not make phi4 more lenient |
+| `901bf30`, `2c004da` | Plan-as-result rule check; unit tests (`tests/`) |
+| `846ec63`, `a8d8257` | Resumable `eval --with-llm` (`--fresh`) |
+| `7e6bcdc`, `73da0a7` | Traps + pilot after fixes; timeout covers the prompt; judge failure → review |
+| `e210680` | Timeout fix confirmed on the two claims that had timed out |
+| `0a703ea`, `71545ee` | Confidence intervals in reports; hard plan-to-result judge items |
+| `9bfba0e`, `621fecc` | phi4 on the hard set; structural plan-as-result route |
+| `f9e7599`, `91aaf89`, `374353b`, `10dc3da`, `5ec514b` | Generator prompt v2 (opt-in) and its evaluation; v1 stays |
+| `b401336`, `e7785a0`, `3de2902` | Judge prompts v4 and v5 (opt-in); v3 stays |
+| `418a378`, `026ee60` | Baseline arm; `OLLAMA_NUM_CTX` |
+| `4f3e1be`, `0835d39`, `da5e395` | Baseline abstention and splitting fixes; `--reuse-from` |
+| `4b83c73`, `e8a03f3` | Grounded vs baseline results; trap audit fixes; `--trap-types`; bait run |
+| `cf319f7`, `6733059` | Sensitivity re-judging tool (`eval.rejudge`) and results |
+| `fe357ad` | Strict-safe trap rule |
+| `ef06d21`, `7fa41d5` | Revised bait set; hypothesis-match rule route (on by default) |
+| (this commit) | HANDOFF reorganised: short §7, history in §10 |
+
+## 10. Completed work log
+
+Moved from §7 on 2026-10-16 unchanged (the numbering is the original
+order: 0000 is the newest). Each entry keeps its numbers, audits and
+file names.
+
+Done before item 1 (from the earlier handoff): deepseek-r1 dropped (§5 item
+7); Stage B step 1 run (§4); default judge set to phi4 alone with prompt v3
+(owner's decision, 2026-10-07; §2); system evaluation rerun on both corpora
+under the new default, plus a per-claim rerun of the dissertation's answerable
+questions and an audit of every non-supported claim (§4).
 
 1. ~~Check that the section heading does not make the judge more lenient~~ —
    done 2026-10-09: no change in false-accept or false-reject (§4).
@@ -736,113 +904,3 @@ audit of every non-supported claim (§4).
    comparisons and the 84% → 97% gain overlap within their intervals (the gain
    is paired, 4/4 discordant claims in one direction, exact p = 0.125).
    Still open: grounded vs baseline prompt comparison.
-
-## 8. Operational notes
-
-- **Machine stability (unresolved):** three unexpected resets — 2026-10-12
-  23:54 (bugcheck 0x7E, access violation; `C:\WINDOWS\MEMORY.DMP`; another
-  project's job running), 2026-10-13 ~01:13 (bugcheck 0, while this project
-  was loading models) and 2026-10-15 ~22:52 (bugcheck 0, minutes after a run
-  ended, machine near idle). Different loads each time, so a hardware cause
-  (memory, power) is suspected. Every eval run saves per question, so a reset
-  loses at most the question in progress; still, a memory test (`mdsched.exe`)
-  is advised before long unattended runs. Ollama has an update downloaded
-  (0.40.x); install it after the hardware check, not mid-comparison.
-- **Owner's rule for local model runs:** before any test that runs models,
-  measure current RAM / CPU / GPU, check that no other program is using
-  Ollama, and submit an execution plan with a resource assessment (expected
-  peak load, duration, guard thresholds); run only after the owner approves,
-  step by step. A cheap calibration (a few items per new model) first is the
-  accepted way to replace guessed timings with measured ones.
-- **Shared Ollama server:** `D:\side_project\line_chat` runs long `src.community
-  label/critique` jobs (qwen3:8b, phi4) started from other sessions (its
-  `annotate --queue` process stays up and does not block),
-  `D:\2026_manuscripts\Study1\scripts\32_vlm_triage.py` uses `gemma3:4b`, and
-  `Alpha Machine\tg_bot.py` may call `llama3`. Check for them (processes and
-  established connections to port 11434) right before launching, not only at
-  planning time; Ollama holds at most three models, so a third project's model
-  can start evictions. The guard now unloads only the models passed with
-  `--models` (fixed 2026-10-07; it used to unload every loaded model,
-  including other projects').
-- **Limiting this project's CPU use:** `OLLAMA_NUM_THREAD=3` sends `num_thread`
-  with each Ollama request (other projects on the shared server are
-  unaffected); measured: the runner then uses exactly 3.0 cores, total CPU
-  ~40%, and an answerable question takes ~110–400 s instead of ~95–280 s. Raise
-  `OLLAMA_SECONDS_PER_TOKEN` (0.8 was used) so slower generation is not cut
-  off. Other sessions start jobs at any time (`line_rumor_bot` ran a retrieval
-  experiment mid-run on 2026-10-08 and the guard stopped our full-core run), so
-  a capped run is the safer default when the machine is shared.
-- **Long local runs:** launch detached (PowerShell `Start-Process`) under
-  `eval.resource_guard`; tool-managed background tasks stop at ~30 min.
-  Measured load with two judges: CPU ~50–80%, RAM ~45% of 64 GB; with three
-  models resident (qwen2.5 + gemma3:12b + deepseek-r1:8b) RAM ~60%; Stage B
-  step 2 with four judges peaked at CPU 85%, RAM 64%.
-- **Ollama runs CPU-only so several models stay loaded (machine setup).** The
-  machine's GPU (Quadro P620, 2 GB) holds only one model's compute buffer, so
-  with the GPU visible Ollama evicted every other model on each switch —
-  `OLLAMA_MAX_LOADED_MODELS` alone does not help (it already defaults to 3),
-  and `OLLAMA_LLM_LIBRARY=cpu` does not change the scheduler. The fix hides
-  the GPU from Ollama only:
-  - `%LOCALAPPDATA%\OllamaCPU\start_ollama_cpu.cmd` sets
-    `CUDA_VISIBLE_DEVICES=-1` and `OLLAMA_MAX_LOADED_MODELS=3` for the Ollama
-    process and starts `ollama app.exe`; the login shortcut
-    `Startup\Ollama.lnk` now runs this script (original backed up as
-    `%LOCALAPPDATA%\OllamaCPU\Ollama.lnk.original`). `OLLAMA_MAX_LOADED_MODELS=3`
-    is also a user environment variable. `CUDA_VISIBLE_DEVICES` is **not** set
-    user- or machine-wide, so other GPU programs are unaffected.
-  - Measured: 3 models co-resident; switching back to a loaded model costs
-    0.1 s instead of a reload; a judgment on a resident model 9–11 s. Cost:
-    the first, uncached prompt read is slower without the GPU (qwen2.5 ~8 s →
-    ~35 s for ~680 tokens); later items reuse the cached instruction prefix.
-  - **Ollama 0.35+ also finds GPUs through Vulkan.** Ollama auto-updated
-    from 0.9.3 to 0.35.1 on 2026-10-06 (~10:40) and started evicting models
-    again: the scheduler now counted the GPU via `library=Vulkan`, which
-    `CUDA_VISIBLE_DEVICES` does not hide. The script therefore also sets
-    `OLLAMA_VULKAN=0` and `GGML_VK_VISIBLE_DEVICES=-1`. Verified afterwards:
-    phi4 and mistral-nemo stay co-resident, switching back to phi4 takes
-    2.4 s, RAM 50% with both loaded.
-  - Verify with the server log: the `server config` line should show
-    `CUDA_VISIBLE_DEVICES:-1`, `OLLAMA_VULKAN:false` and
-    `GGML_VK_VISIBLE_DEVICES:-1`, and `inference compute` should say
-    `library=cpu`. A log line `predicted to exceed available memory,
-    evicting` means a GPU is visible again. Starting Ollama from the tray or
-    Start menu bypasses the script, and an Ollama update may rewrite the
-    startup shortcut or add another GPU backend — if models start evicting
-    each other again, check the log and re-point `Ollama.lnk` at the script.
-- **Windows:** `cli.py` forces UTF-8 output; shell heredocs can mangle
-  regex escapes and invisible characters (soft hyphens) — write edit scripts
-  to files instead.
-- **Reports are overwritten** each run (`eval_report.md`, `judge_report.md`);
-  copy them before rerunning if you need the previous numbers.
-- A private checklist of these steps is kept as a claude.ai artifact
-  (owner's account).
-
-## 9. Commit trail
-
-| Commit | Change |
-|---|---|
-| `837d030` | `check` verifies the user's sentence; explicit refusal scoring; UTF-8 console |
-| `0353c49` | Strict/lenient precision; micro-averaged claim metrics |
-| `e670d75` | Over-refusal and answer-level hallucination rates |
-| `42e05fe` | Verbatim-quote grounding; multi-model judge panel |
-| `0dfa86b` | Judge validation set and judge/panel scoring |
-| `9f6530a` | Prompt v2 (overclaim check); `<think>` stripping; prompt comparison |
-| `271e5f8` | Validated defaults; `.env` loading; citation-id repair |
-| `0430978` | Misplaced-refusal and wrong-passage handling; progress logging |
-| `b9a3a6b` | Trap tiers; unclosed-tag parsing; golden-set copies ignored |
-| `107fdb9` | Multi-corpus switch; journal PDF ingestion; page locators |
-| `2e3b63c` | PDF hardening on a real article; resource guard |
-| `4a0444f` | Prompt v3; plan→result and attribution items; regression items |
-| `40461dc` | This handoff file (later updates: `e554507` Stage A, `9c85db5` Ollama fix) |
-| `d789ff4` | Token budget for Ollama thinking models (deepseek-r1 empty answers) |
-| `01e8580` | Scaled Ollama timeout; failed judge casts no vote; re-judge cached `unparsed` |
-| `5eed641` | deepseek-r1 dropped as a judge |
-| `a113f24`, `5345aee` | Guard unloads only its own models; default judge phi4 + prompt v3; Stage B step 1 results |
-| `257ca4c`, `c29e747` | Per-claim detail in eval results; `--answerable-only`; `OLLAMA_NUM_THREAD`; system results under the new default and claim audit |
-| `370f48b`, `a1e3f3d` | Quotes may span retrieved chunks; judges see the section heading; corrected diagnosis |
-| `c93d081` | Confirmation rerun: strict precision 97% |
-| `bf1c42b`, `8371906` | `judge-eval --with-heading`; headings do not make phi4 more lenient |
-| `901bf30`, `2c004da` | Plan-as-result rule check; unit tests (`tests/`) |
-| `846ec63`, `a8d8257` | Resumable `eval --with-llm` (`--fresh`) |
-| `7e6bcdc`, `73da0a7` | Traps + pilot after fixes; timeout covers the prompt; judge failure → review |
-| (this commit) | Timeout fix confirmed on the two claims that had timed out |
