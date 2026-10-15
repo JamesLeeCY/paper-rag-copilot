@@ -195,6 +195,19 @@ QUOTE_REQUIRED = os.environ.get("QUOTE_REQUIRED", "0") == "1"
 # this error, so it is checked without them. "flag" turns an accepted claim
 # into "disputed" (human review), "reject" into "unsupported", "off" disables.
 PLAN_RESULT_RULE = os.environ.get("PLAN_RESULT_RULE", "flag")
+# Hypothesis-match route of that rule (opt-in): a claim the judge rated only
+# partially supported is flagged when it is closer to a hypothesis sentence
+# among the retrieved passages than to its cited passage -- a hypothesis
+# restated as a finding that cites a results passage, which neither the
+# structural nor the wording route sees. Uses a multilingual embedder (claims
+# are often Chinese, hypotheses English), loaded only when a Hypotheses
+# section is in the context. Thresholds were set on the dissertation's saved
+# outputs: it flags the one real case and none of the other 30 partially
+# supported claims; not yet checked on new outputs. "off" disables it.
+PLAN_RESULT_MATCH = os.environ.get("PLAN_RESULT_MATCH", "on")
+PLAN_MATCH_MODEL = os.environ.get("PLAN_MATCH_MODEL", "BAAI/bge-m3")
+PLAN_MATCH_MIN_SIM = float(os.environ.get("PLAN_MATCH_MIN_SIM", "0.55"))
+PLAN_MATCH_MARGIN = float(os.environ.get("PLAN_MATCH_MARGIN", "-0.02"))
 # Generator prompt version (src/generate.py). "v2" adds: quotes in the source
 # language, hypotheses/methods never stated as findings (with passage-type
 # labels in the context), cited studies attributed explicitly, negative facts

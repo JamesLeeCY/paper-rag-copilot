@@ -54,6 +54,9 @@ def _signature(verifier) -> str:
     code = (Path(__file__).resolve().parents[1] / "src" / "verify.py").read_text(encoding="utf-8")
     parts = [verifier.describe(), config.VERIFY_PROMPT, config.PLAN_RESULT_RULE,
              str(config.FINAL_TOP_K), config.EMBED_MODEL, code]
+    if config.PLAN_RESULT_MATCH == "on":
+        parts.append(f"match:{config.PLAN_MATCH_MODEL}:{config.PLAN_MATCH_MIN_SIM}:"
+                     f"{config.PLAN_MATCH_MARGIN}")
     return hashlib.sha256("\x00".join(parts).encode("utf-8")).hexdigest()[:16]
 
 
@@ -84,7 +87,7 @@ def rejudge_claim(arm: str, claim: dict, passages: list, embedder, verifier) -> 
     rest = [p for p in passages if p.chunk_id not in seen]
     if not rest:
         return {"new": claim["label"], "extra": [], "reason": "no unseen passage", "votes": {}}
-    v = verifier.verify_statement(claim["statement"], rest)
+    v = verifier.verify_statement(claim["statement"], rest, context=passages)
     return {"new": better(claim["label"], v.label), "extra": [p.chunk_id for p in rest],
             "judged_new": v.label, "against": v.citation_ids, "reason": v.reason,
             "votes": v.votes}

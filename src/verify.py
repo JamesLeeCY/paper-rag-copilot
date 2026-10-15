@@ -416,6 +416,50 @@ def plan_as_result(statement: str, quote: str, passages: list[str],
             f"({_PLAN_SRC_RE.search(hits[0]).group(0)!r}) but the claim reports a finding")
 
 
+_MATCH_SPLIT_RE = re.compile(r"\n+|(?<=[.!?。！？])\s+")
+_match_encoder = None       # (texts) -> unit vectors; lazy, replaceable in tests
+
+
+def _encode(texts: list[str]):
+    global _match_encoder
+    if _match_encoder is None:
+        from sentence_transformers import SentenceTransformer
+        model = SentenceTransformer(config.PLAN_MATCH_MODEL, device="cpu")
+        _match_encoder = lambda xs: model.encode(xs, normalize_embeddings=True)
+    return _match_encoder(texts)
+
+
+def _match_sentences(text: str) -> list[str]:
+    return [s.strip() for s in _MATCH_SPLIT_RE.split(text) if len(s.strip()) >= 15]
+
+
+def hypothesis_match(statement: str, cited: list[str], context: list[tuple[str, str]]) -> str:
+    """Reason string if the claim restates a hypothesis from the context, else "".
+
+    ``cited``: texts of the passages the claim cites; ``context``: (text,
+    heading) of every retrieved passage. Fires when the claim does not hedge,
+    a passage under a Hypotheses heading is in the context, and the claim's
+    best cosine similarity to a hypothesis sentence is at least
+    PLAN_MATCH_MIN_SIM and exceeds its best similarity to a cited sentence by
+    PLAN_MATCH_MARGIN. Meant only for claims the judge rated partially
+    supported: a supported claim may restate a hypothesis the results confirm.
+    """
+    if _CLAIM_HEDGE_RE.search(statement):
+        return ""
+    hyps = [s for text, h in context
+            if _HYPOTHESIS_SECTION_RE.search(h.split(" > ")[-1]) for s in _match_sentences(text)]
+    cited_s = [s for text in cited for s in _match_sentences(text)]
+    if not hyps or not cited_s:
+        return ""
+    vecs = _encode([statement] + hyps + cited_s)
+    q, H, C = vecs[0], vecs[1:1 + len(hyps)], vecs[1 + len(hyps):]
+    s_h, s_c = float(max(H @ q)), float(max(C @ q))
+    if s_h >= config.PLAN_MATCH_MIN_SIM and s_h - s_c >= config.PLAN_MATCH_MARGIN:
+        return (f"rule: hypothesis restated as finding — the claim matches a hypothesis in "
+                f"the context (similarity {s_h:.2f}) more than its cited passage ({s_c:.2f})")
+    return ""
+
+
 def quote_span(quote: str, passages: list) -> list | None:
     """Passages that together contain every sentence of ``quote``, or None.
 
@@ -609,23 +653,31 @@ class Verifier:
 
     @staticmethod
     def _apply_plan_rule(v: ClaimVerdict, quote: str, passages: list,
-                         headings: list[str] | None = None) -> ClaimVerdict:
-        """Overrule an accepting verdict when the plan-as-result rule fires."""
+                         headings: list[str] | None = None,
+                         context: list | None = None) -> ClaimVerdict:
+        """Overrule an accepting verdict when the plan-as-result rule fires.
+        ``context``: every retrieved passage, for the hypothesis-match route."""
         mode = config.PLAN_RESULT_RULE
         if mode == "off" or v.label not in ("supported", "partially_supported"):
             return v
         why = plan_as_result(v.statement, quote, passages, headings)
+        if (not why and context and config.PLAN_RESULT_MATCH == "on"
+                and v.label == "partially_supported"):
+            why = hypothesis_match(v.statement, passages,
+                                   [(p.text, _heading_of(p)) for p in context])
         if why:
             v.label = "disputed" if mode == "flag" else "unsupported"
             v.reason = f"{why}. Judge said: {v.reason}"
         return v
 
-    def verify_statement(self, statement: str, passages: list) -> ClaimVerdict:
+    def verify_statement(self, statement: str, passages: list,
+                         context: list | None = None) -> ClaimVerdict:
         """Judge a user-written statement directly against retrieved passages.
 
         Used by the reverse check: the statement itself is the claim, so no
         generation step sits in between. The best label over ``passages`` wins;
-        stops early on the first fully supporting passage.
+        stops early on the first fully supporting passage. ``context`` (default
+        ``passages``): all retrieved passages, for the hypothesis-match route.
         """
         best: ClaimVerdict | None = None
         for p in passages:
@@ -639,7 +691,8 @@ class Verifier:
             return ClaimVerdict(statement, [], "unsupported", "no passages retrieved", "lexical")
         winner = next((p for p in passages if p.chunk_id in best.citation_ids), None)
         return self._apply_plan_rule(best, "", [winner.text] if winner else [],
-                                     [_heading_of(winner)] if winner else [])
+                                     [_heading_of(winner)] if winner else [],
+                                     context if context is not None else passages)
 
     def _verify_claim(self, claim: Claim, result: GenerationResult) -> ClaimVerdict:
         # Stage 0: the quote must actually appear in one of the cited passages.
@@ -695,7 +748,7 @@ class Verifier:
         best.quote_check = quote_status
         cited_passages = [p for p in result.passages if p.chunk_id in citation_ids]
         self._apply_plan_rule(best, claim.quote, [p.text for p in cited_passages],
-                              [_heading_of(p) for p in cited_passages])
+                              [_heading_of(p) for p in cited_passages], result.passages)
         if repaired:
             best.citation_repaired_from = claim.citation_ids
             how = ("quote spans chunks " + " + ".join(citation_ids)

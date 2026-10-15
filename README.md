@@ -138,8 +138,8 @@ judged. Same 26 answerable questions and 25 traps as the grounded run
 | Must-refuse traps safe (no rejected/disputed claim) | 95% [75–99] | 74% [51–88] (14/19) | p = 0.125 |
 | All 25 traps correct | **88%** [70–96] | 24% [12–43] (6/25) | p < 0.001 |
 | False-premise traps correct | 67% (4/6) | 50% (3/6) | — |
-| Hypothesis-bait traps safe (6 local items, revised set) | **67%** [30–90] (4/6) | 0% [0–39] (0/6) | p = 0.125 |
-| Hypothesis-bait traps strict safe (revised set) | 50% [19–81] (3/6) | 0% [0–39] (0/6) | p = 0.25 |
+| Hypothesis-bait traps safe (6 local items, revised set; hypothesis-match route on) | **50%** [19–81] (3/6) | 0% [0–39] (0/6) | p = 0.25 |
+| ...same, before the hypothesis-match route | 67% [30–90] (4/6) | 0% (0/6) | p = 0.125 |
 
 What the numbers mean, from a manual audit of every baseline trap answer:
 
@@ -164,8 +164,9 @@ What the numbers mean, from a manual audit of every baseline trap answer:
   *partially supported*: it restated the hypothesis but cited a results
   passage with a verbatim quote, so neither rule route fired (the cited
   section is not a hypotheses section and the cited sentence is not phrased
-  as a plan) and the judge misread the passage. Only *strict safe* (below)
-  fails it — a known gap, see Known limitations.
+  as a plan) and the judge misread the passage. That gap is now covered by a
+  third rule route, *hypothesis match* (Known limitations, item 1), which
+  sends it to review; the table counts it as not safe.
 - On answerable questions the grounded arm is more precise, but the
   baseline's hallucination rate is overstated: at least 2 of its 4
   unsupported sentences have their evidence in the context but not in the
@@ -483,6 +484,8 @@ verification are stand-ins (pipeline shape only).
 | `QUOTE_REQUIRED` | off | `1` also rejects claims without a supporting quote |
 | `GENERATOR_PROMPT` | `v1` | Generator prompt; `v2` adds source-language quotes, passage-type labels (hypotheses/methods never stated as findings), explicit attribution of cited studies, negative facts answered, refusal marker only in `<unsupported_note>`. Evaluated, not adopted: better on trap questions, but more format errors on answerable ones (see Known limitations) |
 | `PLAN_RESULT_RULE` | `flag` | Plan or prediction read as a result: `flag` → disputed, `reject` → unsupported, `off` |
+| `PLAN_RESULT_MATCH` | `on` | Hypothesis-match route of that rule (partially supported claims closer to a hypothesis in the context than to their citation); `off` disables |
+| `PLAN_MATCH_MODEL` / `PLAN_MATCH_MIN_SIM` / `PLAN_MATCH_MARGIN` | `BAAI/bge-m3` / 0.55 / −0.02 | Embedder and thresholds of that route |
 
 ### Local Ollama notes
 
@@ -779,13 +782,25 @@ Ollama clients right before launching.
    Caveats: the synthetic items share the rule's cues; a true finding cited
    from a future-tense methods passage could still be flagged, which is why the
    default is review, not rejection.
-   **Open gap (2026-10-15, revised bait set):** a hypothesis restated as a
-   finding that cites a *results* passage with a verbatim quote escapes both
-   routes — the cited section is not a Hypotheses section and the cited
-   sentence is not phrased as a plan — and phi4 rated it only partially
-   supported. One real case in 6 bait items; strict safe fails it, the plain
-   safe rate does not. A fix would compare the claim with the hypothesis
-   sentences among the retrieved passages, not only with the cited one.
+   **Hypothesis-match route (2026-10-15).** A hypothesis restated as a
+   finding that cites a *results* passage with a verbatim quote escaped both
+   routes (the cited section is not a Hypotheses section, the cited sentence
+   is not phrased as a plan) and phi4 rated it only partially supported — one
+   real case in 6 bait items. A third route now covers it: for an unhedged
+   claim the judge rated *partially supported*, when a Hypotheses section is
+   among the retrieved passages, it compares the claim with every hypothesis
+   sentence and with its cited passage using a multilingual embedder
+   (`BAAI/bge-m3`; claims are often Chinese, hypotheses English) and flags it
+   when the hypothesis is the closer match (similarity ≥ 0.55, margin ≥
+   −0.02). Embeddings alone cannot tell a confirmed hypothesis from an
+   unconfirmed one (a claim restating a hypothesis the results confirm looks
+   the same), hence the limit to partially supported claims. Re-applied to
+   every saved output (32 partially supported claims, both arms, generator
+   v1 and v2) it flagged the real case and one baseline sentence restating a
+   hypothesis, and none of the other 30 (0% [0–11]); no answerable or
+   non-bait trap metric changed. The thresholds were set on these same
+   outputs and there is one real positive, so it is not independently
+   validated; `PLAN_RESULT_MATCH=off` disables it.
 2. **Background statements attributed to this study.** v3 catches most
    "Author et al. found → This study found" swaps, but on the pilot paper at
    most 40% of swaps of background statements.
@@ -840,9 +855,9 @@ Ollama clients right before launching.
    human-labelled judge items.
 9. ~~Grounded vs baseline prompt comparison~~ — done (Results), including the
    6 hypothesis-bait traps (set revised once), a sensitivity re-judging on all
-   5 passages and a strict-safe trap rule. Still open: catching a
-   hypothesis restated as a finding that cites a results passage (Known
-   limitations); a larger bait set.
+   5 passages, a strict-safe trap rule and the hypothesis-match rule route.
+   Still open: a larger bait set, which would also validate that route on
+   outputs it was not tuned on.
 
 ---
 

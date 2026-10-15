@@ -150,6 +150,9 @@ def _run_signature(strategy: str, llm: LLMClient, verifier, arm: str = "grounded
              config.GENERATOR_PROMPT,
              config.PLAN_RESULT_RULE, str(config.QUOTE_REQUIRED), str(config.FINAL_TOP_K),
              config.EMBED_MODEL, str(config.RERANK_ENABLED), code]
+    if config.PLAN_RESULT_MATCH == "on":   # (absent when off: older runs still resume)
+        parts.append(f"match:{config.PLAN_MATCH_MODEL}:{config.PLAN_MATCH_MIN_SIM}:"
+                     f"{config.PLAN_MATCH_MARGIN}")
     if reuse_from:          # answers and verdicts carried over from that run
         parts.append(f"reuse:{reuse_from}")
     return hashlib.sha256("\x00".join(parts).encode("utf-8")).hexdigest()[:16]
@@ -270,7 +273,8 @@ def baseline_bundle(question: str, strategy: str, llm, verifier, k: int = 2,
     claims_text = [s for s in sentences
                    if not REFUSAL_HINT_RE.search(s) and not META_RE.search(s)]
     verdicts = [cached[s] if s in cached else
-                verifier.verify_statement(s, _closest(s, passages, retriever.embedder, k))
+                verifier.verify_statement(s, _closest(s, passages, retriever.embedder, k),
+                                          context=passages)
                 for s in claims_text]
     gen = GenerationResult(
         query=question, raw=raw, mode="baseline", passages=passages,

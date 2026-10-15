@@ -93,7 +93,7 @@ class FakeVerifier:
     def __init__(self):
         self.seen = []
 
-    def verify_statement(self, statement, passages):
+    def verify_statement(self, statement, passages, context=None):
         self.seen.append((statement, [p.chunk_id for p in passages]))
         label = "supported" if "walking" in statement.lower() else "unsupported"
         return ClaimVerdict(statement, [passages[0].chunk_id], label, "fake", "llm")
@@ -168,7 +168,7 @@ def test_reuse_rescores_saved_answers_and_judges_only_new_sentences(tmp_path, mo
         def describe(self):
             return "judges=[fake]"
 
-        def verify_statement(self, statement, passages):
+        def verify_statement(self, statement, passages, context=None):
             judged.append(statement)
             return super().verify_statement(statement, passages)
 

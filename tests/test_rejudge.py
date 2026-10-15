@@ -79,7 +79,7 @@ class FakeVerifier:
     def describe(self):
         return "judges=[fake]"
 
-    def verify_statement(self, statement, passages):
+    def verify_statement(self, statement, passages, context=None):
         FakeVerifier.calls.append((statement, [p.chunk_id for p in passages]))
         ok = "sleep" in statement.lower()
         return ClaimVerdict(statement, [passages[0].chunk_id],

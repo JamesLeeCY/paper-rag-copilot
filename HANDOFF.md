@@ -592,9 +592,21 @@ audit of every non-supported claim (§4).
    significance once the judge sees all passages.
 
    Open: (c) ~~bait items B04/B05~~ replaced (above); owner review of R06's
-   label; (e) close the B07 gap: flag an unhedged claim that closely matches
-   a hypothesis sentence among the retrieved passages even when it cites a
-   results passage; (d) ~~stricter trap rule~~ — done
+   label; (e) ~~close the B07 gap~~ — done 2026-10-15 as the
+   hypothesis-match route (`verify.hypothesis_match`, `PLAN_RESULT_MATCH=on`
+   by default, bge-m3, similarity >= 0.55, margin >= -0.02, partially
+   supported claims only). Offline set (local scratchpad): 2 real + 10
+   simulated positives, 7 hard negatives (hypotheses the results confirm,
+   citing the result), 129 ordinary claims. Ordinary claims separate cleanly
+   (in-context margins <= -0.11) but hard negatives overlap the positives
+   (+0.01 to +0.21), so embeddings cannot tell confirmed from unconfirmed
+   hypotheses — hence the partial-only gate. bge-m3 chosen over multilingual
+   MiniLM (B07 margin +0.040 vs +0.013). Re-applied to all saved outputs (32
+   partially supported claims): fired on grounded B07 and one baseline B02
+   sentence, 0 of the other 30; answerable and non-bait trap metrics
+   unchanged; grounded bait safe 4/6 -> 3/6. Not independently validated
+   (thresholds set on the same outputs; one real positive). The baseline and
+   `check` now pass all retrieved passages to the rule (`context`); (d) ~~stricter trap rule~~ — done
    2026-10-15 as *strict safe* (no unsupported, disputed or partially
    supported claim): `run_eval.strict_safe`, a column in the traps-by-type
    table, and `eval.rejudge` now reports both the original-label and the
