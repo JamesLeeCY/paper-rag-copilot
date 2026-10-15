@@ -474,7 +474,8 @@ audit of every non-supported claim (§4).
      Quote checks still use the bare text. The judge validation set
      (`judge-eval`) still passes bare passages, so its numbers are not directly
      comparable on items where the heading matters.
-0000. **Grounded vs baseline comparison — in progress (2026-10-12).**
+0000. **Grounded vs baseline comparison — done 2026-10-15 (results in README
+   §Results); two follow-ups open (below).**
    `eval --with-llm --baseline`: the ungrounded `SYSTEM_BASELINE` prompt over
    the same top-5 context; the prose answer is split into sentences
    (`split_sentences`), abstentions ("does not mention", 未提及 …,
@@ -501,27 +502,42 @@ audit of every non-supported claim (§4).
    question, ~7 min per judged sentence; the fix changes the run signature, so
    2-1 reruns the 6 calibration questions.
 
-   2-1 (2026-10-12/13) is incomplete: 37/57 saved (26 answerable + 11 of 31
-   traps). It was stopped by the guard (swap +2.6 GB from another program),
-   then the machine crashed twice (bugcheck 0x7E at 23:54; power-loss style
-   reset ~01:13), so local runs are paused until the hardware is checked.
-   Answerable comparison on the saved records (phi4 v3, same questions and
-   retrieval; Wilson 95%): strict precision grounded 97% [84–99] (30/31) vs
-   baseline 87% [78–92] (84/97); hallucination 0% [0–11] vs 4% [2–10];
-   answers with an unsupported claim 0/26 vs 4/26 (McNemar exact p = 0.125).
-   Audit of the 13 non-supported baseline sentences: 4 partials were split
-   fragments (group labels like "X vs. Y" cut at "vs.") → the splitter now skips
-   common abbreviations (affects R06 and R22 only); at least 2 unsupported
-   sentences have their evidence in the context but not in the 2 closest
-   passages the judge saw; 1 label contradicts its own reason. The baseline's
-   error rates are therefore overstated. Next (after the hardware check):
-   re-judge the non-supported sentences against all 5 passages as a
-   sensitivity analysis, then finish the 20 traps. The splitter change alters
-   the baseline run signature, so finish with
-   `eval --with-llm --baseline --reuse-from f5f1b8afca127666`: the 37 saved
-   answers are re-split, their 119 unchanged sentence verdicts are carried
-   over, and only 2 re-joined sentences plus the 20 remaining traps go to the
-   models (the report states the reuse counts).
+   2-1 (2026-10-12/13): stopped once by the guard (swap +2.6 GB from another
+   program), then the machine crashed twice (bugcheck 0x7E at 23:54; a
+   power-loss style reset ~01:13; cause not yet found — no crash since).
+   Audit of the answerable set: 4 partials were split fragments (group labels
+   like "X vs. Y" cut at "vs.") → the splitter skips common abbreviations; at
+   least 2 unsupported sentences have their evidence in the context but not
+   in the 2 closest passages the judge saw; 1 label contradicts its reason.
+   Finished 2026-10-13 10:27–12:52 with `--reuse-from f5f1b8afca127666` (37
+   answers reused, 2 re-joined sentences + 20 traps judged; run 86e12791…).
+   Trap audit (all 31 answers by hand): abstentions phrased "does not
+   explicitly address/detail" and advice sentences ("would need to review the
+   full dissertation", "further analysis would be necessary") had been judged
+   and rejected → `REFUSAL_HINT_RE` gained address/detail, and `META_RE`
+   sentences are not judged. Re-scored without model calls (`--reuse-from
+   86e12791e089c21f`; 57 answers, 189 verdicts reused; local
+   `eval_results_baseline_rescored.json`; the pre-audit file is
+   `eval_results_baseline.json`).
+
+   Final numbers (grounded v1 vs baseline; Wilson 95%; exact McNemar on the
+   same questions): strict precision 97% [84–99] vs 90% [83–95] (85/94);
+   hallucination 0% vs 4% (4/94); answers with any non-supported claim 1/26 vs
+   7/26 (p = 0.031); answers with an unsupported claim 0/26 vs 4/26 (p =
+   0.125); must-refuse traps refused 18/19 vs 3/19 (p < 0.001), safe 18/19 vs
+   14/19 (p = 0.125); all 25 traps correct 22/25 vs 6/25 (p < 0.001);
+   false-premise correct 4/6 vs 3/6; baseline opens by denying the premise on
+   13/19 must-refuse traps. Manual reading: of the 25 shared traps the
+   baseline accepted the premise or invented content on 7 (one invented a
+   participant group, one reported a planned analysis as a result); the rest
+   denied or corrected the premise, usually followed by related content.
+   Hypothesis-bait: baseline 0/6 (hypotheses or guesses stated as findings;
+   one item may have a matching result in the results chapter — check);
+   grounded v1 never ran these 6 items (v2 reference: 6/6).
+
+   Open: (a) grounded v1 on the 6 hypothesis-bait traps (`eval --with-llm
+   --traps-only --trap-types hypothesis_bait`, ~30–40 min); (b) re-judge the
+   baseline's non-supported sentences against all 5 passages (sensitivity).
 000. **Judge prompt v5 — evaluated 2026-10-12; not adopted. Judge prompt work
    closed; default stays v3 (owner's decision).** v5 = v3 verbatim + v4's
    classification step and fields (phi4, with headings, 3 threads, run

@@ -187,13 +187,28 @@ _SPLIT_RE = re.compile(r"(?<=[。！？!?])\s*|(?<=\.)" + _NOT_ABBREV
 # An abstention rather than a claim ("the text does not mention X"). One
 # adverb may sit between the negation and the verb ("does not explicitly
 # report"); missing it sent a denial to the judge in calibration.
+# The 2-1 trap audit added "address" and "detail" ("does not explicitly
+# address X" had been judged as a claim and rejected).
 REFUSAL_HINT_RE = re.compile(
-    r"not (?:\w+ly )?(?:mentioned|stated|reported|provided|specified|discussed|available|described)"
+    r"not (?:\w+ly )?(?:mentioned|stated|reported|provided|specified|discussed|available|described"
+    r"|addressed|detailed)"
     r"|(?:does|do|did)(?:n't| not) (?:\w+ly )?"
-    r"(?:mention|provide|contain|specify|discuss|report|state|describe|include)"
+    r"(?:mention|provide|contain|specify|discuss|report|state|describe|include|address|detail)"
     r"|no (?:information|mention|data|details)|cannot (?:be )?(?:determined|answered|determine|answer)"
     r"|unable to|there is no (?:information|mention|evidence)"
     r"|未提及|沒有提到|没有提到|無法|无法|未說明|未说明|沒有提供|没有提供|並未提到|并未提到|資料中沒有|未有相關",
+    re.I)
+# Advice about where to look ("one would need to review the full
+# dissertation", "further analysis would be necessary"): neither a claim
+# about the source nor an abstention, so it is not judged. The judge had
+# rejected such sentences as unsupported.
+META_RE = re.compile(
+    r"(?:would|will|might|may) (?:need|have) to (?:review|refer|consult|look|examine|read)"
+    r"|need to (?:review|refer to|consult|look (?:at|for)|read)"
+    r"|it would be necessary to|for a (?:comprehensive|complete|full) understanding"
+    r"|further (?:analysis|research|investigation|study|data)(?: or [\w ]+)? (?:would be|is|are|will be)"
+    r" (?:needed|necessary|required)"
+    r"|refer to the (?:full|original|complete)",
     re.I)
 
 
@@ -252,7 +267,8 @@ def baseline_bundle(question: str, strategy: str, llm, verifier, k: int = 2,
         raw = generate(question, passages, llm=llm, grounded=False).raw
     cached = cached or {}
     sentences = split_sentences(raw)
-    claims_text = [s for s in sentences if not REFUSAL_HINT_RE.search(s)]
+    claims_text = [s for s in sentences
+                   if not REFUSAL_HINT_RE.search(s) and not META_RE.search(s)]
     verdicts = [cached[s] if s in cached else
                 verifier.verify_statement(s, _closest(s, passages, retriever.embedder, k))
                 for s in claims_text]
@@ -334,7 +350,7 @@ def _question_record(g, v) -> dict:
 def eval_grounding(
     strategy: str, golden: dict, llm: LLMClient, limit: int | None = None,
     traps_only: bool = False, answerable_only: bool = False, fresh: bool = False,
-    baseline: bool = False, reuse_from: str = "",
+    baseline: bool = False, reuse_from: str = "", trap_types: list[str] | None = None,
 ) -> dict:
     """Grounding / refusal metrics. Each question's record is appended to
     eval_progress.jsonl as soon as it is scored, so an interrupted run (guard
@@ -352,7 +368,10 @@ def eval_grounding(
     retrieval_items = golden["retrieval"][:limit] if limit else golden["retrieval"]
     if traps_only:
         retrieval_items = []
-    trap_items = golden["traps"][:limit] if limit else golden["traps"]
+    trap_items = golden["traps"]
+    if trap_types:      # e.g. score one trap tier that an earlier run predates
+        trap_items = [it for it in trap_items if it.get("type", "far_absent") in trap_types]
+    trap_items = trap_items[:limit] if limit else trap_items
     if answerable_only:
         trap_items = []
 
@@ -716,6 +735,8 @@ def main():
                          "judged sentence by sentence (for the grounded-vs-baseline comparison)")
     ap.add_argument("--fresh", action="store_true",
                     help="ignore questions saved by an interrupted run and start over")
+    ap.add_argument("--trap-types", nargs="+", default=None, metavar="TYPE",
+                    help="LLM pass on these trap types only (e.g. hypothesis_bait)")
     ap.add_argument("--reuse-from", default="", metavar="SIGNATURE",
                     help="baseline arm: reuse the answers and unchanged sentence verdicts "
                          "saved by that earlier run (after a splitting/abstention change)")
@@ -753,7 +774,8 @@ def main():
             g = eval_grounding(args.llm_strategy, golden, llm, limit=args.llm_limit,
                                traps_only=args.traps_only,
                                answerable_only=args.answerable_only, fresh=args.fresh,
-                               baseline=args.baseline, reuse_from=args.reuse_from)
+                               baseline=args.baseline, reuse_from=args.reuse_from,
+                               trap_types=args.trap_types)
             g["arm"] = "baseline" if args.baseline else "grounded"
             results["grounding"] = [g]
             print(f"[grounding:{args.llm_strategy}] precision strict/lenient="

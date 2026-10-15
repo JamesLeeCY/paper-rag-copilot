@@ -50,6 +50,8 @@ def test_split_skips_abbreviations():
     ("資料中沒有相關數據。", True),
     ("The thesis does not explicitly report sleep outcomes.", True),
     ("This was not directly mentioned in the text.", True),
+    ("The thesis does not explicitly address diet.", True),
+    ("Sleep outcomes were not directly addressed.", True),
     ("Walking reduced stress.", False),
     ("研究發現步行改善了情緒。", False),
 ])
@@ -215,3 +217,21 @@ def test_truncated_answers_are_not_reused(tmp_path):
     (tmp_path / "eval_progress.done-S.jsonl").write_text(
         "\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
     assert list(run_eval.load_reusable(tmp_path, "S")) == ["b"]
+
+
+@pytest.mark.parametrize("text,meta", [
+    ("For a comprehensive understanding, it would be necessary to review the full thesis.", True),
+    ("You might need to look for additional chapters on this topic.", True),
+    ("To know this, further analysis or additional data would be necessary.", True),
+    ("Walking reduced stress more than rest did.", False),
+    ("Participants reviewed the full list of words.", False),
+])
+def test_meta_advice(text, meta):
+    assert bool(run_eval.META_RE.search(text)) is meta
+
+
+def test_meta_advice_is_not_judged(monkeypatch):
+    g, v, ver = run_bundle(monkeypatch, "Walking reduced stress a lot. You may need to "
+                                        "consult the full thesis for details.")
+    assert [c.statement for c in g.claims] == ["Walking reduced stress a lot."]
+    assert len(ver.seen) == 1 and not g.refused

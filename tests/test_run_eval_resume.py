@@ -137,3 +137,11 @@ def test_a_line_cut_off_by_a_hard_stop_is_skipped(env, monkeypatch):
     calls = []
     assert run(monkeypatch, calls)["n_resumed"] == 2
     assert len(calls) == 4
+
+
+def test_trap_types_limits_the_traps(env, monkeypatch):
+    calls = []
+    monkeypatch.setattr(src.pipeline, "ask", make_ask(calls))
+    res = run_eval.eval_grounding("section", GOLDEN, NS(describe=lambda: "fake:gen"),
+                                  traps_only=True, trap_types=["false_premise"])
+    assert calls == ["premise trap"] and [d["id"] for d in res["trap_detail"]] == ["T2"]

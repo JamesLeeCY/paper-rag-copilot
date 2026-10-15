@@ -117,6 +117,51 @@ it rests on the claim-by-claim audit as much as on the numbers. Claim-level
 intervals also treat claims as independent, which understates the uncertainty
 when one answer has several claims.
 
+### Grounded vs ungrounded baseline (dissertation)
+
+Does the citation-forcing design matter, or would the same generator answer as
+well from the same context without it? `eval --with-llm --baseline` asks the
+same questions over the same top-5 passages with an ungrounded prompt (plain
+prose), splits the answer into sentences and has the same judge (phi4, prompt
+v3) check each sentence against its two closest passages. Sentences that only
+abstain ("the text does not report X") or only advise where to look are not
+judged. Same 26 answerable questions and 25 traps as the grounded run
+(2026-10-12/13; Wilson 95% intervals; paired exact McNemar tests):
+
+| | Grounded (default) | Ungrounded baseline | Paired test |
+|---|---|---|---|
+| Strict citation precision (claims / sentences) | **97%** [84–99] (30/31) | 90% [83–95] (85/94) | — |
+| Claim hallucination rate | 0% [0–11] | 4% [2–10] (4/94) | — |
+| Answers with any non-supported claim | **4%** (1/26) | 27% (7/26) | p = 0.031 |
+| Answers with an unsupported claim | 0% (0/26) | 15% (4/26) | p = 0.125 |
+| Must-refuse traps refused | **95%** [75–99] (18/19) | 16% [6–38] (3/19) | p < 0.001 |
+| Must-refuse traps safe (no rejected/disputed claim) | 95% [75–99] | 74% [51–88] (14/19) | p = 0.125 |
+| All 25 traps correct | **88%** [70–96] | 24% [12–43] (6/25) | p < 0.001 |
+| False-premise traps correct | 67% (4/6) | 50% (3/6) | — |
+
+What the numbers mean, from a manual audit of every baseline trap answer:
+
+- The baseline rarely just plays along. On must-refuse traps it usually first
+  says the source does not cover the topic (68% open that way), then keeps
+  going with related, mostly true content. Under the refusal definition both
+  arms share (abstain and make no claim) that is not a refusal, so the
+  refusal gap is large; the safety gap is smaller and, on 19 traps, not
+  significant.
+- The errors that do get through are the ones the grounded design targets:
+  about a quarter of the shared traps were answered by accepting the premise
+  or inventing content (one answer invented a participant group; one reported
+  a planned analysis as a result), and all 6 local hypothesis-bait traps were
+  answered by stating a hypothesis or a guess as a finding (the grounded v1
+  run predates these 6 items, so they are not in the table).
+- On answerable questions the grounded arm is more precise, but the
+  baseline's hallucination rate is overstated: at least 2 of its 4
+  unsupported sentences have their evidence in the context but not in the
+  two passages the judge saw.
+
+Caveats: not paired at the claim level (different outputs from the same
+generator), the baseline is judged against 2 of the 5 passages, and abstention
+detection is a pattern list (audited on these answers, see HANDOFF §7).
+
 ### Retrieval — chunking ablation (dissertation)
 
 | Strategy | Hit@1 | Hit@3 | Hit@5 | MRR |
@@ -486,8 +531,11 @@ python cli.py eval --rerank                          # with cross-encoder rerank
 python cli.py eval --with-llm
 python cli.py eval --with-llm --llm-limit 3          # quick sample for a slow local model
 python cli.py eval --with-llm --traps-only           # trap questions only
+python cli.py eval --with-llm --traps-only --trap-types hypothesis_bait  # one trap tier
 python cli.py eval --with-llm --answerable-only      # answerable questions only
 python cli.py eval --with-llm --fresh                # ignore an interrupted run's saved questions
+python cli.py eval --with-llm --baseline             # ungrounded arm, judged sentence by sentence
+python cli.py eval --with-llm --baseline --reuse-from <run>  # re-score saved baseline answers
 
 # 5. Judge validation
 python cli.py judge-build                            # build the known-answer set (no LLM)
@@ -732,7 +780,10 @@ Ollama clients right before launching.
    keep quotes in the source language, refuse only in `<unsupported_note>`.
 7. ~~Resumable `run_eval`~~ — done (saves each question; resumes on rerun).
 8. ~~Confidence intervals~~ — done (Wilson, in both reports). Still open:
-   human-labelled judge items; grounded vs baseline prompt comparison.
+   human-labelled judge items.
+9. ~~Grounded vs baseline prompt comparison~~ — done (Results). Still open:
+   the grounded v1 run on the 6 hypothesis-bait traps, and re-judging the
+   baseline's non-supported sentences against all 5 passages.
 
 ---
 
