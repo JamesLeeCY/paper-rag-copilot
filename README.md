@@ -542,6 +542,7 @@ python cli.py eval --with-llm --answerable-only      # answerable questions only
 python cli.py eval --with-llm --fresh                # ignore an interrupted run's saved questions
 python cli.py eval --with-llm --baseline             # ungrounded arm, judged sentence by sentence
 python cli.py eval --with-llm --baseline --reuse-from <run>  # re-score saved baseline answers
+python -m eval.rejudge [--limit 3]                  # sensitivity: re-judge non-supported claims of both arms on all 5 passages
 
 # 5. Judge validation
 python cli.py judge-build                            # build the known-answer set (no LLM)

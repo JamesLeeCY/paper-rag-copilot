@@ -545,6 +545,16 @@ audit of every non-supported claim (§4).
    against a non-results passage — owner to review or replace the 2 items.
    Local file: `eval_results_bait_grounded_v1.json`.
 
+   Sensitivity tool (2026-10-15): `python -m eval.rejudge` re-judges, for
+   both arms, every non-supported answerable claim and every unsupported /
+   disputed trap claim against the context passages it was not judged on
+   (baseline: all but its 2 closest; grounded: all but the cited one), keeps
+   the better label and recomputes the paired comparison. Scope C: 36 claims
+   (baseline 9 + 22, grounded 1 + 4), at most 113 phi4 calls; resumable
+   (`rejudge_progress.jsonl`); `--limit N` for a trial. Selection checked on
+   the saved results: every saved verdict's passage is among the recomputed
+   ones (retrieval and embeddings deterministic).
+
    Open: (b) re-judge the
    baseline's non-supported sentences against all 5 passages (sensitivity).
 000. **Judge prompt v5 — evaluated 2026-10-12; not adopted. Judge prompt work
