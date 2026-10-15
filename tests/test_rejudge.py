@@ -136,6 +136,7 @@ def test_end_to_end_and_resume(env):
     assert m["hallucination"]["k"] == 0 and m["strict"]["k"] == 2
     assert m["must_refuse_safe"]["k"] == 0                            # T1 still has a rejection
     assert out["comparison"]["bait_safe"]["baseline"]["k"] == 1
+    assert out["comparison_before"]["bait_safe"]["baseline"]["k"] == 0   # original labels
 
     FakeVerifier.calls = []
     rejudge.main([])                                                  # resumes: nothing to judge
@@ -145,3 +146,11 @@ def test_end_to_end_and_resume(env):
 def test_trial_limit_writes_no_results(env):
     rejudge.main(["--limit", "1"])
     assert len(FakeVerifier.calls) == 1 and not (env / rejudge.RESULTS).exists()
+
+
+def test_strict_safe_fails_a_partial_claim():
+    s = rejudge.summarize({"grounded": {"answer": [], "trap": [
+        {"id": "T9", "type": "false_premise", "labels": ["supported", "partially_supported"],
+         "refused": False, "parse_failed": False}]}})
+    q = s["grounded"]["by_question"]["T|T9"]
+    assert q["safe"] and not q["strict_safe"] and q["correct"] and not q["correct_strict"]

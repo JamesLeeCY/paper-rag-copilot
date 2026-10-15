@@ -574,9 +574,21 @@ audit of every non-supported claim (§4).
    significance once the judge sees all passages.
 
    Open: (c) owner review of bait items B04/B05 (hypothesis reported as
-   confirmed) and of R06's label; (d) consider a stricter trap rule: a
-   partially supported claim that restates the trap's premise or hypothesis
-   should not count as safe.
+   confirmed) and of R06's label; (d) ~~stricter trap rule~~ — done
+   2026-10-15 as *strict safe* (no unsupported, disputed or partially
+   supported claim): `run_eval.strict_safe`, a column in the traps-by-type
+   table, and `eval.rejudge` now reports both the original-label and the
+   re-judged comparison with `premise_strict_safe` and `traps_correct_strict`.
+   Detecting "restates the premise" directly was tried and dropped: lexical
+   overlap with the question fails across languages (Chinese answers to
+   English questions) and is as high for corrections as for acceptances.
+   Premise traps (false_premise + hypothesis_bait, 12): strict safe grounded
+   8/12 → 9/12 (re-judged) vs baseline 1/12 → 1/12, p = 0.016 / 0.008; plain
+   safe 9/12 → 12/12 vs 3/12 → 4/12. Strict safe fails the partial lenient
+   flips (grounded T25, B02) and grounded T21, not grounded T24 (upgraded to
+   supported), and it also fails baseline T22/T23, which correct
+   the premise and add one partially supported sentence — it favours short
+   answers, so report it beside the plain safe rate.
 000. **Judge prompt v5 — evaluated 2026-10-12; not adopted. Judge prompt work
    closed; default stays v3 (owner's decision).** v5 = v3 verbatim + v4's
    classification step and fields (phi4, with headings, 3 threads, run

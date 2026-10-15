@@ -145,3 +145,11 @@ def test_trap_types_limits_the_traps(env, monkeypatch):
     res = run_eval.eval_grounding("section", GOLDEN, NS(describe=lambda: "fake:gen"),
                                   traps_only=True, trap_types=["false_premise"])
     assert calls == ["premise trap"] and [d["id"] for d in res["trap_detail"]] == ["T2"]
+
+
+def test_strict_safe_counts_partial_claims(env, monkeypatch):
+    res = run(monkeypatch, [])
+    assert run_eval.strict_safe({"n_unsupported": 0, "n_disputed": 0, "n_partial": 1,
+                                 "parse_failed": False}) is False
+    fp = res["traps_by_type"]["false_premise"]
+    assert fp["safe_rate"] == 1.0 and fp["strict_safe_rate"] == 1.0

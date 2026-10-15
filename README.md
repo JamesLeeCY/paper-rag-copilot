@@ -182,6 +182,7 @@ context passages it had not been judged on, keeping the better label:
 | Must-refuse traps safe | 18/19 → 18/19 | 14/19 → 14/19 | p = 0.125 |
 | All 25 traps correct | 88% → 96% | 24% → 24% | p < 0.001 |
 | Hypothesis-bait traps safe | 5/6 → 6/6 | 0/6 → 1/6 | p = 0.063 |
+| Premise traps (false-premise + bait) **strict safe** | 8/12 → 9/12 | 1/12 → 1/12 | p = 0.016 → 0.008 |
 
 14 labels changed. Six baseline flips were justified (the evidence was in an
 unseen passage), so the 2-passage view does penalise the baseline. But the
@@ -193,6 +194,15 @@ bound. Under both, the grounded arm is far better at refusing what the source
 does not say; on answerable questions the two arms are close once the judge
 sees the evidence, and the grounded arm's advantage there is that every claim
 carries a verbatim, checkable quote.
+
+A stricter trap rule closes the leniency gap: *strict safe* (also no
+partially supported claim; reported per trap type by `eval` and by
+`eval.rejudge`) fails the claims the wider view let through as partially
+supported (it cannot catch the one it upgraded to supported), and on the 12
+premise traps the grounded arm leads under both labelings (last row). It also fails
+baseline answers that correct the premise but add one overreaching sentence,
+so it favours short answers; report it next to the plain safe rate, not
+instead of it.
 
 ### Retrieval — chunking ablation (dissertation)
 

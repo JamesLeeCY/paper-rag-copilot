@@ -30,6 +30,7 @@ from eval import stats
 PROGRESS = "rejudge_progress.jsonl"
 RESULTS = "rejudge_results.json"
 MUST_REFUSE = {"far_absent", "near_absent"}
+PREMISE = {"false_premise", "hypothesis_bait"}     # traps decided by "safe"
 TRAP_RELEVANT = {"unsupported", "disputed"}
 
 # (arm, results file, part). The grounded traps come from two runs: the 25
@@ -110,6 +111,9 @@ def summarize(rows: dict) -> dict:
         def safe(d):
             return not any(lab in TRAP_RELEVANT for lab in d["labels"]) and not d["parse_failed"]
 
+        def strict(d):
+            return safe(d) and "partially_supported" not in d["labels"]
+
         must = [d for d in traps if d["type"] in MUST_REFUSE]
         out[arm] = {
             "strict": stats.rate(labels.count("supported"), n),
@@ -125,8 +129,10 @@ def summarize(rows: dict) -> dict:
                 **{f"A|{d['id']}": {"unsupported": "unsupported" in d["labels"],
                                     "not_clean": any(x != "supported" for x in d["labels"])}
                    for d in parts["answer"]},
-                **{f"T|{d['id']}": {"type": d["type"], "safe": safe(d),
-                                    "correct": d["refused"] if d["type"] in MUST_REFUSE else safe(d)}
+                **{f"T|{d['id']}": {"type": d["type"], "safe": safe(d), "strict_safe": strict(d),
+                                    "correct": d["refused"] if d["type"] in MUST_REFUSE else safe(d),
+                                    "correct_strict": d["refused"] if d["type"] in MUST_REFUSE
+                                    else strict(d)}
                    for d in traps}},
         }
     return out
@@ -154,6 +160,9 @@ def compare(summary: dict) -> dict:
         "must_refuse_safe": pair(must, "safe"),
         "traps_correct": pair(core, "correct"),
         "bait_safe": pair(bait, "safe"),
+        "premise_safe": pair([k for k in traps if g[k]["type"] in PREMISE], "safe"),
+        "premise_strict_safe": pair([k for k in traps if g[k]["type"] in PREMISE], "strict_safe"),
+        "traps_correct_strict": pair(core, "correct_strict"),
     }
 
 
@@ -189,12 +198,14 @@ def main(argv=None) -> None:
                 done[row["key"]] = row["record"]
 
     rows = {"baseline": {"answer": [], "trap": []}, "grounded": {"answer": [], "trap": []}}
+    before = {"baseline": {"answer": [], "trap": []}, "grounded": {"answer": [], "trap": []}}
     flips, judged_now = [], 0
     contexts = {}
     for arm, fname, part in SOURCES:
         res = json.loads((report / fname).read_text(encoding="utf-8"))["grounding"][0]
         for d in res[part]:
             labels = []
+            original = [c["label"] for c in d["claims"]]
             for c in d["claims"]:
                 lab = c["label"]
                 if needs_rejudge(lab, part):
@@ -221,9 +232,10 @@ def main(argv=None) -> None:
                                       "reason": rec.get("reason")})
                     lab = rec["new"]
                 labels.append(lab)
-            rows[arm]["answer" if part == "answer_detail" else "trap"].append(
-                {"id": d["id"], "type": d.get("type"), "labels": labels,
-                 "refused": d["refused"], "parse_failed": d.get("parse_failed", False)})
+            for target, labs in ((rows, labels), (before, original)):
+                target[arm]["answer" if part == "answer_detail" else "trap"].append(
+                    {"id": d["id"], "type": d.get("type"), "labels": labs,
+                     "refused": d["refused"], "parse_failed": d.get("parse_failed", False)})
 
     if args.limit is not None:
         print(f"[rejudge] trial: {judged_now} claim(s) judged; rerun without --limit for results")
@@ -231,13 +243,18 @@ def main(argv=None) -> None:
     summary = summarize(rows)
     result = {"run": sig, "verifier": verifier.describe(), "flips": flips,
               "comparison": compare(summary),
+              # The same comparison on the original labels (the strict bound).
+              "comparison_before": compare(summarize(before)),
               "metrics": {arm: {k: v for k, v in m.items() if k != "by_question"}
                           for arm, m in summary.items()}}
     (report / RESULTS).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[rejudge] {judged_now} claim(s) judged this run; {len(flips)} label(s) changed")
-    for name, c in result["comparison"].items():
-        print(f"  {name}: grounded {stats.fmt(c['grounded'])} | baseline "
-              f"{stats.fmt(c['baseline'])} | McNemar p = {c['p']}")
+    for title, comp in (("original labels", result["comparison_before"]),
+                        ("after re-judging", result["comparison"])):
+        print(f"[rejudge] {title}:")
+        for name, c in comp.items():
+            print(f"  {name}: grounded {stats.fmt(c['grounded'])} | baseline "
+                  f"{stats.fmt(c['baseline'])} | McNemar p = {c['p']}")
     print(f"[rejudge] written {report / RESULTS}")
 
 

@@ -305,6 +305,15 @@ def load_reusable(report_dir: Path, signature: str) -> dict[str, dict]:
     return {k: r for k, r in rows.items() if "raw" in r and len(r["raw"]) < _RAW_LIMIT}
 
 
+def strict_safe(rec: dict) -> bool:
+    """Safe with no partially supported claim either. The plain safe rate lets
+    a partially supported claim through; the sensitivity re-judging showed
+    that on premise traps such a claim can restate a hypothesis as confirmed
+    or half-accept a false premise."""
+    return (rec["n_unsupported"] == 0 and rec["n_disputed"] == 0 and rec["n_partial"] == 0
+            and not rec["parse_failed"])
+
+
 _CJK_RE = re.compile(r"[㐀-鿿]")
 
 
@@ -447,7 +456,8 @@ def eval_grounding(
         print(f"  [trap {qi}/{len(trap_items)}] {it['id']} ({kind}): refused={rec['refused']} "
               f"claims={rec['n_claims']} correct={correct} "
               + ("(resumed)" if resumed else f"({rec['seconds']}s)"), flush=True)
-        trap_detail.append({"id": it["id"], "type": kind, "correct": correct, "safe": safe, **rec})
+        trap_detail.append({"id": it["id"], "type": kind, "correct": correct, "safe": safe,
+                            "strict_safe": strict_safe(rec), **rec})
 
     # Pool claim counts across questions (micro-average) rather than averaging
     # per-question rates, which would down-weight questions with many claims.
@@ -474,6 +484,7 @@ def eval_grounding(
             "correct_rate": _ratio(sum(d["correct"] for d in sub), len(sub)),
             "refusal_rate": _ratio(sum(d["refused"] for d in sub), len(sub)),
             "safe_rate": _ratio(sum(d["safe"] for d in sub), len(sub)),
+            "strict_safe_rate": _ratio(sum(d["strict_safe"] for d in sub), len(sub)),
         }
 
     # Complete: retire the progress file so the next run starts fresh. A
@@ -673,19 +684,23 @@ def write_report(results: dict, path: Path) -> None:
         if tbt:
             A("### 2c. Traps by type")
             A("")
-            A("| Type | n | Correct | Refused | Safe (no rejected/disputed claim) |")
-            A("|---|---|---|---|---|")
+            A("| Type | n | Correct | Refused | Safe (no rejected/disputed claim) "
+              "| Strict safe (also no partial) |")
+            A("|---|---|---|---|---|---|")
             g0c = results["grounding"][0].get("counts", {})
             for kind, t in tbt.items():
                 correct = (stats.fmt(g0c[f"trap_correct:{kind}"]) if f"trap_correct:{kind}" in g0c
                            else pct(t["correct_rate"]))
                 A(f"| {kind} | {t['n']} | {correct} | {pct(t['refusal_rate'])} "
-                  f"| {pct(t['safe_rate'])} |")
+                  f"| {pct(t['safe_rate'])} | {pct(t.get('strict_safe_rate'))} |")
             A("")
             A("> far_absent / near_absent: correct = refused (the topic is not in the corpus; "
               "near_absent questions are about the corpus's own studies). false_premise: "
               "correct = safe — refusing or correcting the premise with supported claims "
-              "both pass. Refusal correctness above covers only the must-refuse types.")
+              "both pass. Refusal correctness above covers only the must-refuse types. "
+              "Strict safe also fails a partially supported claim: on a trap built to "
+              "elicit overreach, partial support means the claim goes beyond the source "
+              "(e.g. a hypothesis stated as confirmed, or a premise half-accepted).")
             A("")
             if "trap_leading_denial" in g0c:
                 A(f"Opens by denying the premise (must-refuse traps, baseline): "
