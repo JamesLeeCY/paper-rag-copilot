@@ -535,8 +535,17 @@ audit of every non-supported claim (§4).
    one item may have a matching result in the results chapter — check);
    grounded v1 never ran these 6 items (v2 reference: 6/6).
 
-   Open: (a) grounded v1 on the 6 hypothesis-bait traps (`eval --with-llm
-   --traps-only --trap-types hypothesis_bait`, ~30–40 min); (b) re-judge the
+   Hypothesis-bait, grounded v1 (2026-10-15 12:28–12:39, `eval --with-llm
+   --traps-only --trap-types hypothesis_bait`, 4 threads): safe 5/6 vs
+   baseline 0/6 (exact McNemar p = 0.063). Refused 3; answered 2 from
+   passages that report results (abstract; results chapter) with verbatim
+   quotes; restated the hypothesis once (B02) and phi4 rejected it. B04 and
+   B05: the thesis reports a matching result, so these items do not test
+   plan-as-result and the baseline's rejected sentences there were judged
+   against a non-results passage — owner to review or replace the 2 items.
+   Local file: `eval_results_bait_grounded_v1.json`.
+
+   Open: (b) re-judge the
    baseline's non-supported sentences against all 5 passages (sensitivity).
 000. **Judge prompt v5 — evaluated 2026-10-12; not adopted. Judge prompt work
    closed; default stays v3 (owner's decision).** v5 = v3 verbatim + v4's

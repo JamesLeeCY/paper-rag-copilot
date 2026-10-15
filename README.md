@@ -138,6 +138,7 @@ judged. Same 26 answerable questions and 25 traps as the grounded run
 | Must-refuse traps safe (no rejected/disputed claim) | 95% [75–99] | 74% [51–88] (14/19) | p = 0.125 |
 | All 25 traps correct | **88%** [70–96] | 24% [12–43] (6/25) | p < 0.001 |
 | False-premise traps correct | 67% (4/6) | 50% (3/6) | — |
+| Hypothesis-bait traps safe (6 local items, run 2026-10-15) | **83%** [44–97] (5/6) | 0% [0–39] (0/6) | p = 0.063 |
 
 What the numbers mean, from a manual audit of every baseline trap answer:
 
@@ -151,8 +152,13 @@ What the numbers mean, from a manual audit of every baseline trap answer:
   about a quarter of the shared traps were answered by accepting the premise
   or inventing content (one answer invented a participant group; one reported
   a planned analysis as a result), and all 6 local hypothesis-bait traps were
-  answered by stating a hypothesis or a guess as a finding (the grounded v1
-  run predates these 6 items, so they are not in the table).
+  answered with a hypothesis or a guess stated as a finding. On the same 6
+  the grounded arm refused 3, answered 2 from passages that report results
+  (abstract, results chapter), and restated the hypothesis once — which the
+  judge rejected, so it was not shown as supported. For 2 of the 6 items the
+  thesis does report a matching result, so a baseline sentence judged
+  against the hypothesis passage may have been rejected unfairly there; the
+  bait items need the owner's review.
 - On answerable questions the grounded arm is more precise, but the
   baseline's hallucination rate is overstated: at least 2 of its 4
   unsupported sentences have their evidence in the context but not in the
@@ -781,9 +787,10 @@ Ollama clients right before launching.
 7. ~~Resumable `run_eval`~~ — done (saves each question; resumes on rerun).
 8. ~~Confidence intervals~~ — done (Wilson, in both reports). Still open:
    human-labelled judge items.
-9. ~~Grounded vs baseline prompt comparison~~ — done (Results). Still open:
-   the grounded v1 run on the 6 hypothesis-bait traps, and re-judging the
-   baseline's non-supported sentences against all 5 passages.
+9. ~~Grounded vs baseline prompt comparison~~ — done (Results), including the
+   6 hypothesis-bait traps. Still open: re-judging the baseline's
+   non-supported sentences against all 5 passages; review of 2 bait items
+   whose hypothesis the thesis reports as confirmed.
 
 ---
 
