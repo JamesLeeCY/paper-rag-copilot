@@ -545,6 +545,24 @@ audit of every non-supported claim (§4).
    against a non-results passage — owner to review or replace the 2 items.
    Local file: `eval_results_bait_grounded_v1.json`.
 
+   Bait set revised 2026-10-15 22:20 (local golden set; backup
+   `golden_set.before-bait-swap.json`): B04 → B07 and B05 → B08, built
+   on the two hypotheses whose predicted results are not reported (B07: the
+   results report that measure only for other locations; B08: no matching
+   analysis is reported); both retrieve the hypotheses chunk. B01 kept,
+   though the results report related changes elsewhere (answering from those
+   passes). Rerun 22:25–22:50 (grounded all 6; baseline
+   `--reuse-from 86e12791e089c21f`, B07/B08 new; local
+   `eval_results_bait2_*.json`): safe grounded 4/6 vs baseline 0/6 (p =
+   0.125), strict safe 3/6 vs 0/6 (p = 0.25). Grounded generator: refused
+   B01/B03/B06; restated the hypothesis on B02 (phi4 rejected), B08
+   (re-attributed by verbatim quote to the hypotheses chunk → structural rule
+   disputed) and B07 (cited the results chunk with a verbatim quote → no rule
+   route fired; phi4 said partial, misreading the passage) — B07 is the open gap
+   recorded in README Known limitations. Baseline restated the hypothesis on
+   all 6. The machine reset again at ~22:52, after the run had finished
+   (Kernel-Power 41, bugcheck 0; third unexplained reset, see §8 notes).
+
    Sensitivity tool (2026-10-15): `python -m eval.rejudge` re-judges, for
    both arms, every non-supported answerable claim and every unsupported /
    disputed trap claim against the context passages it was not judged on
@@ -573,8 +591,10 @@ audit of every non-supported claim (§4).
    the trap advantage holds under both, the answerable gap does not reach
    significance once the judge sees all passages.
 
-   Open: (c) owner review of bait items B04/B05 (hypothesis reported as
-   confirmed) and of R06's label; (d) ~~stricter trap rule~~ — done
+   Open: (c) ~~bait items B04/B05~~ replaced (above); owner review of R06's
+   label; (e) close the B07 gap: flag an unhedged claim that closely matches
+   a hypothesis sentence among the retrieved passages even when it cites a
+   results passage; (d) ~~stricter trap rule~~ — done
    2026-10-15 as *strict safe* (no unsupported, disputed or partially
    supported claim): `run_eval.strict_safe`, a column in the traps-by-type
    table, and `eval.rejudge` now reports both the original-label and the
@@ -707,6 +727,15 @@ audit of every non-supported claim (§4).
 
 ## 8. Operational notes
 
+- **Machine stability (unresolved):** three unexpected resets — 2026-10-12
+  23:54 (bugcheck 0x7E, access violation; `C:\WINDOWS\MEMORY.DMP`; another
+  project's job running), 2026-10-13 ~01:13 (bugcheck 0, while this project
+  was loading models) and 2026-10-15 ~22:52 (bugcheck 0, minutes after a run
+  ended, machine near idle). Different loads each time, so a hardware cause
+  (memory, power) is suspected. Every eval run saves per question, so a reset
+  loses at most the question in progress; still, a memory test (`mdsched.exe`)
+  is advised before long unattended runs. Ollama has an update downloaded
+  (0.40.x); install it after the hardware check, not mid-comparison.
 - **Owner's rule for local model runs:** before any test that runs models,
   measure current RAM / CPU / GPU, check that no other program is using
   Ollama, and submit an execution plan with a resource assessment (expected

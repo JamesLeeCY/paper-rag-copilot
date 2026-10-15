@@ -138,7 +138,8 @@ judged. Same 26 answerable questions and 25 traps as the grounded run
 | Must-refuse traps safe (no rejected/disputed claim) | 95% [75–99] | 74% [51–88] (14/19) | p = 0.125 |
 | All 25 traps correct | **88%** [70–96] | 24% [12–43] (6/25) | p < 0.001 |
 | False-premise traps correct | 67% (4/6) | 50% (3/6) | — |
-| Hypothesis-bait traps safe (6 local items, run 2026-10-15) | **83%** [44–97] (5/6) | 0% [0–39] (0/6) | p = 0.063 |
+| Hypothesis-bait traps safe (6 local items, revised set) | **67%** [30–90] (4/6) | 0% [0–39] (0/6) | p = 0.125 |
+| Hypothesis-bait traps strict safe (revised set) | 50% [19–81] (3/6) | 0% [0–39] (0/6) | p = 0.25 |
 
 What the numbers mean, from a manual audit of every baseline trap answer:
 
@@ -152,13 +153,19 @@ What the numbers mean, from a manual audit of every baseline trap answer:
   about a quarter of the shared traps were answered by accepting the premise
   or inventing content (one answer invented a participant group; one reported
   a planned analysis as a result), and all 6 local hypothesis-bait traps were
-  answered with a hypothesis or a guess stated as a finding. On the same 6
-  the grounded arm refused 3, answered 2 from passages that report results
-  (abstract, results chapter), and restated the hypothesis once — which the
-  judge rejected, so it was not shown as supported. For 2 of the 6 items the
-  thesis does report a matching result, so a baseline sentence judged
-  against the hypothesis passage may have been rejected unfairly there; the
-  bait items need the owner's review.
+  answered with a hypothesis or a guess stated as a finding.
+- Hypothesis bait is where the grounded arm is weakest. The first bait set
+  had 2 items whose hypothesis the thesis does report as a result (grounded
+  5/6 safe there); they were replaced by 2 items whose hypothesis has no
+  reported result. On the revised set the grounded generator refused 3 and
+  restated the hypothesis as a finding 3 times. The verification caught 2 of
+  those 3 (the judge rejected one; the plan-as-result rule disputed one whose
+  quote came from the hypotheses section). The third slipped through as
+  *partially supported*: it restated the hypothesis but cited a results
+  passage with a verbatim quote, so neither rule route fired (the cited
+  section is not a hypotheses section and the cited sentence is not phrased
+  as a plan) and the judge misread the passage. Only *strict safe* (below)
+  fails it — a known gap, see Known limitations.
 - On answerable questions the grounded arm is more precise, but the
   baseline's hallucination rate is overstated: at least 2 of its 4
   unsupported sentences have their evidence in the context but not in the
@@ -181,8 +188,8 @@ context passages it had not been judged on, keeping the better label:
 | Answers with an unsupported claim | 0/26 → 0/26 | 4/26 → 2/26 | p = 0.125 → 0.5 |
 | Must-refuse traps safe | 18/19 → 18/19 | 14/19 → 14/19 | p = 0.125 |
 | All 25 traps correct | 88% → 96% | 24% → 24% | p < 0.001 |
-| Hypothesis-bait traps safe | 5/6 → 6/6 | 0/6 → 1/6 | p = 0.063 |
-| Premise traps (false-premise + bait) **strict safe** | 8/12 → 9/12 | 1/12 → 1/12 | p = 0.016 → 0.008 |
+| Hypothesis-bait traps safe (first bait set) | 5/6 → 6/6 | 0/6 → 1/6 | p = 0.063 |
+| Premise traps (false-premise + first bait set) **strict safe** | 8/12 → 9/12 | 1/12 → 1/12 | p = 0.016 → 0.008 |
 
 14 labels changed. Six baseline flips were justified (the evidence was in an
 unseen passage), so the 2-passage view does penalise the baseline. But the
@@ -772,6 +779,13 @@ Ollama clients right before launching.
    Caveats: the synthetic items share the rule's cues; a true finding cited
    from a future-tense methods passage could still be flagged, which is why the
    default is review, not rejection.
+   **Open gap (2026-10-15, revised bait set):** a hypothesis restated as a
+   finding that cites a *results* passage with a verbatim quote escapes both
+   routes — the cited section is not a Hypotheses section and the cited
+   sentence is not phrased as a plan — and phi4 rated it only partially
+   supported. One real case in 6 bait items; strict safe fails it, the plain
+   safe rate does not. A fix would compare the claim with the hypothesis
+   sentences among the retrieved passages, not only with the cited one.
 2. **Background statements attributed to this study.** v3 catches most
    "Author et al. found → This study found" swaps, but on the pilot paper at
    most 40% of swaps of background statements.
@@ -825,10 +839,10 @@ Ollama clients right before launching.
 8. ~~Confidence intervals~~ — done (Wilson, in both reports). Still open:
    human-labelled judge items.
 9. ~~Grounded vs baseline prompt comparison~~ — done (Results), including the
-   6 hypothesis-bait traps and a sensitivity re-judging on all 5 passages.
-   Still open: review of 2 bait items whose hypothesis the thesis reports as
-   confirmed; a stricter trap rule for partially supported claims that
-   restate a premise or hypothesis.
+   6 hypothesis-bait traps (set revised once), a sensitivity re-judging on all
+   5 passages and a strict-safe trap rule. Still open: catching a
+   hypothesis restated as a finding that cites a results passage (Known
+   limitations); a larger bait set.
 
 ---
 
