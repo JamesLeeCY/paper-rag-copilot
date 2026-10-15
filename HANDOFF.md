@@ -468,9 +468,10 @@ and verification catches all three.
 
 Open, in suggested order:
 
-1. **Hardware check (owner).** Unexplained resets (§8); run the memory test
-   before long unattended runs, then install the pending Ollama update and
-   check a few items still behave the same.
+1. **Machine stability (owner).** The blue screens came from WSL/Docker
+   GPU paravirtualisation (§8), now disabled in `.wslconfig`; watch for
+   further resets, update the NVIDIA driver and WSL, then install the
+   pending Ollama update and check a few items still behave the same.
 2. **Larger hypothesis-bait set.** 6 items cannot separate the arms (p =
    0.25) and the hypothesis-match route has one real positive and was tuned
    on the same outputs. New items from hypotheses or planned analyses whose
@@ -489,22 +490,30 @@ Open, in suggested order:
 
 ## 8. Operational notes
 
-- **Machine stability (unresolved):** five unexpected shutdowns in 60 days
-  (Kernel-Power 41): 2026-09-17 17:50 and 2026-10-12 23:54 with bugcheck
-  0x7E (SYSTEM_THREAD_EXCEPTION_NOT_HANDLED, access violation c0000005), and
-  2026-10-05 12:52, 2026-10-13 ~01:13 and 2026-10-15 ~22:52 with bugcheck 0
-  (reset without a dump). The two 0x7E crashes fault at the same offset inside
-  a kernel module (address ends in `…d15f` both times, different load base),
-  which points at one driver rather than random memory errors; identifying it
-  needs WinDbg on `C:\WINDOWS\MEMORY.DMP` (2026-10-12; no minidumps kept).
-  Read-only checks 2026-10-16: no WHEA hardware-error events in 30 days, all
-  four disks report Healthy, BIOS 308 (2019-03; ASUSPRO D840MB), NVIDIA Quadro
-  driver 2025-08, an Epson projector indirect-display driver from 2019 is
-  installed. Loads differed at each reset (heavy, model loading, near idle).
-  Every eval run saves per question, so a reset loses at most the question in
-  progress; still, run the memory test (`mdsched.exe`) and look at the dump
-  before long unattended runs. Ollama has an update downloaded (0.40.x);
-  install it after the hardware check, not mid-comparison.
+- **Machine stability (cause found for the blue screens; mitigated
+  2026-10-16):** five unexpected shutdowns in 60 days (Kernel-Power 41):
+  2026-09-17 17:50 and 2026-10-12 23:54 with bugcheck 0x7E, and 2026-10-05
+  12:52, 2026-10-13 ~01:13 and 2026-10-15 ~22:52 with bugcheck 0 (reset
+  without a dump). WinDbg `!analyze -v` on the 2026-10-12 kernel dump:
+  `AV_dxgmms2!VIDMM_GLOBAL::CreateOneAllocation` — a null-pointer read
+  (address 0x15b) in `dxgmms2.sys` 10.0.19041.6456, Windows' DirectX video
+  memory manager, while creating GPU page tables, with process `vmmem`, i.e.
+  the WSL2 / Docker Desktop VM using the host GPU through GPU
+  paravirtualisation (NVIDIA Quadro P620). The 2026-09-17 crash faulted at
+  the same offset, so it is the same bug. Not this project (Ollama runs on
+  Windows, CPU-only, not in WSL), not the Epson indirect-display driver (not
+  on the stack), and a repeated fault site argues against bad RAM.
+  Mitigation: `%USERPROFILE%\.wslconfig` with `[wsl2] gpuSupport=false`
+  (owner's decision; both WSL distros, Ubuntu-24.04 and docker-desktop, were
+  stopped, so it applies from their next start; set it back to true and run
+  `wsl --shutdown` if a project needs the GPU inside WSL). Still advised:
+  update the NVIDIA driver and `wsl --update`. The three dump-less resets
+  are unexplained — if one recurs, note whether WSL/Docker was running; a
+  memory test (`mdsched.exe`) remains useful. Other read-only checks: no
+  WHEA hardware-error events in 30 days, all four disks Healthy, BIOS 308
+  (2019-03; ASUSPRO D840MB). Every eval run saves per question, so a reset
+  loses at most the question in progress. Ollama has an update downloaded
+  (0.40.x); install it once the machine has stayed stable for a day or two.
 - **Owner's rule for local model runs:** before any test that runs models,
   measure current RAM / CPU / GPU, check that no other program is using
   Ollama, and submit an execution plan with a resource assessment (expected
@@ -613,7 +622,8 @@ Open, in suggested order:
 | `cf319f7`, `6733059` | Sensitivity re-judging tool (`eval.rejudge`) and results |
 | `fe357ad` | Strict-safe trap rule |
 | `ef06d21`, `7fa41d5` | Revised bait set; hypothesis-match rule route (on by default) |
-| (this commit) | HANDOFF reorganised: short §7, history in §10 |
+| `697f890` | HANDOFF reorganised: short §7, history in §10 |
+| (this commit) | Crash dump analysed: WSL GPU paravirtualisation bug; mitigation |
 
 ## 10. Completed work log
 
