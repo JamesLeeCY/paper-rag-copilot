@@ -152,8 +152,8 @@ What the numbers mean, from a manual audit of every baseline trap answer:
 - The errors that do get through are the ones the grounded design targets:
   about a quarter of the shared traps were answered by accepting the premise
   or inventing content (one answer invented a participant group; one reported
-  a planned analysis as a result), and all 6 local hypothesis-bait traps were
-  answered with a hypothesis or a guess stated as a finding.
+  a planned analysis as a result); on hypothesis bait it stated a
+  hypothesis, a plan or a guess as a finding on at least 7 of 12 items.
 - Hypothesis bait (12 local items: questions built on hypotheses or planned
   analyses whose results the thesis does not report) is where the grounded
   generator is weakest, and where verification earns its keep. It refused 8
@@ -801,7 +801,10 @@ Ollama clients right before launching.
    hypothesis, and none of the other 30 (0% [0–11]); no answerable or
    non-bait trap metric changed. The thresholds were set on these same
    outputs and there is one real positive, so it is not independently
-   validated; `PLAN_RESULT_MATCH=off` disables it.
+   validated; `PLAN_RESULT_MATCH=off` disables it. In the live 12-item bait
+   run (2026-10-16, both arms) it fired 3 times — the original case again
+   and two baseline sentences, one on a new item — all of them hypotheses
+   restated as findings, no false flag; still a small, same-corpus check.
 2. **Background statements attributed to this study.** v3 catches most
    "Author et al. found → This study found" swaps, but on the pilot paper at
    most 40% of swaps of background statements.
@@ -855,9 +858,8 @@ Ollama clients right before launching.
 8. ~~Confidence intervals~~ — done (Wilson, in both reports). Still open:
    human-labelled judge items.
 9. ~~Grounded vs baseline prompt comparison~~ — done (Results), including the
-   6 hypothesis-bait traps (set revised once), a sensitivity re-judging on all
-   5 passages, a strict-safe trap rule and the hypothesis-match rule route.
-   Bait set now 12 items. Still open: more bait items (the thesis has no
+   12 hypothesis-bait traps, a sensitivity re-judging on all 5 passages, a
+   strict-safe trap rule and the hypothesis-match rule route. Still open: more bait items (the thesis has no
    further unreported hypotheses, so new items would come from other
    corpora), which would also test the hypothesis-match route on outputs it
    was not tuned on.
