@@ -57,6 +57,9 @@ def _signature(verifier) -> str:
     if config.PLAN_RESULT_MATCH == "on":
         parts.append(f"match:{config.PLAN_MATCH_MODEL}:{config.PLAN_MATCH_MIN_SIM}:"
                      f"{config.PLAN_MATCH_MARGIN}")
+    if "ollama" in verifier.describe():
+        from src.llm import ollama_version
+        parts.append(f"ollama-server:{ollama_version()}")
     return hashlib.sha256("\x00".join(parts).encode("utf-8")).hexdigest()[:16]
 
 

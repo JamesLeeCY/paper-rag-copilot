@@ -235,3 +235,13 @@ def test_meta_advice_is_not_judged(monkeypatch):
                                         "consult the full thesis for details.")
     assert [c.statement for c in g.claims] == ["Walking reduced stress a lot."]
     assert len(ver.seen) == 1 and not g.refused
+
+
+def test_signature_changes_with_the_ollama_server_version(monkeypatch):
+    import src.llm
+    llm = NS(describe=lambda: "ollama:qwen2.5:7b-instruct")
+    ver = NS(describe=lambda: "judges=[ollama:phi4:latest]")
+    monkeypatch.setattr(src.llm, "ollama_version", lambda: "0.35.1")
+    old = run_eval._run_signature("section", llm, ver, "baseline")
+    monkeypatch.setattr(src.llm, "ollama_version", lambda: "0.40.5")
+    assert run_eval._run_signature("section", llm, ver, "baseline") != old

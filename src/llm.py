@@ -28,6 +28,20 @@ def strip_thinking(text: str) -> str:
     return _THINK_RE.sub("", text).strip()
 
 
+def ollama_version() -> str:
+    """Version of the Ollama server, or "" if it does not answer.
+
+    Part of an evaluation's run signature: an Ollama update changes the
+    inference code under the same model names, so saved answers from an older
+    server must not be resumed into a newer run.
+    """
+    try:
+        with urllib.request.urlopen(f"{config.OLLAMA_HOST}/api/version", timeout=3) as resp:
+            return json.loads(resp.read().decode("utf-8")).get("version", "")
+    except (urllib.error.URLError, OSError, ValueError):
+        return ""
+
+
 def request_timeout(prompt_chars: int, max_tokens: int) -> float:
     """Seconds to wait for a local generation on CPU.
 

@@ -155,6 +155,9 @@ def _run_signature(strategy: str, llm: LLMClient, verifier, arm: str = "grounded
                      f"{config.PLAN_MATCH_MARGIN}")
     if reuse_from:          # answers and verdicts carried over from that run
         parts.append(f"reuse:{reuse_from}")
+    if "ollama" in llm.describe() or "ollama" in verifier.describe():
+        from src.llm import ollama_version
+        parts.append(f"ollama-server:{ollama_version()}")
     return hashlib.sha256("\x00".join(parts).encode("utf-8")).hexdigest()[:16]
 
 

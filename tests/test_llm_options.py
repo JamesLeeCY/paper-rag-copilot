@@ -39,3 +39,14 @@ def test_settings_are_sent_per_request(monkeypatch, client):
     monkeypatch.setattr(config, "OLLAMA_NUM_CTX", 8192)
     opts = sent_options(monkeypatch, client)
     assert opts["num_thread"] == 2 and opts["num_ctx"] == 8192
+
+
+def test_ollama_version(monkeypatch):
+    monkeypatch.setattr(L.urllib.request, "urlopen",
+                        lambda url, timeout=None: io.BytesIO(b'{"version": "0.40.5"}'))
+    assert L.ollama_version() == "0.40.5"
+
+    def down(url, timeout=None):
+        raise L.urllib.error.URLError("refused")
+    monkeypatch.setattr(L.urllib.request, "urlopen", down)
+    assert L.ollama_version() == ""
