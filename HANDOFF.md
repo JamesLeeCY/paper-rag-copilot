@@ -472,11 +472,17 @@ Open, in suggested order:
    GPU paravirtualisation (§8), now disabled in `.wslconfig`; watch for
    further resets, update the NVIDIA driver and WSL, then install the
    pending Ollama update and check a few items still behave the same.
-2. **Larger hypothesis-bait set.** 6 items cannot separate the arms (p =
-   0.25) and the hypothesis-match route has one real positive and was tuned
-   on the same outputs. New items from hypotheses or planned analyses whose
-   results are not reported, run on both arms; this is also the route's
-   independent check. Needs local models.
+2. **Larger hypothesis-bait set — in progress, paused.** 6 new items added
+   2026-10-16 (local golden set, backup `golden_set.before-bait-expand.json`):
+   B09–B12 planned analyses or measures with no reported result, B13–B14
+   reworded questions on the two unreported hypotheses (same hypotheses as
+   B07/B08, so only a partly independent check of the hypothesis-match
+   route). Run 2026-10-16: grounded 12/12 done on Ollama 0.35.1 (safe 8/12;
+   refused all of B09–B13; B14 restated the hypothesis and the structural
+   route disputed it; B07 disputed by the hypothesis-match route; local
+   `eval_results_bait3_grounded.json`); baseline stopped by the 06:58 reset
+   after 6/12. Owner's decision: pause, check the hardware, then rerun both
+   arms on all 12 under 0.40.5 for one consistent environment.
 3. **R06 label (owner).** In the sensitivity run phi4's reason reads as
    support but its label is unsupported; check which is right.
 4. **`check` cost.** It judges each sentence against up to five passages
@@ -509,11 +515,24 @@ Open, in suggested order:
   `wsl --shutdown` if a project needs the GPU inside WSL). Still advised:
   update the NVIDIA driver and `wsl --update`. The three dump-less resets
   are unexplained — if one recurs, note whether WSL/Docker was running; a
-  memory test (`mdsched.exe`) remains useful. Other read-only checks: no
+  memory test (`mdsched.exe`) remains useful. **A sixth reset (bugcheck 0, no
+  dump) hit 2026-10-16 ~06:58, after the WSL GPU change, during this
+  project's baseline run (CPU ~50%, RAM ~50%, swap flat, guard silent).** So
+  the dump-less resets are not the WSL GPU bug; power, cooling or other
+  hardware is suspected. Local runs are paused until the owner has checked
+  CPU temperature under load, the power path (PSU, cables) and memory. Other read-only checks: no
   WHEA hardware-error events in 30 days, all four disks Healthy, BIOS 308
   (2019-03; ASUSPRO D840MB). Every eval run saves per question, so a reset
-  loses at most the question in progress. Ollama has an update downloaded
-  (0.40.x); install it once the machine has stayed stable for a day or two.
+  loses at most the question in progress.
+- **Ollama 0.40.5 (installed 2026-10-16 ~10:06, unplanned).** After the
+  reset, an `ollama ps` status check started the Ollama app, which installed
+  the pending update (0.35.1 → 0.40.5) and started the server without the
+  CPU-only script (`library=CUDA`). Ollama was restarted through
+  `start_ollama_cpu.cmd` (log: `CUDA_VISIBLE_DEVICES:-1`, `OLLAMA_VULKAN:false`,
+  `library=cpu`); the startup shortcut still points at the script. Check
+  Ollama's state with the HTTP API (`/api/version`, `/api/ps`), never with the
+  `ollama` CLI while the server may be down. All results so far were produced
+  on 0.35.1; later runs use 0.40.5, so compare within one version.
 - **Owner's rule for local model runs:** before any test that runs models,
   measure current RAM / CPU / GPU, check that no other program is using
   Ollama, and submit an execution plan with a resource assessment (expected
@@ -623,7 +642,8 @@ Open, in suggested order:
 | `fe357ad` | Strict-safe trap rule |
 | `ef06d21`, `7fa41d5` | Revised bait set; hypothesis-match rule route (on by default) |
 | `697f890` | HANDOFF reorganised: short §7, history in §10 |
-| (this commit) | Crash dump analysed: WSL GPU paravirtualisation bug; mitigation |
+| `a5c1baf` | Crash dump analysed: WSL GPU paravirtualisation bug; mitigation |
+| (this commit) | Sixth reset; unplanned Ollama 0.40.5; bait expansion paused |
 
 ## 10. Completed work log
 
