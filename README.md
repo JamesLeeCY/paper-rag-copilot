@@ -138,8 +138,8 @@ judged. Same 26 answerable questions and 25 traps as the grounded run
 | Must-refuse traps safe (no rejected/disputed claim) | 95% [75–99] | 74% [51–88] (14/19) | p = 0.125 |
 | All 25 traps correct | **88%** [70–96] | 24% [12–43] (6/25) | p < 0.001 |
 | False-premise traps correct | 67% (4/6) | 50% (3/6) | — |
-| Hypothesis-bait traps safe (6 local items, revised set; hypothesis-match route on) | **50%** [19–81] (3/6) | 0% [0–39] (0/6) | p = 0.25 |
-| ...same, before the hypothesis-match route | 67% [30–90] (4/6) | 0% (0/6) | p = 0.125 |
+| Hypothesis-bait traps safe (12 local items, Ollama 0.40.5) | **67%** [39–86] (8/12) | 42% [19–68] (5/12) | p = 0.25 |
+| Hypothesis-bait traps strict safe (same) | **67%** [39–86] (8/12) | 33% [14–61] (4/12) | p = 0.125 |
 
 What the numbers mean, from a manual audit of every baseline trap answer:
 
@@ -154,19 +154,20 @@ What the numbers mean, from a manual audit of every baseline trap answer:
   or inventing content (one answer invented a participant group; one reported
   a planned analysis as a result), and all 6 local hypothesis-bait traps were
   answered with a hypothesis or a guess stated as a finding.
-- Hypothesis bait is where the grounded arm is weakest. The first bait set
-  had 2 items whose hypothesis the thesis does report as a result (grounded
-  5/6 safe there); they were replaced by 2 items whose hypothesis has no
-  reported result. On the revised set the grounded generator refused 3 and
-  restated the hypothesis as a finding 3 times. The verification caught 2 of
-  those 3 (the judge rejected one; the plan-as-result rule disputed one whose
-  quote came from the hypotheses section). The third slipped through as
-  *partially supported*: it restated the hypothesis but cited a results
-  passage with a verbatim quote, so neither rule route fired (the cited
-  section is not a hypotheses section and the cited sentence is not phrased
-  as a plan) and the judge misread the passage. That gap is now covered by a
-  third rule route, *hypothesis match* (Known limitations, item 1), which
-  sends it to review; the table counts it as not safe.
+- Hypothesis bait (12 local items: questions built on hypotheses or planned
+  analyses whose results the thesis does not report) is where the grounded
+  generator is weakest, and where verification earns its keep. It refused 8
+  and restated a hypothesis as a finding 4 times; all 4 were stopped before
+  being shown as supported — once by the judge, twice by the structural rule
+  route (the quote came from a Hypotheses section) and once by the
+  hypothesis-match route (it cited a *results* passage with a verbatim quote,
+  which neither older route sees; Known limitations, item 1). The baseline
+  often denied the premise and then added content; it was safe on 5 of 12
+  (4 of 12 strict). The grounded arm was never worse on an item (3–4
+  discordant items, all one way), but 12 items do not make that significant.
+  The grounded results were identical item by item on Ollama 0.35.1 and
+  0.40.5. An earlier 6-item version had 2 items whose hypothesis the thesis
+  does report as a result; they were replaced.
 - On answerable questions the grounded arm is more precise, but the
   baseline's hallucination rate is overstated: at least 2 of its 4
   unsupported sentences have their evidence in the context but not in the
@@ -856,8 +857,10 @@ Ollama clients right before launching.
 9. ~~Grounded vs baseline prompt comparison~~ — done (Results), including the
    6 hypothesis-bait traps (set revised once), a sensitivity re-judging on all
    5 passages, a strict-safe trap rule and the hypothesis-match rule route.
-   Still open: a larger bait set, which would also validate that route on
-   outputs it was not tuned on.
+   Bait set now 12 items. Still open: more bait items (the thesis has no
+   further unreported hypotheses, so new items would come from other
+   corpora), which would also test the hypothesis-match route on outputs it
+   was not tuned on.
 
 ---
 

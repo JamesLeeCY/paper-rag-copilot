@@ -202,7 +202,12 @@ REFUSAL_HINT_RE = re.compile(
     r"(?:mention|provide|contain|specify|discuss|report|state|describe|include|address|detail)"
     r"|no (?:information|mention|data|details)|cannot (?:be )?(?:determined|answered|determine|answer)"
     r"|unable to|there is no (?:information|mention|evidence)"
-    r"|未提及|沒有提到|没有提到|無法|无法|未說明|未说明|沒有提供|没有提供|並未提到|并未提到|資料中沒有|未有相關",
+    r"|未提及|沒有提到|没有提到|無法|无法|未說明|未说明|沒有提供|没有提供|並未提到|并未提到|資料中沒有|未有相關"
+    # Chinese abstentions with words between the negation and the verb ("並未在
+    #文獻中明確提及", "尚未在提供的文獻片段中得到詳細報告"): up to 15 characters
+    # inside one clause. Found in the 12-item bait run (2026-10-16).
+    r"|(?:並|并|尚|皆|均)?未[^。！？，,]{0,15}(?:提及|提到|報告|报告|說明|说明|提供|涉及|載明|载明)"
+    r"|(?:沒有|没有|並無|并无)[^。！？，,]{0,12}(?:提及|提到|相關資料|相关资料|相關數據|相关数据|資訊|信息|報告|报告)",
     re.I)
 # Advice about where to look ("one would need to review the full
 # dissertation", "further analysis would be necessary"): neither a claim
@@ -214,7 +219,11 @@ META_RE = re.compile(
     r"|it would be necessary to|for a (?:comprehensive|complete|full) understanding"
     r"|further (?:analysis|research|investigation|study|data)(?: or [\w ]+)? (?:would be|is|are|will be)"
     r" (?:needed|necessary|required)"
-    r"|refer to the (?:full|original|complete)",
+    r"|refer to the (?:full|original|complete)"
+    # Chinese advice ("具體的改善程度需要通過實驗數據來確認", "可能需要查阅更多…").
+    r"|需要(?:通過|通过|透過|透过|參考|参考|查閱|查阅|更多|進一步|进一步)[^。！？]{0,25}"
+    r"(?:確認|确认|驗證|验证|資料|资料|數據|数据|研究|分析|圖表|图表)"
+    r"|有待(?:進一步|进一步)",
     re.I)
 
 

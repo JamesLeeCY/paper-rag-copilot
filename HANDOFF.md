@@ -472,17 +472,30 @@ Open, in suggested order:
    GPU paravirtualisation (§8), now disabled in `.wslconfig`; watch for
    further resets, update the NVIDIA driver and WSL, then install the
    pending Ollama update and check a few items still behave the same.
-2. **Larger hypothesis-bait set — in progress, paused.** 6 new items added
-   2026-10-16 (local golden set, backup `golden_set.before-bait-expand.json`):
-   B09–B12 planned analyses or measures with no reported result, B13–B14
-   reworded questions on the two unreported hypotheses (same hypotheses as
-   B07/B08, so only a partly independent check of the hypothesis-match
-   route). Run 2026-10-16: grounded 12/12 done on Ollama 0.35.1 (safe 8/12;
-   refused all of B09–B13; B14 restated the hypothesis and the structural
-   route disputed it; B07 disputed by the hypothesis-match route; local
-   `eval_results_bait3_grounded.json`); baseline stopped by the 06:58 reset
-   after 6/12. Owner's decision: pause, check the hardware, then rerun both
-   arms on all 12 under 0.40.5 for one consistent environment.
+2. ~~Larger hypothesis-bait set~~ — done 2026-10-16. 6 new items (local
+   golden set, backup `golden_set.before-bait-expand.json`): B09–B12 planned
+   analyses or measures with no reported result, B13–B14 reworded questions
+   on the two unreported hypotheses (same hypotheses as B07/B08, so only a
+   partly independent check of the hypothesis-match route). A first run on
+   Ollama 0.35.1 was cut by the 06:58 reset; both arms were rerun on 0.40.5
+   (10:27–12:53, 4 threads, peak CPU 79%, RAM 53%, no reset; local
+   `eval_results_bait4_*.json`). Grounded: safe 8/12 (identical item by item
+   to the 0.35.1 run); refused 8 including all of B09–B13; restated the
+   hypothesis on B02 (judge rejected), B07 (hypothesis-match route), B08 and
+   B14 (structural route). Baseline as first scored: 0/12, but Chinese
+   abstentions with words between negation and verb ("並未在文獻中明確提及",
+   "尚未…得到詳細報告") and Chinese advice sentences ("需要通過實驗數據來確認")
+   had been judged as claims → `REFUSAL_HINT_RE` / `META_RE` gained Chinese
+   patterns, re-scored without model calls (`--reuse-from f678809e7c141f94`,
+   local `eval_results_bait4_baseline_rescored.json`): safe 5/12, strict 4/12.
+   Paired: safe 8 vs 5 (p = 0.25), strict 8 vs 4 (p = 0.125), all discordant
+   items in the grounded arm's favour. Manual reading: baseline B11's
+   remaining sentence is a hedged guess about an unreported measure that phi4
+   rated supported, so a manual count is 4/12. A sentence holding both a
+   denial and a claim is treated as a denial (known leniency). Hypothesis-
+   match route fired 3 times (grounded B07, baseline B02 and B14), all
+   correct. The thesis has no further unreported hypotheses, so a larger
+   bait set needs another corpus.
 3. **R06 label (owner).** In the sensitivity run phi4's reason reads as
    support but its label is unsupported; check which is right.
 4. **`check` cost.** It judges each sentence against up to five passages
@@ -643,7 +656,9 @@ Open, in suggested order:
 | `ef06d21`, `7fa41d5` | Revised bait set; hypothesis-match rule route (on by default) |
 | `697f890` | HANDOFF reorganised: short §7, history in §10 |
 | `a5c1baf` | Crash dump analysed: WSL GPU paravirtualisation bug; mitigation |
-| (this commit) | Sixth reset; unplanned Ollama 0.40.5; bait expansion paused |
+| `2166c9d` | Sixth reset; unplanned Ollama 0.40.5; bait expansion paused |
+| `a3bc628` | Run signature includes the Ollama server version |
+| (this commit) | 12-item bait results; Chinese abstention and advice patterns |
 
 ## 10. Completed work log
 

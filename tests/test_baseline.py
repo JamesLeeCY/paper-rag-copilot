@@ -52,6 +52,11 @@ def test_split_skips_abbreviations():
     ("This was not directly mentioned in the text.", True),
     ("The thesis does not explicitly address diet.", True),
     ("Sleep outcomes were not directly addressed.", True),
+    ("睡眠結果並未在文獻中明確提及具體變化。", True),
+    ("相關成效尚未在提供的文獻片段中得到詳細報告。", True),
+    ("该研究并未直接提及两组的后测分数差异。", True),
+    ("城市VR介入後，反應時間沒有顯著變化。", False),
+    ("效果未達顯著水準。", False),
     ("Walking reduced stress.", False),
     ("研究發現步行改善了情緒。", False),
 ])
@@ -225,6 +230,9 @@ def test_truncated_answers_are_not_reused(tmp_path):
     ("To know this, further analysis or additional data would be necessary.", True),
     ("Walking reduced stress more than rest did.", False),
     ("Participants reviewed the full list of words.", False),
+    ("具體的改善程度需要通過實驗數據來確認。", True),
+    ("可能需要查阅更多关于问卷的相关数据。", True),
+    ("步行組的情緒分數顯著改善。", False),
 ])
 def test_meta_advice(text, meta):
     assert bool(run_eval.META_RE.search(text)) is meta
