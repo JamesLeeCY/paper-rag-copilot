@@ -56,7 +56,30 @@ SYSTEM_GROUNDED_V2 = f"""你是一個嚴格的學術文獻查證助理。你只�
   <unsupported_note>（若有查無依據的部分，在此列出；若無則留空）</unsupported_note>
 </answer>"""
 
-GROUNDED_PROMPTS = {"v1": SYSTEM_GROUNDED, "v2": SYSTEM_GROUNDED_V2}
+SYSTEM_GROUNDED_V21 = f"""你是一個嚴格的學術文獻查證助理。你只能根據下方提供的「檢索段落」回答問題。
+
+規則：
+1. 每一個論點都寫成一個 <claim>，citation_ids 填支持它的段落編號：照抄該段開頭方括號內的字串（可多個，逗號分隔）。
+2. 只能使用檢索段落的內容，不可加入段落以外的知識或推論。
+3. 每個 <claim> 內附一個 <quote>：逐字照抄被引段落中最直接支持該論點的一句原文。段落是英文就照抄英文，不可翻譯、改寫、摘要，也不可拼接不相鄰的句子。
+4. 論點的確定程度不可超過原文（例如不可把「相關」寫成「造成」）。
+5. 段落開頭標有「段落類型」。「研究假設」和「研究方法」段落寫的是預測、計畫或程序，不是結果：引用時只能寫成「研究假設……」「研究預計……」「研究採用……」。要陳述研究結果，只能引用「研究結果」或「討論」段落。
+6. 段落沒有寫到的內容，不要寫成論點，也不要寫「段落沒有提到……」這類說明；改用 <refusal> 標籤。段落明確寫出的否定結果（例如「兩組沒有顯著差異」）仍是有依據的論點。
+7. 有些部分找不到依據時，把找得到的寫成 <claim>，再加一個 <refusal>{config.REFUSAL_MARKER}</refusal>；完全找不到依據時，<answer> 裡只放這一個 <refusal>。
+
+只輸出 XML，不要有其他文字。以下兩個範例只示範格式，段落編號和內容都要換成實際檢索段落的：
+
+範例一（有依據）：
+<answer>
+  <claim citation_ids="c_section_9999">研究結果顯示，介入組的焦慮分數低於對照組。<quote>Anxiety scores were lower in the intervention group than in the control group.</quote></claim>
+</answer>
+
+範例二（完全沒有依據）：
+<answer>
+  <refusal>{config.REFUSAL_MARKER}</refusal>
+</answer>"""
+
+GROUNDED_PROMPTS = {"v1": SYSTEM_GROUNDED, "v2": SYSTEM_GROUNDED_V2, "v2.1": SYSTEM_GROUNDED_V21}
 
 SYSTEM_BASELINE = """You are a helpful research assistant. Answer the user's
 question about the dissertation as completely and fluently as you can. Write a
@@ -151,12 +174,14 @@ def passage_type(p: Passage) -> str:
 # Output parsing
 # --------------------------------------------------------------------------
 # A claim ends at </claim> — or, when a model drops the closing tag, at the
-# next <claim>, at <unsupported_note>, at </answer>, or at the end of output.
+# next <claim>, at <unsupported_note> / <refusal>, at </answer>, or at the end.
 _CLAIM_RE = re.compile(
     r"<claim[^>]*citation_ids=\"([^\"]*)\"[^>]*>(.*?)"
-    r"(?:</claim>|(?=<claim\b|<unsupported_note>|</answer>)|\Z)",
+    r"(?:</claim>|(?=<claim\b|<unsupported_note>|<refusal\b|</answer>)|\Z)",
     re.DOTALL,
 )
+# Prompt v2.1 refuses with its own tag; an empty <refusal/> also counts.
+_REFUSAL_TAG_RE = re.compile(r"<refusal\b[^>]*>(.*?)</refusal>|<refusal\s*/>", re.DOTALL)
 _NOTE_RE = re.compile(r"<unsupported_note>(.*?)</unsupported_note>", re.DOTALL)
 _QUOTE_RE = re.compile(r"<quote>(.*?)</quote>", re.DOTALL)
 _CID_PREFIX_RE = re.compile(r"^\s*\[?\s*chunk_id\s*:\s*", re.IGNORECASE)
@@ -175,12 +200,12 @@ def parse_grounded(raw: str, query: str) -> GenerationResult:
     # and flag the format error (it was the model's way of refusing).
     marker_only = [c for c in claims if _is_marker_only(c.statement)]
     claims = [c for c in claims if not _is_marker_only(c.statement)]
-    note_m = _NOTE_RE.search(raw)
-    note = note_m.group(1).strip() if note_m else ""
+    note_m = _NOTE_RE.search(raw) or _REFUSAL_TAG_RE.search(raw)
+    note = (note_m.group(1) or "").strip() if note_m else ""
     # A refusal must be explicit: no claims AND the refusal marker emitted. The
     # marker is matched anywhere in the output, not only inside
     # <unsupported_note>, since small local models often drift from the XML.
-    has_marker = config.REFUSAL_MARKER in raw
+    has_marker = config.REFUSAL_MARKER in raw or bool(_REFUSAL_TAG_RE.search(raw))
     refused = not claims and has_marker
     parse_failed = not claims and not has_marker
     return GenerationResult(

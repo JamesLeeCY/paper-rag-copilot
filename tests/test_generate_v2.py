@@ -43,7 +43,7 @@ def test_v2_context_labels_heading_and_type():
 
 
 def test_prompt_versions():
-    assert set(generate.GROUNDED_PROMPTS) == {"v1", "v2"}
+    assert set(generate.GROUNDED_PROMPTS) == {"v1", "v2", "v2.1"}
     v2 = generate.GROUNDED_PROMPTS["v2"]
     for must in ("原文語言", "段落類型", "研究假設", "其他研究", "否定的事實", "unsupported_note"):
         assert must in v2

@@ -218,7 +218,10 @@ PLAN_MATCH_MARGIN = float(os.environ.get("PLAN_MATCH_MARGIN", "-0.02"))
 # language, hypotheses/methods never stated as findings (with passage-type
 # labels in the context), cited studies attributed explicitly, negative facts
 # answered, the refusal marker only in <unsupported_note>. "v1" is the
-# validated original; v2 becomes the default only after its rerun.
+# validated original; v2 was not adopted (more format errors). "v2.1" keeps
+# v2's source-language quotes and passage-type rule, drops its attribution
+# and negative-fact rules, refuses with a separate <refusal> tag, and shows a
+# two-example template with an obviously fake id instead of a placeholder.
 GENERATOR_PROMPT = os.environ.get("GENERATOR_PROMPT", "v1")
 
 # The exact string the model must emit when nothing supports a claim. The
