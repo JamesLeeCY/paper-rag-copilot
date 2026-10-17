@@ -38,10 +38,13 @@ PDFs) page it came from.
 All numbers below are aggregate; the corpora, golden sets and full reports stay
 local (see [Data & privacy](#data--privacy)).
 
-**Current default:** generator `qwen2.5:7b-instruct`, judge **`phi4`** alone,
-judge prompt **`v3`**, section-aware chunking — chosen on the judge validation
-below (2026-10-07). "Previous" below means judges `qwen2.5:7b-instruct` +
-`gemma3:12b` (unanimous) with prompt `v2`.
+**Current default** (as of 2026-10-17): generator `qwen2.5:7b-instruct` with
+generator prompt `v1`, judge **`phi4`** alone, judge prompt **`v3`** with each
+passage's section heading, section-aware chunking, quotes may span chunks, and
+the deterministic plan-as-result rule (`flag`) with its structural, wording and
+hypothesis-match routes; local models run on Ollama, CPU only. The judge was
+chosen on the judge validation below (2026-10-07). "Previous" below means
+judges `qwen2.5:7b-instruct` + `gemma3:12b` (unanimous) with prompt `v2`.
 
 ### At a glance
 
@@ -52,9 +55,25 @@ below (2026-10-07). "Previous" below means judges `qwen2.5:7b-instruct` +
 | Lenient citation precision | 96% | 97% → **100%**¹ | 90% | **95%** | — |
 | Claim / answer hallucination rate | 0% / 0% | 3% / 4% → **0% / 0%**¹ | 10% / 11% | **5% / 5%** | low |
 | Must-refuse traps refused | 95% | 95% | 100% | 100% | ≥ 90% |
-| False-premise traps safe | 83% | **100%** | 67% | **83%** | — |
+| False-premise traps safe | 83% | **100%** → 67%² | 67% | **83%** → 67%² | — |
+| Hypothesis-bait traps safe (12 local items) | — | **67%** (8/12)³ | — | — | — |
 | Over-refusal on answerable questions | 0% | 0% | 5% | 5% | low |
 | Parse failures | 1 | **0** | 0 | 0 | — |
+
+² Rerun with all fixes, 2026-10-09 (see "After all fixes" below): two of the
+misses were judge timeouts since fixed, one a translated quote, one a claim
+the judge rightly rejected. ³ Questions built on hypotheses or planned
+analyses whose results the thesis does not report; the generator restated a
+hypothesis on 4 of them and verification stopped all 4 (2026-10-16).
+
+**Against an ungrounded baseline** (same generator, context and judge;
+[details](#grounded-vs-ungrounded-baseline-dissertation)): the grounded
+design is far better at refusing what the source does not say (25 traps:
+88% vs 24% correct, p < 0.001) and never worse on a hypothesis-bait item
+(8/12 vs 5/12 safe, not significant on 12 items). On answerable questions
+the two are close once the judge sees every retrieved passage; there the
+grounded design's gain is that every claim carries a verbatim quote that
+can be checked.
 
 **No false claim was shown to the user as supported in any run**: every
 "hallucination" counted here is a claim the verifier flagged. The current
