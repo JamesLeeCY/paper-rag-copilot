@@ -253,3 +253,11 @@ def test_signature_changes_with_the_ollama_server_version(monkeypatch):
     old = run_eval._run_signature("section", llm, ver, "baseline")
     monkeypatch.setattr(src.llm, "ollama_version", lambda: "0.40.5")
     assert run_eval._run_signature("section", llm, ver, "baseline") != old
+
+
+def test_pdf_lines_keep_whitespace_spans():
+    from src.ingest_pdf import _block_lines
+    span = lambda text: {"text": text, "size": 9.0, "flags": 0, "font": "Times"}
+    block = {"lines": [{"spans": [span("dynamically"), span(" "), span("changing")]},
+                       {"spans": [span("  ")]}]}
+    assert _block_lines(block) == [("dynamically changing", 9.0, False, False)]

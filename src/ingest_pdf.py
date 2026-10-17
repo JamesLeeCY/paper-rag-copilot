@@ -14,7 +14,8 @@ Heuristics, in order:
      ("2.3 Measures") or a known section name ("Abstract", "References"),
      set larger than body text or in bold. Letter-spaced headings
      ("A B S T R A C T") are collapsed first.
-  4. Body text starts at the Abstract (or the first numbered heading) and
+  4. Body text starts at the Abstract, the first numbered heading or an
+     Introduction/Background heading (for an unlabelled abstract), and
      stops at References; the blocks after References are parsed as
      reference entries.
 """
@@ -70,10 +71,14 @@ def _norm_repeat(text: str) -> str | None:
 def _block_lines(block: dict) -> list[tuple[str, float, bool, bool]]:
     out = []
     for line in block.get("lines", []):
-        spans = [s for s in line.get("spans", []) if s.get("text", "").strip()]
+        all_spans = line.get("spans", [])
+        spans = [s for s in all_spans if s.get("text", "").strip()]
         if not spans:
             continue
-        text = "".join(s["text"] for s in spans).strip()
+        # Join every span, whitespace-only ones included: some typesetters
+        # (Frontiers) emit each inter-word space as its own span, and dropping
+        # them merged the words ("dynamicallychangingVREs").
+        text = "".join(s.get("text", "") for s in all_spans).strip()
         size = max(s["size"] for s in spans)
         bold = all((s["flags"] & _BOLD_FLAG) or "bold" in s["font"].lower() for s in spans)
         italic = all((s["flags"] & _ITALIC_FLAG) or "italic" in s["font"].lower() for s in spans)
@@ -140,7 +145,9 @@ def load_pdf(path: Path) -> tuple[list[BodyPara], list[Reference]]:
 
         if heading:
             number, title, level = heading
-            if title.lower() == "abstract" or number:
+            # Body starts at the Abstract, a numbered heading, or - for journals
+            # that print the abstract unlabelled (Frontiers) - the Introduction.
+            if title.lower() in ("abstract", "introduction", "background") or number:
                 started = True
             if title.lower() in _STOP_SECTIONS:
                 in_refs = True
