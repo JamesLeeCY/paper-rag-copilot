@@ -15,6 +15,12 @@ number, plan-to-result, attribution swap, overclaim; gold not supported).
 Each judged (sentence, passage) pair is appended to check_cost_progress.jsonl
 (local), so an interrupted run resumes.
 
+Caveat: a gold label is relative to the passage the item was built from. A
+plan_to_result item restates a hypothesis as a finding, which that passage
+does not support; if the source reports the hypothesis as a result elsewhere,
+`check` rightly finds it, so read such "false accepts" before counting them
+(2026-10-17: 2 of the 20 perturbed items).
+
 Run: python -m eval.check_cost [--limit N]
 """
 from __future__ import annotations

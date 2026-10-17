@@ -629,16 +629,20 @@ sentences, 2026-10-17):
 
 | Passages judged | False reject | False accept | Mean judge calls | Mean s / sentence |
 |---|---|---|---|---|
-| 3 (previous default) | 0/20 | 2/20 | 2.0 | 146 |
-| **2 (default)** | 1/20 | 2/20 | 1.5 | **111** |
-| 1 | 3/20 | 2/20 | 1.0 | 71 |
+| 3 (previous default) | 0/22 | 0/18 | 2.0 | 146 |
+| **2 (default)** | 1/22 | 0/18 | 1.5 | **111** |
+| 1 | 3/22 | 0/18 | 1.0 | 71 |
 
-Two passages keep false accepts unchanged and cost one false alarm (a true
+Two passages keep false accepts at zero and cost one false alarm (a true
 sentence whose evidence was ranked third), so the safe direction absorbs the
 saving. Re-ordering the passages by embedding similarity changed nothing (the
-order was identical). Both false accepts are plan-to-result sentences that one
-passage was judged to support while another passage was flagged as a plan:
-the rule only looks at the winning passage — a known gap.
+order was identical). Two of the 20 perturbed items were relabelled true for
+this measurement: they restate a hypothesis as a finding, which is false
+against the hypothesis passage they were built from, but the thesis does
+report both as results and `check` correctly found those passages. (Flagging
+a sentence whenever *any* passage reads as a plan was considered and
+rejected for the same reason: it would flag true results whose plan also
+appears in the methods.)
 
 ### Multi-model cross-check (judge panel)
 

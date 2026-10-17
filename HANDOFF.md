@@ -505,11 +505,15 @@ Open, in suggested order:
    order: top 2 keeps false accepts at 2/20, false rejects 0 → 1/20 (S023,
    evidence ranked third), 146 → 111 s per sentence (unsupported sentences
    203 → 137 s); top 1 has 3/20 false rejects. Similarity order identical
-   to retrieval order on all 40. `CHECK_TOP_N` now defaults to 2. Open
-   finding: both false accepts are plan-to-result items where one passage
-   was judged supporting and another disputed by the plan rule; the rule
-   only examines the winning passage. Local results:
-   `check_cost_results.json`.
+   to retrieval order on all 40. `CHECK_TOP_N` now defaults to 2. The two
+   apparent false accepts (P204, P469, plan_to_result) are gold-label
+   artefacts for this use: their gold label is relative to the hypothesis
+   passage they were built from, but the thesis reports both hypotheses as
+   results (results / discussion passages, which `check` found and phi4
+   accepted). Relabelled: false accepts 0/18 for 1–3 passages, false
+   rejects 0/22 (3), 1/22 (2), 3/22 (1). The rule was left as it is: flagging
+   whenever any passage reads as a plan would flag true results whose plan
+   also appears in the methods. Local results: `check_cost_results.json`.
 5. **Generator prompt v2.1** (v2 not adopted, §10 item 0): a real example id
    in the template instead of the placeholder, a positive or separate refusal
    tag, drop rules 8–9 to shorten the prompt for the 7B generator.
@@ -669,7 +673,8 @@ Open, in suggested order:
 | `a3bc628` | Run signature includes the Ollama server version |
 | `ec2bce3`, `13ac317`, `d32aa5f` | 12-item bait results; Chinese abstention and advice patterns; README overview |
 | `bf4eead` | check-cost measurement tool |
-| (this commit) | `CHECK_TOP_N` 3 → 2 from the measurement |
+| `32d1ef4` | `CHECK_TOP_N` 3 → 2 from the measurement |
+| (this commit) | The two check false accepts were gold-label artefacts; rule unchanged |
 
 ## 10. Completed work log
 

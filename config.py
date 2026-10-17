@@ -101,9 +101,9 @@ FUSED_TOP_K = 20             # candidates kept after fusion, fed to reranker
 FINAL_TOP_K = 5              # passages returned to the generator
 # Passages each sentence is judged against in `check` (retrieval order, early
 # stop on support). Measured on 40 labelled sentences (eval.check_cost,
-# 2026-10-17): 2 instead of 3 kept false accepts at 2/20, added one false
-# reject (1/20; its evidence was ranked third) and cut ~146 s to ~111 s per
-# sentence; 1 passage cost 3/20 false rejects. Embedding-similarity order was
+# 2026-10-17): 2 instead of 3 kept false accepts at 0/18, added one false
+# reject (1/22; its evidence was ranked third) and cut ~146 s to ~111 s per
+# sentence; 1 passage cost 3/22 false rejects. Embedding-similarity order was
 # identical to retrieval order on all 40, so it is not used.
 CHECK_TOP_N = int(os.environ.get("CHECK_TOP_N", "2"))
 
