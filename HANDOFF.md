@@ -517,6 +517,26 @@ Open, in suggested order:
 5. **Generator prompt v2.1** (v2 not adopted, §10 item 0): a real example id
    in the template instead of the placeholder, a positive or separate refusal
    tag, drop rules 8–9 to shorten the prompt for the 7B generator.
+6a. ~~Out-of-corpus check~~ — done 2026-10-17 (README "Out-of-corpus
+   check"). Corpora `jmir_protocol_2026` (CC BY 4.0 protocol, no outcome
+   data) and `frvir_restorative_walk_2020` (CC BY, H1–H3c all reported);
+   PDFs in `papers/`, question sets in `data/corpora/<name>/golden/`
+   (local). PDF ingestion fixed on the way (`82f91fb`: whitespace spans,
+   body starting at Introduction); the pilot corpus's index was not
+   rebuilt. Retrieval Hit@5: protocol 100%, completed study 67% (Chinese
+   control questions retrieved poorly with the English embedder, so the
+   controls were asked in English; two still retrieve hypothesis +
+   discussion passages, which also report the results). Run 17:34–20:32,
+   4 threads, peak CPU 83%, RAM 52%. Protocol bait: safe grounded 5/6 vs
+   baseline 3/6; grounded invented no result (its unsafe J01 is a denial
+   inside a claim with a translated quote), baseline invented results on
+   J01, J02, J05, all rejected or disputed. Protocol answerable: grounded
+   7/7 supported, baseline 10/14 strict. Completed study: grounded 6/6,
+   baseline 13/19 strict with 3 unsupported (2 true sentences judged
+   against the wrong 2 passages, 1 invented number); no rule fired on any
+   true result. Neither paper has a Hypotheses heading, so only the wording
+   route was exercised. Pooled bait (thesis 12 + protocol 6): 13/18 vs 8/18,
+   McNemar p = 0.063.
 6. **Human-labelled judge items** (`data/golden/judge_set_human.jsonl`,
    schema in `judge_set_human.example.jsonl`) — owner's task, not started.
 
@@ -674,7 +694,9 @@ Open, in suggested order:
 | `ec2bce3`, `13ac317`, `d32aa5f` | 12-item bait results; Chinese abstention and advice patterns; README overview |
 | `bf4eead` | check-cost measurement tool |
 | `32d1ef4` | `CHECK_TOP_N` 3 → 2 from the measurement |
-| (this commit) | The two check false accepts were gold-label artefacts; rule unchanged |
+| `d90b293` | The two check false accepts were gold-label artefacts; rule unchanged |
+| `82f91fb` | PDF ingestion: whitespace spans; body may start at an Introduction |
+| (this commit) | Out-of-corpus check on two open-access papers |
 
 ## 10. Completed work log
 

@@ -232,6 +232,40 @@ baseline answers that correct the premise but add one overreaching sentence,
 so it favours short answers; report it next to the plain safe rate, not
 instead of it.
 
+### Out-of-corpus check: two open-access papers (2026-10-17)
+
+The same pipeline and both arms on two CC BY papers the system was never
+tuned on: a **study protocol** (Zhang et al. 2026, *JMIR Research
+Protocols* 15:e82970 — every hypothesis and outcome is planned, no data
+exist) and a **completed study whose hypotheses all have reported results**
+(Rockstroh et al. 2020, *Frontiers in Virtual Reality* 1:598282). Local
+question sets: protocol 4 answerable design questions + 6 bait questions
+asking for the planned results; completed study 6 answerable questions, 5
+of them on the results of its hypotheses (true claims that restate a
+hypothesis).
+
+| | Grounded | Baseline |
+|---|---|---|
+| Protocol bait: safe | **5/6** | 3/6 |
+| Protocol bait: invented a result | **0/6** | 3/6 (all caught: judge 3, plan rule 1 sentence) |
+| Protocol answerable: claims supported (strict) | **7/7** | 10/14 (lenient 14/14) |
+| Completed study: claims supported (strict) | **6/6** | 13/19 |
+| Completed study: true results disputed by a rule | 0 | 0 |
+
+The grounded generator never reported a result the protocol does not
+contain; its one "unsafe" item is a denial written inside a claim with a
+translated quote, which the quote check rejected. The baseline invented
+outcomes on half the bait (e.g. an EEG effect, a symptom improvement) and
+verification stopped every one. On the completed study the plan-as-result
+rule did not touch any true result, including claims that restate a
+hypothesis; two of the baseline's three rejected sentences are true (their
+evidence was not in the two passages the baseline is judged against).
+Neither paper has a Hypotheses heading, so the structural and
+hypothesis-match routes could not fire here: this checks the generator,
+the judge and the wording route out of corpus, not those two routes.
+Pooled with the thesis's 12 bait items, the grounded arm is safe on 13/18
+vs 8/18, all 5 discordant items in its favour (exact McNemar p = 0.063).
+
 ### Retrieval — chunking ablation (dissertation)
 
 | Strategy | Hit@1 | Hit@3 | Hit@5 | MRR |
@@ -898,10 +932,10 @@ Ollama clients right before launching.
    human-labelled judge items.
 9. ~~Grounded vs baseline prompt comparison~~ — done (Results), including the
    12 hypothesis-bait traps, a sensitivity re-judging on all 5 passages, a
-   strict-safe trap rule and the hypothesis-match rule route. Still open: more bait items (the thesis has no
-   further unreported hypotheses, so new items would come from other
-   corpora), which would also test the hypothesis-match route on outputs it
-   was not tuned on.
+   strict-safe trap rule and the hypothesis-match rule route, plus an
+   out-of-corpus check on two open-access papers. Still open: an
+   open-access paper with a Hypotheses section, to test the structural and
+   hypothesis-match routes on outputs they were not tuned on.
 
 ---
 
