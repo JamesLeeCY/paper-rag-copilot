@@ -464,8 +464,9 @@ RAM, Ollama without GPU): generator + phi4 hold about 22 GB of RAM while
 loaded; one phi4 judgment takes 38–50 s (about 110 s for the first call, which
 loads the model), at about 55% CPU. An `ask` answer usually carries one or two
 claims, so verification adds roughly 45–100 s; `check` judges each sentence
-against up to five passages and stops at the first that supports it, so a
-sentence costs 45 s to about 4 min. Adding gemma3:12b as a second judge roughly
+against its top two retrieved passages (`CHECK_TOP_N`) and stops at the first
+that supports it, so a sentence costs one or two judgments (measured on 4
+threads: ~85 s for a supported sentence, ~137 s for an unsupported one). Adding gemma3:12b as a second judge roughly
 doubles the verification time, adds about 9 GB, and uses a third Ollama model
 slot.
 
@@ -622,7 +623,22 @@ python -m pytest tests
 
 `check` is the writer-facing use: it splits your paragraph into sentences,
 retrieves evidence for each, and runs the same verification cascade, so you see
-which of your own statements the source does not support.
+which of your own statements the source does not support. How many passages
+it judges was measured, not guessed (`python -m eval.check_cost`, 40 labelled
+sentences, 2026-10-17):
+
+| Passages judged | False reject | False accept | Mean judge calls | Mean s / sentence |
+|---|---|---|---|---|
+| 3 (previous default) | 0/20 | 2/20 | 2.0 | 146 |
+| **2 (default)** | 1/20 | 2/20 | 1.5 | **111** |
+| 1 | 3/20 | 2/20 | 1.0 | 71 |
+
+Two passages keep false accepts unchanged and cost one false alarm (a true
+sentence whose evidence was ranked third), so the safe direction absorbs the
+saving. Re-ordering the passages by embedding similarity changed nothing (the
+order was identical). Both false accepts are plan-to-result sentences that one
+passage was judged to support while another passage was flagged as a plan:
+the rule only looks at the winning passage — a known gap.
 
 ### Multi-model cross-check (judge panel)
 
@@ -847,9 +863,9 @@ Ollama clients right before launching.
 8. **Small samples.** Judge rates rest on 55–83 items and system rates on
    20–51 questions; reports show 95% intervals (see "How certain are these
    numbers?"), and most differences discussed here fall inside them.
-9. **Verification is slow on CPU.** Each phi4 judgment takes 38–50 s (longer
-   with `OLLAMA_NUM_THREAD=3`), so `check` on a long paragraph can take several
-   minutes (see Setup). A judgment that still times out sends the claim to
+9. **Verification is slow on CPU.** Each phi4 judgment takes 38–75 s
+   depending on threads and prompt length, so `check` on a long paragraph
+   can take several minutes even with two passages per sentence (see Setup). A judgment that still times out sends the claim to
    review rather than guessing; `n_unjudged` in the eval results counts these.
 10. **Chunk boundaries.** A chunk judged alone can lack context a true claim
     relies on, and a quote can run across two chunks. Both are now mitigated

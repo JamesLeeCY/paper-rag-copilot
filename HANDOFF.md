@@ -498,9 +498,18 @@ Open, in suggested order:
    bait set needs another corpus.
 3. **R06 label (owner).** In the sensitivity run phi4's reason reads as
    support but its label is unsupported; check which is right.
-4. **`check` cost.** It judges each sentence against up to five passages
-   (45 s – ~4 min per sentence on CPU). Measure the verdict change when only
-   the top one or two passages are judged before changing it.
+4. ~~`check` cost~~ — done 2026-10-17. It judged the top 3 passages (not 5
+   as noted earlier). `eval.check_cost` (40 dev-split synthetic statements,
+   20 true / 20 perturbed; 120 judged pairs, 09:16–11:40, phi4 4 threads,
+   ~72 s per judgment) simulated 1–3 passages in retrieval or similarity
+   order: top 2 keeps false accepts at 2/20, false rejects 0 → 1/20 (S023,
+   evidence ranked third), 146 → 111 s per sentence (unsupported sentences
+   203 → 137 s); top 1 has 3/20 false rejects. Similarity order identical
+   to retrieval order on all 40. `CHECK_TOP_N` now defaults to 2. Open
+   finding: both false accepts are plan-to-result items where one passage
+   was judged supporting and another disputed by the plan rule; the rule
+   only examines the winning passage. Local results:
+   `check_cost_results.json`.
 5. **Generator prompt v2.1** (v2 not adopted, §10 item 0): a real example id
    in the template instead of the placeholder, a positive or separate refusal
    tag, drop rules 8–9 to shorten the prompt for the 7B generator.
@@ -658,7 +667,9 @@ Open, in suggested order:
 | `a5c1baf` | Crash dump analysed: WSL GPU paravirtualisation bug; mitigation |
 | `2166c9d` | Sixth reset; unplanned Ollama 0.40.5; bait expansion paused |
 | `a3bc628` | Run signature includes the Ollama server version |
-| (this commit) | 12-item bait results; Chinese abstention and advice patterns |
+| `ec2bce3`, `13ac317`, `d32aa5f` | 12-item bait results; Chinese abstention and advice patterns; README overview |
+| `bf4eead` | check-cost measurement tool |
+| (this commit) | `CHECK_TOP_N` 3 → 2 from the measurement |
 
 ## 10. Completed work log
 
