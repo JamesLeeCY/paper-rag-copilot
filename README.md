@@ -38,8 +38,9 @@ PDFs) page it came from.
 All numbers below are aggregate; the corpora, golden sets and full reports stay
 local (see [Data & privacy](#data--privacy)).
 
-**Current default** (as of 2026-10-17): generator `qwen2.5:7b-instruct` with
-generator prompt `v1`, judge **`phi4`** alone, judge prompt **`v3`** with each
+**Current default** (as of 2026-10-19): generator `qwen2.5:7b-instruct` with
+generator prompt `v2.1` (results tables before the v2.1 comparison below were
+produced with `v1`), judge **`phi4`** alone, judge prompt **`v3`** with each
 passage's section heading, section-aware chunking, quotes may span chunks, and
 the deterministic plan-as-result rule (`flag`) with its structural, wording and
 hypothesis-match routes; local models run on Ollama, CPU only. The judge was
@@ -409,8 +410,35 @@ source-language quotes, passage-type labels so hypotheses and methods are never
 stated as findings, explicit attribution of cited studies, and answers to
 negative facts. Measured on both corpora it improved trap answers but added
 format errors for the 7B generator (more misplaced refusal markers, a copied
-template placeholder), so v1 remains the default — a longer, stricter prompt
-is not automatically a better one for a small model.
+template placeholder) — a longer, stricter prompt is not automatically a
+better one for a small model.
+
+**Generator prompt v2.1 (default since 2026-10-19).** v2.1 keeps v2's two
+useful rules (quotes in the source language; hypotheses and methods are not
+results, with passage-type labels) and fixes its format problems: refusals
+go in a separate `<refusal>` tag, stated positively; the template shows two
+short examples with obviously fake ids instead of a placeholder; claims must
+be full sentences and carry a `<quote>` even when they copy the source; and
+v2's attribution and negative-fact rules are gone. Calibration found one
+more format habit — a quote written after `</claim>`, or a claim that *is*
+the copied source sentence — which the parser and the quote check now handle
+for every prompt version. Paired full run on the dissertation, same server
+and verifier for both (26 answerable questions, 37 traps):
+
+| | v1 | **v2.1** | Paired test |
+|---|---|---|---|
+| Strict / lenient citation precision | 97% (29/30) / 97% | 89% (25/28) / **100%** | answers fully supported 25 vs 23 of 26, p = 0.5 |
+| Unsupported answerable claims | 1 | **0** | — |
+| Misplaced refusal markers | 16 | **0** | — |
+| Claims without a quote | 5 | **1** | — |
+| All 37 traps strict safe | 30/37 | **36/37** | p = 0.031 |
+| Must-refuse traps refused | 18/19 | **19/19** | — |
+| Bait items where the generator stated a hypothesis | 4 of 12 | **1 of 12** | — |
+| Mean seconds per question | 148 | **126** | — |
+
+Two of v2.1's three partially supported claims were a bare number (fixed by
+the full-sentence rule; confirmed in a follow-up calibration) and a judge
+reading a methods passage strictly; none was unsupported.
 
 **Context assembly.**
 - *Chunking is a context decision*: section-aware chunks never cross a section
@@ -537,7 +565,7 @@ verification are stand-ins (pipeline shape only).
 | `PANEL_RULE` | `unanimous` | `unanimous` or `majority` |
 | `VERIFY_PROMPT` | `v3` | Judge prompt version |
 | `QUOTE_REQUIRED` | off | `1` also rejects claims without a supporting quote |
-| `GENERATOR_PROMPT` | `v1` | Generator prompt; `v2` adds source-language quotes, passage-type labels (hypotheses/methods never stated as findings), explicit attribution of cited studies, negative facts answered, refusal marker only in `<unsupported_note>`. Evaluated, not adopted: better on trap questions, but more format errors on answerable ones (see Known limitations) |
+| `GENERATOR_PROMPT` | `v2.1` | Generator prompt (see "Generator prompt v2.1"); `v1` is the original; `v2` adds source-language quotes, passage-type labels (hypotheses/methods never stated as findings), explicit attribution of cited studies, negative facts answered, refusal marker only in `<unsupported_note>`. Evaluated, not adopted: better on trap questions, but more format errors on answerable ones (see Known limitations) |
 | `PLAN_RESULT_RULE` | `flag` | Plan or prediction read as a result: `flag` → disputed, `reject` → unsupported, `off` |
 | `PLAN_RESULT_MATCH` | `on` | Hypothesis-match route of that rule (partially supported claims closer to a hypothesis in the context than to their citation); `off` disables |
 | `PLAN_MATCH_MODEL` / `PLAN_MATCH_MIN_SIM` / `PLAN_MATCH_MARGIN` | `BAAI/bge-m3` / 0.55 / −0.02 | Embedder and thresholds of that route |

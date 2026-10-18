@@ -222,7 +222,13 @@ PLAN_MATCH_MARGIN = float(os.environ.get("PLAN_MATCH_MARGIN", "-0.02"))
 # v2's source-language quotes and passage-type rule, drops its attribution
 # and negative-fact rules, refuses with a separate <refusal> tag, and shows a
 # two-example template with an obviously fake id instead of a placeholder.
-GENERATOR_PROMPT = os.environ.get("GENERATOR_PROMPT", "v1")
+# v2.1 became the default on 2026-10-19 after a paired full run against v1
+# (dissertation, Ollama 0.40.5): no misplaced refusal markers (v1: 16), traps
+# strict-safe 36/37 vs 30/37, hypothesis restated by the generator on 1 bait
+# item vs 4, no unsupported answerable claim (v1: 1), ~15% faster; strict
+# precision 25/28 vs 29/30 (three partially supported claims). Results
+# reported before that date were produced with v1.
+GENERATOR_PROMPT = os.environ.get("GENERATOR_PROMPT", "v2.1")
 
 # The exact string the model must emit when nothing supports a claim. The
 # evaluation harness matches on this to score refusal correctness.

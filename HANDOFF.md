@@ -514,9 +514,29 @@ Open, in suggested order:
    rejects 0/22 (3), 1/22 (2), 3/22 (1). The rule was left as it is: flagging
    whenever any passage reads as a plan would flag true results whose plan
    also appears in the methods. Local results: `check_cost_results.json`.
-5. **Generator prompt v2.1** (v2 not adopted, §10 item 0): a real example id
-   in the template instead of the placeholder, a positive or separate refusal
-   tag, drop rules 8–9 to shorten the prompt for the 7B generator.
+5. ~~Generator prompt v2.1~~ — **default since 2026-10-19** (owner's
+   decision). Built 2026-10-18 (`36aab0a`): v2 minus rules 8–9, `<refusal>`
+   tag, two-example template with fake ids c_section_9999/9998. Calibration
+   1 (5 answerable + 5 traps + 3 bait): no format errors but 4/7 claims
+   without a quote; a raw-output diagnostic (`--ids`, grounded records now
+   keep raw XML) showed a quote after `</claim>` (R04) and English claims
+   that copied the source sentence with no quote (R01, R05) → parser
+   attaches a trailing quote, the verifier checks an unquoted claim's own
+   text as its quote, the prompt asks for a quote even then (`812fb96`).
+   Calibration 2: 0/7 missing. Full paired run 2026-10-18 21:33–02:21
+   (`--fresh`, Ollama 0.40.5, 4 threads; local `eval_results_gen_v21.json`,
+   `eval_results_gen_v1.json`): v2.1 vs v1 strict 25/28 vs 29/30, lenient
+   28/28 vs 29/30, unsupported 0 vs 1, misplaced refusals 0 vs 16, missing
+   quotes 1 vs 5, traps strict safe 36/37 vs 30/37 (McNemar p = 0.031; v2.1
+   better on T19, T25, B02, B07, B14, never worse), must-refuse 19/19 vs
+   18/19, generator restated a hypothesis on bait 1 vs 4, 126 vs 148 s per
+   question. Criterion "strict precision not lower by more than one claim"
+   was missed by one claim: R24 was a bare number and R07 a strict judge
+   reading. Full-sentence rule added (`bc78857`, generic example — an
+   example built from the thesis was caught before commit), calibration 3
+   (R01–R05, R07, R24, T01–T05, B01–B03): R24 now a full supported sentence,
+   R07 still partial, 0 format errors, 2/9 claims without a quote (both
+   paraphrases), all traps refused.
 6a. ~~Out-of-corpus check~~ — done 2026-10-17 (README "Out-of-corpus
    check"). Corpora `jmir_protocol_2026` (CC BY 4.0 protocol, no outcome
    data) and `frvir_restorative_walk_2020` (CC BY, H1–H3c all reported);
@@ -696,7 +716,9 @@ Open, in suggested order:
 | `32d1ef4` | `CHECK_TOP_N` 3 → 2 from the measurement |
 | `d90b293` | The two check false accepts were gold-label artefacts; rule unchanged |
 | `82f91fb` | PDF ingestion: whitespace spans; body may start at an Introduction |
-| (this commit) | Out-of-corpus check on two open-access papers |
+| `71bedc4` | Out-of-corpus check on two open-access papers |
+| `36aab0a`, `dfc2122`, `812fb96`, `bc78857` | Generator prompt v2.1; `--ids`; raw XML kept; quote recovery; full-sentence rule |
+| (this commit) | v2.1 becomes the default generator prompt |
 
 ## 10. Completed work log
 
