@@ -58,3 +58,7 @@ def test_quote_after_the_claim_is_attached():
 def test_v21_asks_for_a_quote_even_when_the_claim_copies_the_source():
     p = G.GROUNDED_PROMPTS["v2.1"]
     assert "就算論點直接沿用原文句子" in p and 'citation_ids="c_section_9998"' in p
+
+
+def test_v21_asks_for_full_sentences():
+    assert "用完整的句子說明" in G.GROUNDED_PROMPTS["v2.1"]
