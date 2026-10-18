@@ -80,6 +80,8 @@ def cmd_eval(args):
         sys.argv += ["--reuse-from", args.reuse_from]
     if args.trap_types:
         sys.argv += ["--trap-types", *args.trap_types]
+    if args.ids:
+        sys.argv += ["--ids", *args.ids]
     eval_main()
 
 
@@ -142,6 +144,8 @@ def build_parser():
                    help="ungrounded baseline arm, judged sentence by sentence")
     e.add_argument("--fresh", action="store_true",
                    help="ignore questions saved by an interrupted run and start over")
+    e.add_argument("--ids", nargs="+", default=None, metavar="ID",
+                   help="LLM pass on these question ids only")
     e.add_argument("--trap-types", nargs="+", default=None, metavar="TYPE",
                    help="LLM pass on these trap types only (e.g. hypothesis_bait)")
     e.add_argument("--reuse-from", default="", metavar="SIGNATURE",

@@ -153,3 +153,12 @@ def test_strict_safe_counts_partial_claims(env, monkeypatch):
                                  "parse_failed": False}) is False
     fp = res["traps_by_type"]["false_premise"]
     assert fp["safe_rate"] == 1.0 and fp["strict_safe_rate"] == 1.0
+
+
+def test_ids_limit_the_questions_and_raw_is_kept(env, monkeypatch):
+    calls = []
+    monkeypatch.setattr(src.pipeline, "ask", make_ask(calls))
+    res = run_eval.eval_grounding("section", GOLDEN, NS(describe=lambda: "fake:gen"),
+                                  ids=["R2", "T1"])
+    assert calls == ["answerable question 2", "far trap"]
+    assert [d["id"] for d in res["answer_detail"]] == ["R2"] and "raw" in res["answer_detail"][0]

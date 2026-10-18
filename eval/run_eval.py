@@ -376,6 +376,7 @@ def eval_grounding(
     strategy: str, golden: dict, llm: LLMClient, limit: int | None = None,
     traps_only: bool = False, answerable_only: bool = False, fresh: bool = False,
     baseline: bool = False, reuse_from: str = "", trap_types: list[str] | None = None,
+    ids: list[str] | None = None,
 ) -> dict:
     """Grounding / refusal metrics. Each question's record is appended to
     eval_progress.jsonl as soon as it is scored, so an interrupted run (guard
@@ -399,6 +400,9 @@ def eval_grounding(
     trap_items = trap_items[:limit] if limit else trap_items
     if answerable_only:
         trap_items = []
+    if ids:             # a handful of questions, e.g. to inspect raw outputs
+        retrieval_items = [it for it in retrieval_items if it["id"] in ids]
+        trap_items = [it for it in trap_items if it["id"] in ids]
 
     verifier = Verifier(llm=llm)
     print(f"[grounding] verifier {verifier.describe()}")
@@ -433,6 +437,9 @@ def eval_grounding(
             bundle = ask(it["question"], strategy=strategy, llm=llm, verifier=verifier)
             g, v = bundle.generation, bundle.verification
         rec = _question_record(g, v)
+        if not baseline:
+            # The raw XML, for format audits (missing quotes, misplaced tags).
+            rec["raw"] = g.raw[:_RAW_LIMIT]
         if baseline:
             rec["raw"] = g.raw[:_RAW_LIMIT]   # the prose answer, for the refusal audit (local only)
             rec["leading_denial"] = opens_with_denial(g.raw)
@@ -766,6 +773,8 @@ def main():
                          "judged sentence by sentence (for the grounded-vs-baseline comparison)")
     ap.add_argument("--fresh", action="store_true",
                     help="ignore questions saved by an interrupted run and start over")
+    ap.add_argument("--ids", nargs="+", default=None, metavar="ID",
+                    help="LLM pass on these question ids only (e.g. R01 R04)")
     ap.add_argument("--trap-types", nargs="+", default=None, metavar="TYPE",
                     help="LLM pass on these trap types only (e.g. hypothesis_bait)")
     ap.add_argument("--reuse-from", default="", metavar="SIGNATURE",
@@ -806,7 +815,7 @@ def main():
                                traps_only=args.traps_only,
                                answerable_only=args.answerable_only, fresh=args.fresh,
                                baseline=args.baseline, reuse_from=args.reuse_from,
-                               trap_types=args.trap_types)
+                               trap_types=args.trap_types, ids=args.ids)
             g["arm"] = "baseline" if args.baseline else "grounded"
             results["grounding"] = [g]
             print(f"[grounding:{args.llm_strategy}] precision strict/lenient="
