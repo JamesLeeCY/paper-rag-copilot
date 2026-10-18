@@ -165,3 +165,19 @@ def test_judge_sees_the_heading_but_quotes_match_the_bare_text():
         Claim("The task had two phases.", ["a"], "The task had two phases."), result)
     assert out.quote_check == "verbatim"
     assert "（章節：2. Methods > 2.1 Task）" in judge.seen[0]
+
+
+def test_unquoted_claim_copied_from_the_passage_counts_as_quoted():
+    from types import SimpleNamespace as NS
+    from src.generate import Claim, GenerationResult
+    from src.verify import Verifier, ClaimVerdict
+    import config
+    v = Verifier.__new__(Verifier)
+    v._judge = lambda statement, passage: ClaimVerdict(statement, [], "supported", "ok", "llm")
+    passage = NS(chunk_id="c1", text="Walking reduced stress in every group. Other text.",
+                 section_path=["4. Results"], section="Results", heading=lambda: "4. Results")
+    res = GenerationResult(query="q", raw="", passages=[passage])
+    copied = v._verify_claim(Claim("Walking reduced stress in every group.", ["c1"]), res)
+    assert copied.quote_check == "verbatim"
+    paraphrase = v._verify_claim(Claim("Stress fell for all walkers.", ["c1"]), res)
+    assert paraphrase.quote_check == "missing"

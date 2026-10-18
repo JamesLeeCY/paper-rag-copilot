@@ -61,7 +61,7 @@ SYSTEM_GROUNDED_V21 = f"""你是一個嚴格的學術文獻查證助理。你只
 規則：
 1. 每一個論點都寫成一個 <claim>，citation_ids 填支持它的段落編號：照抄該段開頭方括號內的字串（可多個，逗號分隔）。
 2. 只能使用檢索段落的內容，不可加入段落以外的知識或推論。
-3. 每個 <claim> 內附一個 <quote>：逐字照抄被引段落中最直接支持該論點的一句原文。段落是英文就照抄英文，不可翻譯、改寫、摘要，也不可拼接不相鄰的句子。
+3. 每個 <claim> 內都要附一個 <quote>，放在 </claim> 之前：逐字照抄被引段落中最直接支持該論點的一句原文。就算論點直接沿用原文句子，也要另外寫 <quote>。段落是英文就照抄英文，不可翻譯、改寫、摘要，也不可拼接不相鄰的句子。
 4. 論點的確定程度不可超過原文（例如不可把「相關」寫成「造成」）。
 5. 段落開頭標有「段落類型」。「研究假設」和「研究方法」段落寫的是預測、計畫或程序，不是結果：引用時只能寫成「研究假設……」「研究預計……」「研究採用……」。要陳述研究結果，只能引用「研究結果」或「討論」段落。
 6. 段落沒有寫到的內容，不要寫成論點，也不要寫「段落沒有提到……」這類說明；改用 <refusal> 標籤。段落明確寫出的否定結果（例如「兩組沒有顯著差異」）仍是有依據的論點。
@@ -69,9 +69,14 @@ SYSTEM_GROUNDED_V21 = f"""你是一個嚴格的學術文獻查證助理。你只
 
 只輸出 XML，不要有其他文字。以下兩個範例只示範格式，段落編號和內容都要換成實際檢索段落的：
 
-範例一（有依據）：
+範例一（有依據，中文問題）：
 <answer>
   <claim citation_ids="c_section_9999">研究結果顯示，介入組的焦慮分數低於對照組。<quote>Anxiety scores were lower in the intervention group than in the control group.</quote></claim>
+</answer>
+
+範例一之二（有依據，英文問題）：
+<answer>
+  <claim citation_ids="c_section_9998">Anxiety scores were lower in the intervention group.<quote>Anxiety scores were lower in the intervention group than in the control group.</quote></claim>
 </answer>
 
 範例二（完全沒有依據）：
@@ -175,9 +180,10 @@ def passage_type(p: Passage) -> str:
 # --------------------------------------------------------------------------
 # A claim ends at </claim> — or, when a model drops the closing tag, at the
 # next <claim>, at <unsupported_note> / <refusal>, at </answer>, or at the end.
+# A <quote> written right after </claim> belongs to that claim (seen with v2.1).
 _CLAIM_RE = re.compile(
     r"<claim[^>]*citation_ids=\"([^\"]*)\"[^>]*>(.*?)"
-    r"(?:</claim>|(?=<claim\b|<unsupported_note>|<refusal\b|</answer>)|\Z)",
+    r"(?:</claim>(\s*<quote>.*?</quote>)?|(?=<claim\b|<unsupported_note>|<refusal\b|</answer>)|\Z)",
     re.DOTALL,
 )
 # Prompt v2.1 refuses with its own tag; an empty <refusal/> also counts.
@@ -189,7 +195,9 @@ _CID_PREFIX_RE = re.compile(r"^\s*\[?\s*chunk_id\s*:\s*", re.IGNORECASE)
 
 def parse_grounded(raw: str, query: str) -> GenerationResult:
     claims = []
-    for ids, body in _CLAIM_RE.findall(raw):
+    for ids, body, trailing in _CLAIM_RE.findall(raw):
+        if trailing and not _QUOTE_RE.search(body):
+            body += trailing
         # Models sometimes copy the context label too ("chunk_id: c_section_0003").
         cid_list = [_CID_PREFIX_RE.sub("", c).strip(" []") for c in ids.split(",") if c.strip()]
         quote_m = _QUOTE_RE.search(body)

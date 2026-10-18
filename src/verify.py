@@ -701,24 +701,30 @@ class Verifier:
         cited = [t for t in (_passage_text(result, c) for c in citation_ids) if t]
         # Skipped when no cited id resolves to a passage: that is a bad citation
         # id (the judges mark it "cited chunk not in context"), not a bad quote.
-        quote_status = check_quote(claim.quote, cited) if cited else ""
-        if claim.quote and (not cited or quote_status == "not_found"):
+        # A claim without a <quote> whose own text is (near-)verbatim in a cited
+        # passage copied its evidence as the claim: check that text as the
+        # quote rather than calling the quote missing.
+        quote = claim.quote
+        if not quote and cited and check_quote(claim.statement, cited) in ("verbatim", "near"):
+            quote = claim.statement
+        quote_status = check_quote(quote, cited) if cited else ""
+        if quote and (not cited or quote_status == "not_found"):
             # The cited id is mangled ("chunk_id_0003") or points at the wrong
             # passage. If the verbatim quote sits in exactly one retrieved
             # passage, that passage is the deterministic source: re-attribute
             # and record the repair. A quote found nowhere stays a fabrication.
             hits = [p for p in result.passages
-                    if check_quote(claim.quote, [p.text]) in ("verbatim", "near")]
+                    if check_quote(quote, [p.text]) in ("verbatim", "near")]
             if len(hits) == 1:
                 citation_ids, cited, repaired = [hits[0].chunk_id], [hits[0].text], True
-                quote_status = check_quote(claim.quote, cited)
+                quote_status = check_quote(quote, cited)
             elif not hits:
                 # The quote may run across a chunk boundary: accept it when every
                 # sentence is in a retrieved passage (cited passages tried first),
                 # and judge the claim against all the passages it spans.
                 ordered = ([p for p in result.passages if p.chunk_id in claim.citation_ids]
                            + [p for p in result.passages if p.chunk_id not in claim.citation_ids])
-                span = quote_span(claim.quote, ordered)
+                span = quote_span(quote, ordered)
                 if span:
                     spanned_ids = [p.chunk_id for p in span]
                     citation_ids = ([c for c in claim.citation_ids if c in spanned_ids]
@@ -747,7 +753,7 @@ class Verifier:
         best.citation_ids = citation_ids
         best.quote_check = quote_status
         cited_passages = [p for p in result.passages if p.chunk_id in citation_ids]
-        self._apply_plan_rule(best, claim.quote, [p.text for p in cited_passages],
+        self._apply_plan_rule(best, quote, [p.text for p in cited_passages],
                               [_heading_of(p) for p in cited_passages], result.passages)
         if repaired:
             best.citation_repaired_from = claim.citation_ids

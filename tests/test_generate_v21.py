@@ -46,3 +46,15 @@ def test_v1_output_parses_as_before():
     raw = f"<answer><unsupported_note>{M}</unsupported_note></answer>"
     r = G.parse_grounded(raw, "q")
     assert r.refused and r.unsupported_note == M
+
+
+def test_quote_after_the_claim_is_attached():
+    raw = ('<answer><claim citation_ids="c1">A finding.</claim>\n  '
+           '<quote>The finding held.</quote></answer>')
+    r = G.parse_grounded(raw, "q")
+    assert r.claims[0].statement == "A finding." and r.claims[0].quote == "The finding held."
+
+
+def test_v21_asks_for_a_quote_even_when_the_claim_copies_the_source():
+    p = G.GROUNDED_PROMPTS["v2.1"]
+    assert "就算論點直接沿用原文句子" in p and 'citation_ids="c_section_9998"' in p
