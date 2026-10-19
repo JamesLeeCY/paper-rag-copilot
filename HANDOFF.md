@@ -574,9 +574,18 @@ Open, in suggested order:
    unsupported claim: completed-study R01 answered a result question with
    "Hypothesis H1: …" (correctly labelled) citing a passage that does not
    hold it — v2.1 tends to answer from a retrieved hypothesis passage
-   (also R02 in the previous run). Possible follow-up: tell the generator to
-   prefer a results passage when both are retrieved. Pooled bait with v2.1:
-   17/18.
+   (also R02 in the previous run). Tried and withdrawn 2026-10-19
+   (`a9beec7`, reverted): rule 5 told the generator to answer result
+   questions from results/discussion passages and refuse when only
+   hypothesis passages exist. Calibration 5 (11:51–12:51; thesis R01–R05,
+   T01–T03, B01, B02, B07; protocol R01, J01, J03; completed study R01–R06):
+   completed-study R01 still answered with H1 (unsupported), R02 now cited
+   the results passage, thesis B07 regressed to the hypothesised regions
+   (disputed by the hypothesis-match route, so not shown as supported), and
+   a `<refusal>` after a complete answer reappeared once (R03). Mixed effect,
+   so the sentence was removed; the prompt is back to `6f8ec09`. Untried
+   alternative: order the context so results passages come before hypothesis
+   passages. Pooled bait with v2.1: 17/18.
 6. **Human-labelled judge items** (`data/golden/judge_set_human.jsonl`,
    schema in `judge_set_human.example.jsonl`) — owner's task, not started.
 
@@ -741,7 +750,9 @@ Open, in suggested order:
 | `44130e0` | v2.1 becomes the default generator prompt |
 | `bc0cba0` | Parser: stray `</quote>` keeps its quote |
 | `73e0ba0`, `6f8ec09` | Out-of-corpus rerun with generator v2.1; rule 7 tightened |
-| (this commit) | Calibration 4 of v2.1 |
+| `b1f6991` | Calibration 4 of v2.1 |
+| `a9beec7`, `3567d4f` | Result-passage rule (tried) and the v2.1 length test |
+| (this commit) | Result-passage rule withdrawn after calibration 5 |
 
 ## 10. Completed work log
 

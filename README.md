@@ -291,7 +291,11 @@ refused every trap and bait item. One habit remains: when a hypothesis
 passage is retrieved for a question about a result, v2.1 sometimes answers
 with the hypothesis — correctly labelled as a hypothesis, but citing a
 passage that does not contain it (one unsupported claim in that
-calibration). Pooled bait with v2.1 (thesis full run + protocol): 17/18
+calibration). A sentence telling the generator to answer result questions
+from result passages was tried and withdrawn: it did not change that answer,
+fixed a second one and made a third worse (caught by the hypothesis-match
+route) — with a 7B generator, single-sentence prompt edits move individual
+answers in both directions. Pooled bait with v2.1 (thesis full run + protocol): 17/18
 safe.
 
 ### Retrieval — chunking ablation (dissertation)

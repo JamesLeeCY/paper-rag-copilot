@@ -10,9 +10,9 @@ def test_v21_registered_and_free_of_the_placeholder():
     assert "段落編號,段落編號" not in p and 'citation_ids="c_section_9999"' in p
     assert f"<refusal>{M}</refusal>" in p
     # Rules 8-9 were dropped, but the worked examples and the calibration
-    # fixes (full sentences, quotes, refusal scope, result passages) made it
-    # longer than v2 (1297 vs 1081 characters); keep it from growing further
-    # unnoticed. Kept: source-language quotes, passage types.
+    # fixes (full sentences, quotes, refusal scope) made it longer than v2
+    # (1235 vs 1081 characters); keep it from growing further unnoticed.
+    # Kept: source-language quotes, passage types.
     assert len(p) < 1400
     assert "段落類型" in p and "不可翻譯" in p
 
@@ -75,7 +75,3 @@ def test_stray_closing_quote_tag():
 
 def test_v21_refusal_only_for_unanswered_parts():
     assert "不要加 <refusal>" in G.GROUNDED_PROMPTS["v2.1"]
-
-
-def test_v21_answers_result_questions_from_result_passages():
-    assert "不要改用「研究假設」段落代替" in G.GROUNDED_PROMPTS["v2.1"]
