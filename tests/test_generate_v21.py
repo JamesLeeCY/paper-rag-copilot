@@ -62,3 +62,9 @@ def test_v21_asks_for_a_quote_even_when_the_claim_copies_the_source():
 
 def test_v21_asks_for_full_sentences():
     assert "用完整的句子說明" in G.GROUNDED_PROMPTS["v2.1"]
+
+
+def test_stray_closing_quote_tag():
+    r = G.parse_grounded('<answer><claim citation_ids="c1">The study recruited 80 adults.</quote></claim></answer>', "q")
+    assert r.claims[0].statement == "The study recruited 80 adults."
+    assert r.claims[0].quote == "The study recruited 80 adults."

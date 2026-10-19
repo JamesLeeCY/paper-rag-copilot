@@ -203,6 +203,12 @@ def parse_grounded(raw: str, query: str) -> GenerationResult:
         quote_m = _QUOTE_RE.search(body)
         quote = quote_m.group(1).strip() if quote_m else ""
         statement = _QUOTE_RE.sub("", body).strip()
+        if not quote_m and "</quote>" in body:
+            # Opening tag dropped ("sentence</quote>"): the text before the
+            # stray closing tag is the quote, and the claim repeats it.
+            before, _, after = body.partition("</quote>")
+            quote = before.strip()
+            statement = (before + after).strip()
         claims.append(Claim(statement=statement, citation_ids=cid_list, quote=quote))
     # A <claim> that only restates the refusal marker asserts nothing: drop it
     # and flag the format error (it was the model's way of refusing).
