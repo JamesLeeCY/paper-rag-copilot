@@ -72,3 +72,7 @@ def test_stray_closing_quote_tag():
 
 def test_v21_refusal_only_for_unanswered_parts():
     assert "不要加 <refusal>" in G.GROUNDED_PROMPTS["v2.1"]
+
+
+def test_v21_answers_result_questions_from_result_passages():
+    assert "不要改用「研究假設」段落代替" in G.GROUNDED_PROMPTS["v2.1"]
