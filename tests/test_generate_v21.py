@@ -9,8 +9,11 @@ def test_v21_registered_and_free_of_the_placeholder():
     p = G.GROUNDED_PROMPTS["v2.1"]
     assert "段落編號,段落編號" not in p and 'citation_ids="c_section_9999"' in p
     assert f"<refusal>{M}</refusal>" in p
-    # Shorter than v2 (rules 8-9 dropped), kept: source-language quotes, passage types.
-    assert len(p) < len(G.GROUNDED_PROMPTS["v2"]) * 1.15
+    # Rules 8-9 were dropped, but the worked examples and the calibration
+    # fixes (full sentences, quotes, refusal scope, result passages) made it
+    # longer than v2 (1297 vs 1081 characters); keep it from growing further
+    # unnoticed. Kept: source-language quotes, passage types.
+    assert len(p) < 1400
     assert "段落類型" in p and "不可翻譯" in p
 
 
