@@ -68,3 +68,7 @@ def test_stray_closing_quote_tag():
     r = G.parse_grounded('<answer><claim citation_ids="c1">The study recruited 80 adults.</quote></claim></answer>', "q")
     assert r.claims[0].statement == "The study recruited 80 adults."
     assert r.claims[0].quote == "The study recruited 80 adults."
+
+
+def test_v21_refusal_only_for_unanswered_parts():
+    assert "不要加 <refusal>" in G.GROUNDED_PROMPTS["v2.1"]
