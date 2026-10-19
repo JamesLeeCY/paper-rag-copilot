@@ -557,6 +557,17 @@ Open, in suggested order:
    true result. Neither paper has a Hypotheses heading, so only the wording
    route was exercised. Pooled bait (thesis 12 + protocol 6): 13/18 vs 8/18,
    McNemar p = 0.063.
+   Rerun with generator v2.1, grounded only (2026-10-19 06:16–07:12, `--fresh`,
+   local `eval_results_grounded_v21.json`): protocol bait 6/6 safe, 5 refused
+   (v1: 5/6, 3), J01 now a clean refusal; misplaced refusals 0 (v1: 2),
+   translated quotes 0 (v1: 1); protocol answerable 4/4 supported but shorter
+   (R02 one claim vs four) and 2 without a quote (R01: dropped opening
+   `<quote>` tag → parser fix `bc0cba0`; R02: no quote); completed study
+   strict 4/6 vs 6/6 (R06 adds a detail the source lacks; R02 copies the
+   confirmed H2 sentence citing the hypothesis passage), lenient 6/6, no rule
+   fired on a true result. R01 and R02 of the protocol appended a `<refusal>`
+   to a complete answer → rule 7 to be tightened. Pooled bait with v2.1:
+   17/18.
 6. **Human-labelled judge items** (`data/golden/judge_set_human.jsonl`,
    schema in `judge_set_human.example.jsonl`) — owner's task, not started.
 
@@ -718,7 +729,9 @@ Open, in suggested order:
 | `82f91fb` | PDF ingestion: whitespace spans; body may start at an Introduction |
 | `71bedc4` | Out-of-corpus check on two open-access papers |
 | `36aab0a`, `dfc2122`, `812fb96`, `bc78857` | Generator prompt v2.1; `--ids`; raw XML kept; quote recovery; full-sentence rule |
-| (this commit) | v2.1 becomes the default generator prompt |
+| `44130e0` | v2.1 becomes the default generator prompt |
+| `bc0cba0` | Parser: stray `</quote>` keeps its quote |
+| (this commit) | Out-of-corpus rerun with generator v2.1 |
 
 ## 10. Completed work log
 

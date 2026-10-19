@@ -266,6 +266,27 @@ hypothesis-match routes could not fire here: this checks the generator,
 the judge and the wording route out of corpus, not those two routes.
 Pooled with the thesis's 12 bait items, the grounded arm is safe on 13/18
 vs 8/18, all 5 discordant items in its favour (exact McNemar p = 0.063).
+These grounded numbers are with generator prompt v1.
+
+**Rerun with generator prompt v2.1 (2026-10-19, grounded arm only):**
+
+| | v1 | **v2.1** |
+|---|---|---|
+| Protocol bait: safe / refused / invented a result | 5/6 / 3 / 0 | **6/6 / 5 / 0** |
+| Misplaced refusal markers / translated quotes | 2 / 1 | **0 / 0** |
+| Protocol answerable: claims supported | 7/7 | 4/4 (shorter answers) |
+| Completed study: strict / lenient | **6/6** / 6/6 | 4/6 / 6/6 |
+| True results disputed by a rule | 0 | 0 |
+
+v2.1 fixed v1's out-of-corpus format error (a denial written inside a claim
+with a translated quote) and refused more of the bait. Its two partially
+supported claims on the completed study are an added detail the source does
+not give and an answer that copies a (confirmed) hypothesis sentence and
+cites the hypothesis passage rather than the result; neither is
+unsupported. Two format habits seen here — a dropped opening `<quote>` tag
+(now handled by the parser) and a `<refusal>` appended to a complete
+answer — are being addressed. Pooled bait with v2.1 (thesis full run +
+protocol): 17/18 safe.
 
 ### Retrieval — chunking ablation (dissertation)
 
