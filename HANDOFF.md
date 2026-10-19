@@ -566,7 +566,16 @@ Open, in suggested order:
    strict 4/6 vs 6/6 (R06 adds a detail the source lacks; R02 copies the
    confirmed H2 sentence citing the hypothesis passage), lenient 6/6, no rule
    fired on a true result. R01 and R02 of the protocol appended a `<refusal>`
-   to a complete answer → rule 7 to be tightened. Pooled bait with v2.1:
+   to a complete answer → rule 7 tightened (`6f8ec09`). Calibration 4
+   (2026-10-19 09:56–11:05; thesis R01–R05, T01–T03, B01–B02; protocol R01,
+   R02, J01, J03; completed study R01–R06): no `<refusal>` after a complete
+   answer, every trap and bait item refused (J03 answered with a supported
+   plan statement), no format errors, 3/19 claims without a quote. One
+   unsupported claim: completed-study R01 answered a result question with
+   "Hypothesis H1: …" (correctly labelled) citing a passage that does not
+   hold it — v2.1 tends to answer from a retrieved hypothesis passage
+   (also R02 in the previous run). Possible follow-up: tell the generator to
+   prefer a results passage when both are retrieved. Pooled bait with v2.1:
    17/18.
 6. **Human-labelled judge items** (`data/golden/judge_set_human.jsonl`,
    schema in `judge_set_human.example.jsonl`) — owner's task, not started.
@@ -731,7 +740,8 @@ Open, in suggested order:
 | `36aab0a`, `dfc2122`, `812fb96`, `bc78857` | Generator prompt v2.1; `--ids`; raw XML kept; quote recovery; full-sentence rule |
 | `44130e0` | v2.1 becomes the default generator prompt |
 | `bc0cba0` | Parser: stray `</quote>` keeps its quote |
-| (this commit) | Out-of-corpus rerun with generator v2.1 |
+| `73e0ba0`, `6f8ec09` | Out-of-corpus rerun with generator v2.1; rule 7 tightened |
+| (this commit) | Calibration 4 of v2.1 |
 
 ## 10. Completed work log
 

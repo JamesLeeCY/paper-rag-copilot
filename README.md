@@ -285,8 +285,14 @@ not give and an answer that copies a (confirmed) hypothesis sentence and
 cites the hypothesis passage rather than the result; neither is
 unsupported. Two format habits seen here — a dropped opening `<quote>` tag
 (now handled by the parser) and a `<refusal>` appended to a complete
-answer — are being addressed. Pooled bait with v2.1 (thesis full run +
-protocol): 17/18 safe.
+answer — were fixed: after rule 7 was tightened, a 20-question calibration
+on all three corpora had no `<refusal>` after a complete answer and still
+refused every trap and bait item. One habit remains: when a hypothesis
+passage is retrieved for a question about a result, v2.1 sometimes answers
+with the hypothesis — correctly labelled as a hypothesis, but citing a
+passage that does not contain it (one unsupported claim in that
+calibration). Pooled bait with v2.1 (thesis full run + protocol): 17/18
+safe.
 
 ### Retrieval — chunking ablation (dissertation)
 
