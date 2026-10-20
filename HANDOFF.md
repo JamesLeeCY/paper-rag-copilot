@@ -600,10 +600,18 @@ Open, in suggested order:
    generator gravitate to the hypothesis sentence — a question-design
    artefact; (2) hypotheses written in an introduction without a Hypotheses
    heading are invisible to the structural and hypothesis-match routes.
-   Possible follow-ups (not started): control questions not worded like the
-   hypotheses; let the hypothesis-match route recognise inline hypotheses
-   ("Hypothesis 1 (H1):"), evaluable offline on saved outputs. Pooled bait
-   with v2.1: 17/18.
+   Follow-ups: control questions not worded like the hypotheses (not
+   started); inline hypotheses — done 2026-10-21: `verify.inline_hypotheses`
+   extracts the sentence after "Hypothesis N (HN):" / "HN:" / "假設N："
+   (completed study 5, thesis 12 — all already in Hypotheses sections —
+   protocol 0, pilot 0); a third plan-as-result route flags an unhedged claim
+   whose quote (or unquoted text) restates one in a cited passage; inline
+   hypotheses also join the hypothesis-match pool and are dropped from the
+   cited-sentence side. Offline over every saved output of the four corpora:
+   4 supported/partial claims cite a passage with inline hypotheses (2
+   unique: completed-study R01 and R04 of the results-first calibration) and
+   the route fires on all of them, nothing else. Pooled bait with v2.1:
+   17/18.
 6. **Human-labelled judge items** (`data/golden/judge_set_human.jsonl`,
    schema in `judge_set_human.example.jsonl`) — owner's task, not started.
 
@@ -772,7 +780,8 @@ Open, in suggested order:
 | `a9beec7`, `3567d4f` | Result-passage rule (tried) and the v2.1 length test |
 | `6cea920` | Result-passage rule withdrawn after calibration 5 |
 | `8da43f8` | `CONTEXT_ORDER` (results-first option) |
-| (this commit) | Context order tried, not adopted |
+| `c7d1491` | Context order tried, not adopted |
+| (this commit) | Inline-hypothesis route of the plan-as-result rule |
 
 ## 10. Completed work log
 

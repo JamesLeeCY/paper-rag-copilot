@@ -181,3 +181,32 @@ def test_unquoted_claim_copied_from_the_passage_counts_as_quoted():
     assert copied.quote_check == "verbatim"
     paraphrase = v._verify_claim(Claim("Stress fell for all walkers.", ["c1"]), res)
     assert paraphrase.quote_check == "missing"
+
+
+def test_inline_hypotheses_are_extracted():
+    from src.verify import inline_hypotheses
+    intro = ("We tested two ideas. Hypothesis 1 (H1): A dynamic walk leads to greater involvement "
+             "than a fixed one. Hypothesis 2 (H2): A dynamic walk leads to more present moment "
+             "awareness than a fixed one. Besides, we explored distance.")
+    assert inline_hypotheses(intro) == [
+        "A dynamic walk leads to greater involvement than a fixed one.",
+        "A dynamic walk leads to more present moment awareness than a fixed one."]
+    assert inline_hypotheses("H3b: Nature videos will improve recall in older adults.\nH3c: x") == [
+        "Nature videos will improve recall in older adults."]
+    assert inline_hypotheses("Results showed higher involvement (H1 was supported).") == []
+
+
+def test_inline_route_flags_a_quoted_labelled_hypothesis():
+    from src.verify import plan_as_result
+    intro = "Hypothesis 1 (H1): A dynamic walk leads to greater involvement than a fixed one."
+    hyp = "A dynamic walk leads to greater involvement than a fixed one."
+    assert "labelled hypothesis" in plan_as_result(hyp, hyp, [intro])
+    # unquoted claim copying the hypothesis
+    assert "labelled hypothesis" in plan_as_result(hyp, "", [intro])
+    # hedged: stated as a hypothesis
+    assert plan_as_result("研究假設 H1：" + hyp, hyp, [intro]) == ""
+    # a result sentence from the same passage is not touched
+    results = intro + " Involvement was higher in the treatment group, F(1, 29) = 16.67."
+    assert plan_as_result("Involvement was higher in the treatment group.",
+                          "Involvement was higher in the treatment group, F(1, 29) = 16.67.",
+                          [results]) == ""

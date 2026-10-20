@@ -304,8 +304,14 @@ accepted the (confirmed) hypothesis. Part of the habit is a question-design
 artefact: the control questions paraphrase the hypotheses, so retrieval and
 generator both gravitate to the hypothesis sentence. And because this
 paper's hypotheses sit in the introduction rather than under a Hypotheses
-heading, neither the structural nor the hypothesis-match route can see a
-hypothesis restated as a result there — a known limitation. Pooled bait with
+heading, neither the structural nor the hypothesis-match route could see a
+hypothesis restated as a result there. That gap now has an **inline route**:
+a sentence the cited passage labels as a hypothesis ("Hypothesis 1 (H1):",
+"H3b:"), quoted or copied by an unhedged claim, is flagged like a
+Hypotheses-section citation, and inline hypotheses also join the
+hypothesis-match route's pool. Re-applied offline to every saved output of
+the four corpora, it fired on exactly the two claims above (completed-study
+R01 and R04) and on nothing else. Pooled bait with
 v2.1 (thesis full run + protocol): 17/18 safe.
 
 ### Retrieval — chunking ablation (dissertation)

@@ -376,17 +376,44 @@ _CLAIM_HEDGE_RE = re.compile(
 # A section that holds hypotheses only: any unhedged claim citing it states a
 # hypothesis as fact, whatever its wording.
 _HYPOTHESIS_SECTION_RE = re.compile(r"hypothes[ie]s|研究假設|研究假设|假設|假设", re.I)
+# A hypothesis labelled inline, wherever it sits ("Hypothesis 1 (H1): ...",
+# "H3b: ...", "假設一：..."): papers that state their hypotheses inside the
+# introduction have no Hypotheses heading for the structural route to see.
+_INLINE_HYP_RE = re.compile(
+    r"(?:\bHypothesis\s*\d+[a-z]?\s*(?:\(\s*H\d+[a-z]?\s*\))?|\bH\d+[a-z]?|假設\s*[一二三四五六七八九十\d]+)"
+    r"\s*[:：]\s*(.+?)(?=(?:\bHypothesis\s*\d|\bH\d+[a-z]?\s*[:：]|假設\s*[一二三四五六七八九十\d]+\s*[:：])|$)",
+    re.S)
+
+
+def inline_hypotheses(text: str) -> list[str]:
+    """The sentences a passage labels as hypotheses (first sentence after each
+    "Hypothesis N (HN):" / "HN:" label)."""
+    out = []
+    for m in _INLINE_HYP_RE.finditer(text):
+        first = _SENT_SPLIT_RE.split(m.group(1).strip())[0].strip()
+        if len(first) >= 15:
+            out.append(first)
+    return out
+
+
+def _restates(text: str, hypothesis: str) -> bool:
+    """The text is (near-)verbatim the hypothesis, or contains it."""
+    return (check_quote(text, [hypothesis]) in ("verbatim", "near")
+            or check_quote(hypothesis, [text]) in ("verbatim", "near"))
 
 
 def plan_as_result(statement: str, quote: str, passages: list[str],
                    headings: list[str] | None = None) -> str:
     """Reason string if the claim reads a plan/prediction as a result, else "".
 
-    Deterministic, so it does not depend on a judge noticing the tense. Two
-    routes, both requiring a claim that does not hedge (將/會/預期/假設/will …):
+    Deterministic, so it does not depend on a judge noticing the tense. Three
+    routes, all requiring a claim that does not hedge (將/會/預期/假設/will …):
       * structural — a cited passage sits in a Hypotheses section (its
         ``headings``); a hypothesis restated without hedging is a finding the
         source does not report, whatever words the claim uses;
+      * inline — the quote (or an unquoted claim) is a sentence the cited
+        passage labels as a hypothesis ("Hypothesis 1 (H1): ...", "H3b: ..."),
+        for papers that state hypotheses in running text;
       * wording — the claim asserts a finding (result cues) and the source
         plans or predicts: the quote's own sentences when there is a quote,
         otherwise a passage sentence that plans an assessment or predicts an
@@ -402,6 +429,15 @@ def plan_as_result(statement: str, quote: str, passages: list[str],
         if _HYPOTHESIS_SECTION_RE.search(innermost):
             return (f"rule: plan read as result — the cited passage is in a hypotheses "
                     f"section ({innermost!r}) but the claim states it as a finding")
+    # Inline route (after the structural one, so its reasons are kept): the
+    # quote, or an unquoted claim itself, is a sentence the cited passage
+    # labels as a hypothesis.
+    evidence = quote if _norm(quote) else statement
+    for p in passages:
+        for hyp in inline_hypotheses(p):
+            if _restates(evidence, hyp):
+                return ("rule: plan read as result — the quoted sentence is a labelled "
+                        "hypothesis in the cited passage but the claim states it as a finding")
     if not _CLAIM_RESULT_RE.search(statement):
         return ""
     if _norm(quote):
@@ -448,7 +484,10 @@ def hypothesis_match(statement: str, cited: list[str], context: list[tuple[str, 
         return ""
     hyps = [s for text, h in context
             if _HYPOTHESIS_SECTION_RE.search(h.split(" > ")[-1]) for s in _match_sentences(text)]
-    cited_s = [s for text in cited for s in _match_sentences(text)]
+    hyps += [s for text, _ in context for s in inline_hypotheses(text)]   # labelled inline
+    inline = {s for text in cited for s in inline_hypotheses(text)}
+    cited_s = [s for text in cited for s in _match_sentences(text)
+               if not any(_restates(s, h) for h in inline)]
     if not hyps or not cited_s:
         return ""
     vecs = _encode([statement] + hyps + cited_s)
