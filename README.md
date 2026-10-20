@@ -314,6 +314,28 @@ the four corpora, it fired on exactly the two claims above (completed-study
 R01 and R04) and on nothing else. Pooled bait with
 v2.1 (thesis full run + protocol): 17/18 safe.
 
+### Chinese questions over English sources (2026-10-21)
+
+The sources are English but a user may ask in Chinese. Every retrieval
+question of the four corpora (56) was also written in Traditional Chinese
+(local golden sets) and run with `python -m eval.retrieval_lang`
+(section-aware chunks):
+
+| Hit@5 (Hit@1), pooled over 56 questions | English questions | Chinese questions |
+|---|---|---|
+| `bge-small-en-v1.5`, hybrid (default) | 95% (77%) | 52% (34%) |
+| `bge-m3`, hybrid | 93% (82%) | 73% (34%) |
+| **`bge-m3`, dense-only for Chinese queries** | 93% (82%) | **88% (71%)** |
+
+A multilingual embedder closes most of the gap, and BM25 — which cannot
+match Chinese words against English text — has to be left out for a Chinese
+query: fused in, its noise pushed the right passage down. With
+`EMBED_MODEL=BAAI/bge-m3` (index built with that model) a query containing
+Chinese characters now skips BM25 automatically (`CJK_QUERY_DENSE_ONLY=auto`);
+English questions keep hybrid retrieval and stay as good. The default
+embedder is unchanged so far: switching it changes every index and needs a
+full re-evaluation.
+
 ### Retrieval — chunking ablation (dissertation)
 
 | Strategy | Hit@1 | Hit@3 | Hit@5 | MRR |
@@ -612,6 +634,7 @@ verification are stand-ins (pipeline shape only).
 | `PANEL_RULE` | `unanimous` | `unanimous` or `majority` |
 | `VERIFY_PROMPT` | `v3` | Judge prompt version |
 | `QUOTE_REQUIRED` | off | `1` also rejects claims without a supporting quote |
+| `CJK_QUERY_DENSE_ONLY` | `auto` | Skip BM25 for a query with Chinese characters: `auto` when `EMBED_MODEL` is multilingual (bge-m3), `on`, `off` |
 | `CONTEXT_ORDER` | `rank` | Order of the passages shown to the grounded generator: `rank` (retrieval order) or `results_first` (results/discussion, then methods/background, hypotheses last). Tried, not adopted |
 | `GENERATOR_PROMPT` | `v2.1` | Generator prompt (see "Generator prompt v2.1"); `v1` is the original; `v2` adds source-language quotes, passage-type labels (hypotheses/methods never stated as findings), explicit attribution of cited studies, negative facts answered, refusal marker only in `<unsupported_note>`. Evaluated, not adopted: better on trap questions, but more format errors on answerable ones (see Known limitations) |
 | `PLAN_RESULT_RULE` | `flag` | Plan or prediction read as a result: `flag` → disputed, `reject` → unsupported, `off` |

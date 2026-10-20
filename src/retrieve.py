@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import functools
 import json
+import re
 from dataclasses import dataclass, field
 
 import config
@@ -111,6 +112,8 @@ class Retriever:
     ) -> list[Passage]:
         top_k = top_k or config.FINAL_TOP_K
         use_rerank = config.RERANK_ENABLED if use_rerank is None else use_rerank
+        if use_hybrid and dense_only_for(query):
+            use_hybrid = False
 
         dense = self._dense(query, config.DENSE_TOP_K)
         sparse = self._sparse(query, config.SPARSE_TOP_K) if use_hybrid else []
@@ -165,6 +168,21 @@ def _load_section_paths(strategy: str) -> dict[str, list]:
             row = json.loads(line)
             out[row["chunk_id"]] = row.get("section_path", [])
     return out
+
+
+_CJK_RE = re.compile(r"[\u3400-\u9fff]")
+
+
+def _multilingual(model: str) -> bool:
+    return "m3" in model.lower() or "multilingual" in model.lower()
+
+
+def dense_only_for(query: str) -> bool:
+    """Skip BM25 for a Chinese query (see config.CJK_QUERY_DENSE_ONLY)."""
+    mode = config.CJK_QUERY_DENSE_ONLY
+    if mode == "off" or not _CJK_RE.search(query):
+        return False
+    return mode == "on" or _multilingual(config.EMBED_MODEL)
 
 
 @functools.lru_cache(maxsize=2)

@@ -46,6 +46,8 @@ class Embedder:
     def encode_queries(self, texts):
         if _is_e5(self.model_name):
             prefix = "query: "
-        else:  # bge-family: instruction prefix on queries only
+        elif "bge-m3" in self.model_name.lower():
+            prefix = ""       # bge-m3 takes no query instruction
+        else:  # bge-v1.5 family: instruction prefix on queries only
             prefix = config.QUERY_INSTRUCTION
         return self._encode(texts, prefix)

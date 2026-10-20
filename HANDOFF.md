@@ -612,6 +612,19 @@ Open, in suggested order:
    unique: completed-study R01 and R04 of the results-first calibration) and
    the route fires on all of them, nothing else. Pooled bait with v2.1:
    17/18.
+6b. **Chinese questions over English sources** — measured 2026-10-21, default
+   not changed yet. Chinese versions of all 56 retrieval questions
+   (`question_zh` in the local golden sets; backup
+   `golden_set.before-zh.json`), `eval.retrieval_lang`, bge-m3 indexes built
+   for the section strategy of all four corpora (the pilot corpus was also
+   rebuilt with bge-small after the PDF spacing fix). Pooled Hit@5 (Hit@1):
+   bge-small hybrid en 53/56 (43), zh 29/56 (19); bge-m3 hybrid en 52 (46),
+   zh 41 (19); bge-m3 dense-only zh 49 (40). BM25 hurts cross-lingual
+   queries, so `CJK_QUERY_DENSE_ONLY=auto` skips it for a CJK query when the
+   embedder is multilingual; embedder: bge-m3 takes no query instruction.
+   Open decision: make bge-m3 the default (rebuild fixed-strategy indexes,
+   rerun the chunking ablation and a full evaluation, since baseline
+   sentence matching and `check` passage choice use the same embedder).
 6. **Human-labelled judge items** (`data/golden/judge_set_human.jsonl`,
    schema in `judge_set_human.example.jsonl`) — owner's task, not started.
 
@@ -781,7 +794,8 @@ Open, in suggested order:
 | `6cea920` | Result-passage rule withdrawn after calibration 5 |
 | `8da43f8` | `CONTEXT_ORDER` (results-first option) |
 | `c7d1491` | Context order tried, not adopted |
-| (this commit) | Inline-hypothesis route of the plan-as-result rule |
+| `f933c50` | Inline-hypothesis route of the plan-as-result rule |
+| (this commit) | Cross-lingual retrieval: bge-m3 option, dense-only for Chinese queries |
 
 ## 10. Completed work log
 

@@ -90,6 +90,13 @@ EMBED_NORMALIZE = True
 # Retrieval query instruction. bge-v1.5 recommends this prefix on queries only.
 # e5 models instead want "query: " / "passage: " prefixes (see _embed_prefixes).
 QUERY_INSTRUCTION = "Represent this sentence for searching relevant passages: "
+# BM25 cannot match a Chinese question against an English source, and fusing
+# its noise into the ranking hurt a multilingual embedder (bge-m3, Chinese
+# questions, Hit@5 73% hybrid vs 88% dense-only over four corpora,
+# 2026-10-21). "auto": a query containing CJK characters uses dense retrieval
+# only when EMBED_MODEL is multilingual (bge-m3 / multilingual); "on" always,
+# "off" never.
+CJK_QUERY_DENSE_ONLY = os.environ.get("CJK_QUERY_DENSE_ONLY", "auto")
 
 # --------------------------------------------------------------------------
 # Retrieval
