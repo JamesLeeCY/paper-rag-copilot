@@ -583,9 +583,27 @@ Open, in suggested order:
    the results passage, thesis B07 regressed to the hypothesised regions
    (disputed by the hypothesis-match route, so not shown as supported), and
    a `<refusal>` after a complete answer reappeared once (R03). Mixed effect,
-   so the sentence was removed; the prompt is back to `6f8ec09`. Untried
-   alternative: order the context so results passages come before hypothesis
-   passages. Pooled bait with v2.1: 17/18.
+   so the sentence was removed; the prompt is back to `6f8ec09`.
+   Context order tried next (2026-10-20, `8da43f8`, `CONTEXT_ORDER`, default
+   stays `rank`): `results_first` calibration 15:55–16:57 on the calibration-4
+   set + B07 (local `eval_results_order_cal.json` per corpus), compared with
+   calibration 4 (same prompt and code, rank order). 13 of 21 answers
+   identical, all traps and bait refused as before, no format errors, thesis
+   R02/R04 and completed-study R06 quotes slightly closer. Completed-study
+   R01 went unsupported → supported and R04 supported → partial, but both
+   still copy the hypothesis sentences (H1, H3b): the generator cited a
+   results passage id, the quote check re-attributed the quote to the
+   introduction, and phi4 accepted the confirmed hypothesis. Thesis B07 still
+   restated the hypothesised regions (disputed by the hypothesis-match
+   route). Not adopted; step 3 (full paired run) not run. Two findings: (1)
+   the completed-study control questions paraphrase H1–H3c, so retrieval and
+   generator gravitate to the hypothesis sentence — a question-design
+   artefact; (2) hypotheses written in an introduction without a Hypotheses
+   heading are invisible to the structural and hypothesis-match routes.
+   Possible follow-ups (not started): control questions not worded like the
+   hypotheses; let the hypothesis-match route recognise inline hypotheses
+   ("Hypothesis 1 (H1):"), evaluable offline on saved outputs. Pooled bait
+   with v2.1: 17/18.
 6. **Human-labelled judge items** (`data/golden/judge_set_human.jsonl`,
    schema in `judge_set_human.example.jsonl`) — owner's task, not started.
 
@@ -752,7 +770,9 @@ Open, in suggested order:
 | `73e0ba0`, `6f8ec09` | Out-of-corpus rerun with generator v2.1; rule 7 tightened |
 | `b1f6991` | Calibration 4 of v2.1 |
 | `a9beec7`, `3567d4f` | Result-passage rule (tried) and the v2.1 length test |
-| (this commit) | Result-passage rule withdrawn after calibration 5 |
+| `6cea920` | Result-passage rule withdrawn after calibration 5 |
+| `8da43f8` | `CONTEXT_ORDER` (results-first option) |
+| (this commit) | Context order tried, not adopted |
 
 ## 10. Completed work log
 

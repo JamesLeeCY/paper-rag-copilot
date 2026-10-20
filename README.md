@@ -295,8 +295,18 @@ calibration). A sentence telling the generator to answer result questions
 from result passages was tried and withdrawn: it did not change that answer,
 fixed a second one and made a third worse (caught by the hypothesis-match
 route) — with a 7B generator, single-sentence prompt edits move individual
-answers in both directions. Pooled bait with v2.1 (thesis full run + protocol): 17/18
-safe.
+answers in both directions. Showing results passages first
+(`CONTEXT_ORDER=results_first`) was tried next and not adopted: 13 of 21
+calibration answers were identical, and on the completed study the generator
+still copied the hypothesis sentences — it now cited a results passage id,
+the quote check re-attributed the quote to the introduction, and the judge
+accepted the (confirmed) hypothesis. Part of the habit is a question-design
+artefact: the control questions paraphrase the hypotheses, so retrieval and
+generator both gravitate to the hypothesis sentence. And because this
+paper's hypotheses sit in the introduction rather than under a Hypotheses
+heading, neither the structural nor the hypothesis-match route can see a
+hypothesis restated as a result there — a known limitation. Pooled bait with
+v2.1 (thesis full run + protocol): 17/18 safe.
 
 ### Retrieval — chunking ablation (dissertation)
 
@@ -596,6 +606,7 @@ verification are stand-ins (pipeline shape only).
 | `PANEL_RULE` | `unanimous` | `unanimous` or `majority` |
 | `VERIFY_PROMPT` | `v3` | Judge prompt version |
 | `QUOTE_REQUIRED` | off | `1` also rejects claims without a supporting quote |
+| `CONTEXT_ORDER` | `rank` | Order of the passages shown to the grounded generator: `rank` (retrieval order) or `results_first` (results/discussion, then methods/background, hypotheses last). Tried, not adopted |
 | `GENERATOR_PROMPT` | `v2.1` | Generator prompt (see "Generator prompt v2.1"); `v1` is the original; `v2` adds source-language quotes, passage-type labels (hypotheses/methods never stated as findings), explicit attribution of cited studies, negative facts answered, refusal marker only in `<unsupported_note>`. Evaluated, not adopted: better on trap questions, but more format errors on answerable ones (see Known limitations) |
 | `PLAN_RESULT_RULE` | `flag` | Plan or prediction read as a result: `flag` → disputed, `reject` → unsupported, `off` |
 | `PLAN_RESULT_MATCH` | `on` | Hypothesis-match route of that rule (partially supported claims closer to a hypothesis in the context than to their citation); `off` disables |
