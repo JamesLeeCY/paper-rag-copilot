@@ -323,7 +323,7 @@ question of the four corpora (56) was also written in Traditional Chinese
 
 | Hit@5 (Hit@1), pooled over 56 questions | English questions | Chinese questions |
 |---|---|---|
-| `bge-small-en-v1.5`, hybrid (default) | 95% (77%) | 52% (34%) |
+| `bge-small-en-v1.5`, hybrid (default) | 95% (77%) | 52% (25%) |
 | `bge-m3`, hybrid | 93% (82%) | 73% (34%) |
 | **`bge-m3`, dense-only for Chinese queries** | 93% (82%) | **88% (71%)** |
 

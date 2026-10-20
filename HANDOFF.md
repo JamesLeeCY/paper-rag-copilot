@@ -618,7 +618,7 @@ Open, in suggested order:
    `golden_set.before-zh.json`), `eval.retrieval_lang`, bge-m3 indexes built
    for the section strategy of all four corpora (the pilot corpus was also
    rebuilt with bge-small after the PDF spacing fix). Pooled Hit@5 (Hit@1):
-   bge-small hybrid en 53/56 (43), zh 29/56 (19); bge-m3 hybrid en 52 (46),
+   bge-small hybrid en 53/56 (43), zh 29/56 (14); bge-m3 hybrid en 52 (46),
    zh 41 (19); bge-m3 dense-only zh 49 (40). BM25 hurts cross-lingual
    queries, so `CJK_QUERY_DENSE_ONLY=auto` skips it for a CJK query when the
    embedder is multilingual; embedder: bge-m3 takes no query instruction.
