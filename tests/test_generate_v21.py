@@ -75,3 +75,35 @@ def test_stray_closing_quote_tag():
 
 def test_v21_refusal_only_for_unanswered_parts():
     assert "不要加 <refusal>" in G.GROUNDED_PROMPTS["v2.1"]
+
+
+def _p(cid, path):
+    from src.retrieve import Passage
+    return Passage(cid, "text", path[-1], "", 0, 0, "s", [], 1.0, section_path=path)
+
+
+def test_order_passages_results_first_is_stable():
+    ps = [_p("h", ["2. Questions", "2.1 Hypotheses"]), _p("b", ["1. Introduction"]),
+          _p("r1", ["4. Results"]), _p("m", ["3. Methods"]), _p("d", ["5. Discussion"]),
+          _p("r2", ["4. Results", "4.2 Study II"])]
+    assert [p.chunk_id for p in G.order_passages(ps, "results_first")] == ["r1", "d", "r2", "b", "m", "h"]
+    assert [p.chunk_id for p in G.order_passages(ps, "rank")] == [p.chunk_id for p in ps]
+
+
+def test_context_order_changes_only_the_grounded_prompt(monkeypatch):
+    seen = []
+
+    class FakeLLM:
+        available = True
+
+        def complete(self, system, user, **kw):
+            seen.append(user)
+            return "<answer><refusal/></answer>"
+
+    ps = [_p("h", ["2. Questions", "2.1 Hypotheses"]), _p("r", ["4. Results"])]
+    monkeypatch.setattr(config, "CONTEXT_ORDER", "results_first")
+    res = G.generate("q", ps, llm=FakeLLM())
+    assert seen[0].index("[r]") < seen[0].index("[h]")
+    assert [p.chunk_id for p in res.passages] == ["h", "r"]       # retrieval order kept
+    G.generate("q", ps, llm=FakeLLM(), grounded=False)
+    assert seen[1].index("[h]") < seen[1].index("[r]")            # baseline unchanged

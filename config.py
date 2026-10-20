@@ -229,6 +229,13 @@ PLAN_MATCH_MARGIN = float(os.environ.get("PLAN_MATCH_MARGIN", "-0.02"))
 # precision 25/28 vs 29/30 (three partially supported claims). Results
 # reported before that date were produced with v1.
 GENERATOR_PROMPT = os.environ.get("GENERATOR_PROMPT", "v2.1")
+# Order of the passages shown to the grounded generator. "rank" keeps the
+# retrieval order; "results_first" puts results and discussion passages
+# first and hypothesis passages last (within a type, retrieval order), to
+# test whether a small generator answers result questions from a retrieved
+# hypothesis passage because it comes first. Retrieval, citations and
+# verification are unaffected.
+CONTEXT_ORDER = os.environ.get("CONTEXT_ORDER", "rank")
 
 # The exact string the model must emit when nothing supports a claim. The
 # evaluation harness matches on this to score refusal correctness.

@@ -175,6 +175,18 @@ def passage_type(p: Passage) -> str:
     return "其他"
 
 
+_TYPE_ORDER = {"研究結果": 0, "討論": 0, "研究方法": 1, "背景": 1, "其他": 1, "研究假設": 2}
+
+
+def order_passages(passages: list[Passage], order: str = "rank") -> list[Passage]:
+    """Passages in the order the generator sees them (see config.CONTEXT_ORDER).
+    "results_first": results/discussion, then methods/background/other, then
+    hypotheses; the sort is stable, so each group keeps the retrieval order."""
+    if order != "results_first":
+        return list(passages)
+    return sorted(passages, key=lambda p: _TYPE_ORDER.get(passage_type(p), 1))
+
+
 # --------------------------------------------------------------------------
 # Output parsing
 # --------------------------------------------------------------------------
@@ -246,7 +258,8 @@ def generate(
 ) -> GenerationResult:
     llm = llm or LLMClient()
     version = config.GENERATOR_PROMPT if grounded else "v1"
-    context = build_context(passages, version)
+    shown = order_passages(passages, config.CONTEXT_ORDER) if grounded else passages
+    context = build_context(shown, version)
 
     if grounded:
         user = f"檢索段落：\n\n{context}\n\n---\n\n問題：{query}"

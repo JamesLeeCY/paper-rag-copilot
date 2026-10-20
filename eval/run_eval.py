@@ -150,6 +150,8 @@ def _run_signature(strategy: str, llm: LLMClient, verifier, arm: str = "grounded
              config.GENERATOR_PROMPT,
              config.PLAN_RESULT_RULE, str(config.QUOTE_REQUIRED), str(config.FINAL_TOP_K),
              config.EMBED_MODEL, str(config.RERANK_ENABLED), code]
+    if config.CONTEXT_ORDER != "rank":     # (absent at the default: older runs still resume)
+        parts.append(f"order:{config.CONTEXT_ORDER}")
     if config.PLAN_RESULT_MATCH == "on":   # (absent when off: older runs still resume)
         parts.append(f"match:{config.PLAN_MATCH_MODEL}:{config.PLAN_MATCH_MIN_SIM}:"
                      f"{config.PLAN_MATCH_MARGIN}")
