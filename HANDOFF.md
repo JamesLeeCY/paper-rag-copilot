@@ -809,7 +809,8 @@ Open, in suggested order:
 | `f933c50` | Inline-hypothesis route of the plan-as-result rule |
 | `802e99c`, `6c69964` | Cross-lingual retrieval: bge-m3 option, dense-only for Chinese queries |
 | `0405f9d` | Parser: a stray `</quote>` no longer becomes the quote |
-| (this commit) | bge-m3 becomes the default embedder |
+| `11735ed` | bge-m3 becomes the default embedder |
+| (this commit) | PDF reader: drop Frontiers 2024 sidebar, bare DOI headers and equation debris |
 
 ## 10. Completed work log
 

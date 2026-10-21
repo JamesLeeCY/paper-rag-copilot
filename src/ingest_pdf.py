@@ -47,6 +47,17 @@ _BOILERPLATE_RE = re.compile(
     r"^(\*?corresponding author|e-?mail address|contents lists available|journal homepage|"
     r"https?://doi\.org|received \d|available online|this is an open access article|"
     r"\d{4}-\d{3}[\dx]/|©)", re.I)
+# Frontiers (2024 layout) prints article metadata in a page-1 sidebar whose
+# blocks fall inside the body's reading order; drop a block opening with one
+# of these labels. Case-sensitive: the labels are set in capitals.
+_SIDEBAR_RE = re.compile(
+    r"^(?:OPEN ACCESS|EDITED BY|REVIEWED BY|\*?CORRESPONDENCE|RECEIVED \d|ACCEPTED \d|"
+    r"PUBLISHED \d|CITATION\b|COPYRIGHT\b|TYPE [A-Z]|DOI 10\.)")
+# A line that is only a DOI (a running header with too few letters for the
+# repeat check) or only an e-mail address.
+_BARE_ID_RE = re.compile(r"^(?:(?:DOI:? )?10\.\d{4,9}/\S+|\S+@\S+\.[A-Za-z]{2,})$")
+# Glyphs of math fonts without a Unicode mapping come out as control characters.
+_CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
 
 def _collapse_spaced(text: str) -> str:
@@ -134,13 +145,18 @@ def load_pdf(path: Path) -> tuple[list[BodyPara], list[Reference]]:
     started = in_refs = False
     idx = 0
     for b in blocks:
+        if _SIDEBAR_RE.match(b["lines"][0][0]):
+            continue
         lines = [ln for ln in b["lines"]
                  if _norm_repeat(ln[0]) not in repeated
                  and not re.fullmatch(r"\d{1,4}", ln[0])
-                 and not _BOILERPLATE_RE.match(ln[0])]
+                 and not _BOILERPLATE_RE.match(ln[0])
+                 and not _BARE_ID_RE.match(ln[0])]
         if not lines:
             continue
         text = _collapse_spaced(_join_lines([ln[0] for ln in lines]))
+        if _CONTROL_RE.search(text) or len(text) <= 2:
+            continue                        # garbled equation fragment
         heading = _heading(text, lines, body_size)
 
         if heading:
