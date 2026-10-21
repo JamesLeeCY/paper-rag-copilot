@@ -38,9 +38,10 @@ PDFs) page it came from.
 All numbers below are aggregate; the corpora, golden sets and full reports stay
 local (see [Data & privacy](#data--privacy)).
 
-**Current default** (as of 2026-10-19): generator `qwen2.5:7b-instruct` with
-generator prompt `v2.1` (results tables before the v2.1 comparison below were
-produced with `v1`), judge **`phi4`** alone, judge prompt **`v3`** with each
+**Current default** (as of 2026-10-21): embedder **`bge-m3`** (multilingual;
+tables before the embedder comparison below used `bge-small-en-v1.5`),
+generator `qwen2.5:7b-instruct` with generator prompt `v2.1` (results tables
+before the v2.1 comparison below were produced with `v1`), judge **`phi4`** alone, judge prompt **`v3`** with each
 passage's section heading, section-aware chunking, quotes may span chunks, and
 the deterministic plan-as-result rule (`flag`) with its structural, wording and
 hypothesis-match routes; local models run on Ollama, CPU only. The judge was
@@ -332,9 +333,28 @@ match Chinese words against English text — has to be left out for a Chinese
 query: fused in, its noise pushed the right passage down. With
 `EMBED_MODEL=BAAI/bge-m3` (index built with that model) a query containing
 Chinese characters now skips BM25 automatically (`CJK_QUERY_DENSE_ONLY=auto`);
-English questions keep hybrid retrieval and stay as good. The default
-embedder is unchanged so far: switching it changes every index and needs a
-full re-evaluation.
+English questions keep hybrid retrieval and stay as good.
+
+**bge-m3 became the default after a full run** (thesis, 26 answerable
+questions + 37 traps, same generator, judge and code for both embedders,
+2026-10-21):
+
+| | `bge-small-en-v1.5` | **`bge-m3`** |
+|---|---|---|
+| Retrieval Hit@1 / Hit@5 (English questions) | 92% / 100% | 88% / 100% |
+| Strict citation precision | 26/28 | **27/28** |
+| Answers fully supported (26) | 24 | **25** |
+| Traps strict safe (37) | 34 | **35** |
+| Hypothesis-bait safe (12) | 10 | **11** |
+| Mean seconds per question | 127 | **111** |
+
+Every difference is one item (not significant): on English questions the
+multilingual embedder is as good, and on Chinese questions it is much
+better. The run also exposed a parser bug introduced two days earlier — a
+stray `</quote>` after a paraphrased claim turned the claim into its own
+"quote", which then failed the quote check — that rejected five true claims
+across the two runs; it was fixed and those five claims re-judged from the
+saved outputs before the comparison above.
 
 ### Retrieval — chunking ablation (dissertation)
 
@@ -345,7 +365,10 @@ full re-evaluation.
 
 *26 hand-authored golden questions, `bge-small-en-v1.5`, hybrid (dense + BM25) +
 RRF fusion, no reranker.* Section-aware chunking clears the ≥ 90% Hit@k target
-and beats the fixed baseline by 12 points at Hit@5. On the pilot paper the order
+and beats the fixed baseline by 12 points at Hit@5. With `bge-m3` the fixed
+baseline also reaches 100% Hit@5 (Hit@1 73%, MRR 0.835) and section-aware
+chunks keep the edge at the top rank (Hit@1 88%, MRR 0.929): a stronger
+embedder narrows the gap that chunking closes. On the pilot paper the order
 flips slightly (section 95%, fixed 100% Hit@5): a short journal article has
 fewer, shorter sections, so the advantage is corpus-dependent.
 
@@ -563,9 +586,9 @@ pip install -r requirements.txt          # torch is assumed preinstalled
 
 Place the manuscript at the repo root as
 `2026_Manuscripts_BXF+NTSEC_v2.1.docx` (or point `DISSERTATION_DOCX` at it).
-Embeddings are always local; models download on first run (~130 MB for
-`bge-small-en-v1.5`). Swap to a stronger model via
-`EMBED_MODEL=BAAI/bge-large-en-v1.5`.
+Embeddings are always local; models download on first run (~2.3 GB for the
+default `bge-m3`). For a small English-only setup use
+`EMBED_MODEL=BAAI/bge-small-en-v1.5` (~130 MB) and build its index.
 
 Settings can go in a `.env` file (see [`.env.example`](.env.example)); real
 environment variables override it.
@@ -621,7 +644,7 @@ verification are stand-ins (pipeline shape only).
 | `SOURCE_LABEL` | — | How the source is named in answers, e.g. `Author (2026)` |
 | `DISSERTATION_DOCX` | repo-root manuscript | Path to the dissertation `.docx` |
 | `CHUNK_STRATEGY` | `section` | `section` or `fixed` |
-| `EMBED_MODEL` | `BAAI/bge-small-en-v1.5` | Sentence-transformers embedding model |
+| `EMBED_MODEL` | `BAAI/bge-m3` | Sentence-transformers embedding model (multilingual); `BAAI/bge-small-en-v1.5` was the default until 2026-10-21. Each model has its own index |
 | `RERANK_ENABLED`, `RERANK_MODEL` | off, `bge-reranker-base` | Cross-encoder rerank |
 | `LLM_BACKEND` | auto | `claude` or `ollama` |
 | `CLAUDE_MODEL` | see `config.py` | Claude model id |

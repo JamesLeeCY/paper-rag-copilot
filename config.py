@@ -82,9 +82,13 @@ TOKENS_PER_WORD = 1.3
 # --------------------------------------------------------------------------
 # Embedding model (local, via sentence-transformers)
 # --------------------------------------------------------------------------
-# bge-small keeps first-run download small (~130MB) and is fast on CPU.
-# Swap to "BAAI/bge-large-en-v1.5" or "intfloat/e5-large-v2" for higher quality.
-EMBED_MODEL = os.environ.get("EMBED_MODEL", "BAAI/bge-small-en-v1.5")
+# bge-m3 (multilingual, ~2.3 GB) is the default since 2026-10-21: on the four
+# corpora it matches bge-small on English questions (Hit@5 52 vs 53 of 56) and
+# lifts Chinese questions from 52% to 88% Hit@5 (with CJK_QUERY_DENSE_ONLY);
+# a full thesis run was as good or better on every measure. Results reported
+# before that date used "BAAI/bge-small-en-v1.5" (smaller, English only), which
+# is still available. Each model has its own index (`cli.py build`).
+EMBED_MODEL = os.environ.get("EMBED_MODEL", "BAAI/bge-m3")
 EMBED_BATCH = 32
 EMBED_NORMALIZE = True
 # Retrieval query instruction. bge-v1.5 recommends this prefix on queries only.

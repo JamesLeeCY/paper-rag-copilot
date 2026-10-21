@@ -622,9 +622,21 @@ Open, in suggested order:
    zh 41 (19); bge-m3 dense-only zh 49 (40). BM25 hurts cross-lingual
    queries, so `CJK_QUERY_DENSE_ONLY=auto` skips it for a CJK query when the
    embedder is multilingual; embedder: bge-m3 takes no query instruction.
-   Open decision: make bge-m3 the default (rebuild fixed-strategy indexes,
-   rerun the chunking ablation and a full evaluation, since baseline
-   sentence matching and `check` passage choice use the same embedder).
+   **Default since 2026-10-21 (owner's decision).** bge-m3 fixed-strategy
+   indexes built for all four corpora; chunking ablation with bge-m3:
+   thesis fixed Hit@5 88% → 100% (section Hit@1 88%, MRR 0.929). Full thesis
+   run, both embedders, current code, `--fresh` (07:22–11:33; local
+   `eval_results_emb_{small,m3}.json`): five claims had been rejected as
+   fabricated citations by a parser bug from `bc0cba0` (a stray `</quote>`
+   after a paraphrased claim was taken as the quote) → fixed in `0405f9d`
+   and re-judged from the stored raw output (`reverify_emb_*.json`; R10, R26
+   small; R03, R04, R05 m3). Corrected: strict 26/28 vs 27/28, answers clean
+   24 vs 25, traps strict safe 34 vs 35, bait safe 10 vs 11, 127 vs 111 s per
+   question; one genuine unsupported claim each (small R26; m3 R18, a quote
+   not in the source). Earlier runs since `bc0cba0` had no claim rejected
+   through that bug. The pilot corpus's bge-small fixed-strategy index
+   predates the PDF spacing fix (its chunks file was rewritten when the
+   bge-m3 fixed index was built); rebuild it before using bge-small there.
 6. **Human-labelled judge items** (`data/golden/judge_set_human.jsonl`,
    schema in `judge_set_human.example.jsonl`) — owner's task, not started.
 
@@ -795,7 +807,9 @@ Open, in suggested order:
 | `8da43f8` | `CONTEXT_ORDER` (results-first option) |
 | `c7d1491` | Context order tried, not adopted |
 | `f933c50` | Inline-hypothesis route of the plan-as-result rule |
-| (this commit) | Cross-lingual retrieval: bge-m3 option, dense-only for Chinese queries |
+| `802e99c`, `6c69964` | Cross-lingual retrieval: bge-m3 option, dense-only for Chinese queries |
+| `0405f9d` | Parser: a stray `</quote>` no longer becomes the quote |
+| (this commit) | bge-m3 becomes the default embedder |
 
 ## 10. Completed work log
 
