@@ -674,11 +674,21 @@ Open, in suggested order:
    0.016), correct 5–0 (p = 0.063). Not shown by the metrics: grounded R02
    conflated two statistics and phi4 accepted it; grounded R01/R04 are true
    but do not answer the question (answer completeness is not measured).
-   **Open:** the thesis baseline numbers in README (main comparison and
-   bait run) were scored before the fix; 24 of 183 and 19 of 28 baseline
-   sentences there have a Hypotheses-section passage among their two
-   closest and need re-judging (plan to be approved; the grounded arm is not
-   affected).
+   **Thesis baseline re-scored (owner approved; 2026-10-22 09:19–12:37,
+   same wrapper, phi4, 4 threads):** main run `--reuse-from
+   9ade0f6e045ad0b2 --ids` R01–R26, T01–T25, B01–B03, B06 (B04/B05 were
+   replaced since, so not reused); bait run `--reuse-from bff0049629e4185d
+   --traps-only --trap-types hypothesis_bait`; 43 sentences re-judged (local
+   `eval_results_baseline_rescored2.json`,
+   `eval_results_bait4_baseline_rescored2.json`). Outcome: one answerable
+   sentence R19 partial → supported (strict 85 → 86 of 94, answers with a
+   non-supported claim 7 → 6 of 26; grounded's one such answer is R21, so
+   paired 5–0, p 0.031 → 0.063); traps 6/25 correct and 9/25 strict safe,
+   bait 5/12 safe and 4/12 strict safe, unchanged item by item. Other label
+   moves (e.g. unsupported → disputed on bait sentences) are judge variance
+   plus the per-passage rule and change no item outcome. The all-passage
+   sensitivity re-judge (2026-10-15) had already upgraded R19, so its
+   lenient bound stands. The grounded arm is not affected.
 6. **Human-labelled judge items** (`data/golden/judge_set_human.jsonl`,
    schema in `judge_set_human.example.jsonl`) — owner's task, not started.
 
@@ -853,7 +863,8 @@ Open, in suggested order:
 | `0405f9d` | Parser: a stray `</quote>` no longer becomes the quote |
 | `11735ed` | bge-m3 becomes the default embedder |
 | `08e820a` | PDF reader: drop Frontiers 2024 sidebar, bare DOI headers and equation debris |
-| (this commit) | Baseline judging: plan rule per passage, closest non-hypothesis passage; more abstention patterns; Pratviel 2024 results |
+| `bdb3198` | Baseline judging: plan rule per passage, closest non-hypothesis passage; more abstention patterns; Pratviel 2024 results |
+| (this commit) | Thesis baseline re-scored under the new judging (README table updated) |
 
 ## 10. Completed work log
 
@@ -931,7 +942,8 @@ questions and an audit of every non-supported claim (§4).
    Final numbers (grounded v1 vs baseline; Wilson 95%; exact McNemar on the
    same questions): strict precision 97% [84–99] vs 90% [83–95] (85/94);
    hallucination 0% vs 4% (4/94); answers with any non-supported claim 1/26 vs
-   7/26 (p = 0.031); answers with an unsupported claim 0/26 vs 4/26 (p =
+   7/26 (p = 0.031; 6/26, p = 0.063 after the 2026-10-22 re-score, §7 6c);
+   answers with an unsupported claim 0/26 vs 4/26 (p =
    0.125); must-refuse traps refused 18/19 vs 3/19 (p < 0.001), safe 18/19 vs
    14/19 (p = 0.125); all 25 traps correct 22/25 vs 6/25 (p < 0.001);
    false-premise correct 4/6 vs 3/6; baseline opens by denying the premise on

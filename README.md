@@ -148,17 +148,19 @@ v3) check each sentence against its two closest passages. Sentences that only
 abstain ("the text does not report X") or only advise where to look are not
 judged. Same 26 answerable questions and 25 traps as the grounded run
 (2026-10-12/13; Wilson 95% intervals; paired exact McNemar tests). The
-baseline numbers in this section were scored before the 2026-10-22 change
-to sentence judging (plan rule per passage, closest non-hypothesis passage
-added; see "Independent check of the hypothesis routes"), which can only
-move baseline sentences that sit near a Hypotheses section — 24 of 183
-sentences here, 19 of 28 in the bait run:
+baseline rows were re-scored after the 2026-10-22 change to sentence
+judging (plan rule per passage, closest non-hypothesis passage added; see
+"Independent check of the hypothesis routes"): the 43 sentences near a
+Hypotheses section were judged again from the saved answers. One answerable
+sentence moved from partially supported to supported (strict 85 → 86 of 94;
+answers with a non-supported claim 7 → 6 of 26, p 0.031 → 0.063); every
+trap and bait outcome stayed the same item by item:
 
 | | Grounded (default) | Ungrounded baseline | Paired test |
 |---|---|---|---|
-| Strict citation precision (claims / sentences) | **97%** [84–99] (30/31) | 90% [83–95] (85/94) | — |
+| Strict citation precision (claims / sentences) | **97%** [84–99] (30/31) | 91% [84–96] (86/94) | — |
 | Claim hallucination rate | 0% [0–11] | 4% [2–10] (4/94) | — |
-| Answers with any non-supported claim | **4%** (1/26) | 27% (7/26) | p = 0.031 |
+| Answers with any non-supported claim | **4%** (1/26) | 23% (6/26) | p = 0.063 |
 | Answers with an unsupported claim | 0% (0/26) | 15% (4/26) | p = 0.125 |
 | Must-refuse traps refused | **95%** [75–99] (18/19) | 16% [6–38] (3/19) | p < 0.001 |
 | Must-refuse traps safe (no rejected/disputed claim) | 95% [75–99] | 74% [51–88] (14/19) | p = 0.125 |
@@ -219,6 +221,9 @@ context passages it had not been judged on, keeping the better label:
 | Hypothesis-bait traps safe (first bait set) | 5/6 → 6/6 | 0/6 → 1/6 | p = 0.063 |
 | Premise traps (false-premise + first bait set) **strict safe** | 8/12 → 9/12 | 1/12 → 1/12 | p = 0.016 → 0.008 |
 
+The "before" column is the 2026-10-15 scoring; the 2026-10-22 re-score of
+the main table moved one baseline sentence (R19), which this all-passage
+re-judge had already upgraded, so the lenient bound is unchanged.
 14 labels changed. Six baseline flips were justified (the evidence was in an
 unseen passage), so the 2-passage view does penalise the baseline. But the
 wider view also made the judge more lenient on traps: a claim stating a
@@ -382,8 +387,9 @@ VAS result) and the judge accepted it; and two grounded answers were true
 but did not answer the question (R01 gave the method and the hypothesis —
 the results passage was not retrieved; R04 gave the guided-breathing effect,
 not the immersion-alone null). Answer completeness is not measured. The
-baseline numbers of the thesis comparisons above were scored before the
-fix; see HANDOFF §7 for their re-score.
+thesis baseline was re-scored under the fix (43 sentences judged again):
+one answerable sentence improved, no trap or bait outcome changed (see the
+baseline section above).
 
 ### Chinese questions over English sources (2026-10-21)
 
