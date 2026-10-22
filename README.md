@@ -463,6 +463,23 @@ Chinese claims phi4 also reasons in Chinese and was less reliable here
 than on the English runs. Usable for Chinese questions over English
 sources, with lower answer precision on yes/no questions.
 
+**A prompt rule against the echo was tried and not adopted** (generator
+prompt `v2.2` = v2.1 + rule 8: on a yes/no question, do not restate the
+question as an affirmative claim; state the reported result, which may be
+"no difference", and quote that sentence). 34-item calibration (thesis 9
+answerable + 9 traps/bait in Chinese, Pratviel 10 in Chinese, Rockstroh 2
+in Chinese, Pratviel 4 in English), compared item by item with v2.1:
+30 outcomes identical, most answers word for word — including the two
+target echoes, so the false "the conditions differed" stayed. Two improved
+(a verbatim quote instead of a missing or paraphrased one) and two English
+answers got worse: one now restated the confirmed H1A as a finding and was
+disputed by the hypothesis-match route, one answered an English question in
+Chinese with a quote from the wrong comparison. Net zero, below the
+adoption bar (≥ +3 and no regression), so the full run was not done and
+v2.1 stays the default; `v2.2` remains selectable for reproduction. As with
+the earlier rule-5 attempt, one-sentence prompt edits barely move a 7B
+generator where intended and move it elsewhere.
+
 ### Retrieval — chunking ablation (dissertation)
 
 | Strategy | Hit@1 | Hit@3 | Hit@5 | MRR |
@@ -766,7 +783,7 @@ verification are stand-ins (pipeline shape only).
 | `QUOTE_REQUIRED` | off | `1` also rejects claims without a supporting quote |
 | `CJK_QUERY_DENSE_ONLY` | `auto` | Skip BM25 for a query with Chinese characters: `auto` when `EMBED_MODEL` is multilingual (bge-m3), `on`, `off` |
 | `CONTEXT_ORDER` | `rank` | Order of the passages shown to the grounded generator: `rank` (retrieval order) or `results_first` (results/discussion, then methods/background, hypotheses last). Tried, not adopted |
-| `GENERATOR_PROMPT` | `v2.1` | Generator prompt (see "Generator prompt v2.1"); `v1` is the original; `v2` adds source-language quotes, passage-type labels (hypotheses/methods never stated as findings), explicit attribution of cited studies, negative facts answered, refusal marker only in `<unsupported_note>`. Evaluated, not adopted: better on trap questions, but more format errors on answerable ones (see Known limitations) |
+| `GENERATOR_PROMPT` | `v2.1` | Generator prompt (see "Generator prompt v2.1"); `v1` is the original; `v2` adds source-language quotes, passage-type labels (hypotheses/methods never stated as findings), explicit attribution of cited studies, negative facts answered, refusal marker only in `<unsupported_note>`. Evaluated, not adopted: better on trap questions, but more format errors on answerable ones (see Known limitations). `v2.2` = v2.1 + a yes/no-question rule; calibrated, not adopted (see "End to end with Chinese questions") |
 | `PLAN_RESULT_RULE` | `flag` | Plan or prediction read as a result: `flag` → disputed, `reject` → unsupported, `off` |
 | `PLAN_RESULT_MATCH` | `on` | Hypothesis-match route of that rule (partially supported claims closer to a hypothesis in the context than to their citation); `off` disables |
 | `PLAN_MATCH_MODEL` / `PLAN_MATCH_MIN_SIM` / `PLAN_MATCH_MARGIN` | `BAAI/bge-m3` / 0.55 / −0.02 | Embedder and thresholds of that route |

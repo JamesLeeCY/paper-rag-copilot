@@ -84,7 +84,17 @@ SYSTEM_GROUNDED_V21 = f"""你是一個嚴格的學術文獻查證助理。你只
   <refusal>{config.REFUSAL_MARKER}</refusal>
 </answer>"""
 
-GROUNDED_PROMPTS = {"v1": SYSTEM_GROUNDED, "v2": SYSTEM_GROUNDED_V2, "v2.1": SYSTEM_GROUNDED_V21}
+# v2.2 = v2.1 + rule 8 (under evaluation, 2026-10-22): asked yes/no questions
+# in Chinese, v2.1 often restated the question as an affirmative claim and
+# attached a quote — once a false one ("the conditions differed").
+_RULE_8 = ("8. 問題是「是否／有沒有／……嗎」這類是非題時，不可把問題直接改寫成肯定句當論點。"
+           "先找出段落實際報告的結果，論點寫成那個結果（可能是「有」，也可能是「沒有差異」"
+           "「沒有改變」），<quote> 照抄陳述該結果的那一句。")
+SYSTEM_GROUNDED_V22 = SYSTEM_GROUNDED_V21.replace(
+    "\n\n只輸出 XML", f"\n{_RULE_8}\n\n只輸出 XML", 1)
+
+GROUNDED_PROMPTS = {"v1": SYSTEM_GROUNDED, "v2": SYSTEM_GROUNDED_V2, "v2.1": SYSTEM_GROUNDED_V21,
+                    "v2.2": SYSTEM_GROUNDED_V22}
 
 SYSTEM_BASELINE = """You are a helpful research assistant. Answer the user's
 question about the dissertation as completely and fluently as you can. Write a

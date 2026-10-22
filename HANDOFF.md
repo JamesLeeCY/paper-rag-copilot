@@ -709,9 +709,26 @@ Open, in suggested order:
    "the conditions differed" → only partial); phi4, reasoning in Chinese,
    rejected a true claim with a correct quote (Pratviel R04); Rockstroh R07
    paraphrased its quote (fabricated-citation rejection of a true claim).
-   Possible follow-ups (not started): a generator rule against restating a
-   yes/no question as the claim, and judging Chinese claims with an English
-   reasoning instruction.
+   Follow-ups: (a) generator rule — tried 2026-10-22, not adopted (below);
+   (b) a verification-side echo check (claim nearly identical to the
+   question → review), testable offline on saved outputs — next; (c) judging
+   Chinese claims with an English reasoning instruction — not started.
+   **Generator prompt v2.2 (rule 8, yes/no questions) — calibration
+   2026-10-22 22:04–23:56, not adopted.** `GENERATOR_PROMPT=v2.2`, `--fresh`,
+   34 items: thesis zh R01 R05 R06 R11 R16 R18 R19 R21 R26 (only R05/R06 of
+   the thesis questions are yes/no in Chinese) + T20–T25 B01 B02 B07;
+   Pratviel zh R01–R07 T01–T03; Rockstroh zh R05 R07; Pratviel en R01–R04
+   (local `eval_results_v22cal_*.json`). Against v2.1 on the same items: 30
+   identical outcomes, most outputs word for word, including the target
+   echoes (Pratviel zh R01 unsupported, R02 false "differed" partial).
+   Better: Pratviel zh R06 (verbatim quote), Rockstroh zh R07 (quote no
+   longer paraphrased). Worse: Pratviel en R01 (now states the confirmed H1A
+   as a finding citing the Discussion; hypothesis-match route → disputed, a
+   false flag of the known kind), en R02 (correct "no difference" but
+   written in Chinese for an English question, quote from the
+   Baseline–Immersion comparison → unsupported). Criteria (Pratviel zh clean
+   ≥ 5/7, R02 fixed, no regression, net ≥ +3) not met → full run skipped,
+   default stays v2.1, v2.2 kept registered for reproduction.
 6. **Human-labelled judge items** (`data/golden/judge_set_human.jsonl`,
    schema in `judge_set_human.example.jsonl`) — owner's task, not started.
 
@@ -888,7 +905,8 @@ Open, in suggested order:
 | `08e820a` | PDF reader: drop Frontiers 2024 sidebar, bare DOI headers and equation debris |
 | `bdb3198` | Baseline judging: plan rule per passage, closest non-hypothesis passage; more abstention patterns; Pratviel 2024 results |
 | `5ea9d0d` | Thesis baseline re-scored under the new judging (README table updated) |
-| (this commit) | `eval --lang zh`; Chinese-question end-to-end results |
+| `8f47750` | `eval --lang zh`; Chinese-question end-to-end results |
+| (this commit) | Generator prompt v2.2 (yes/no rule): calibrated, not adopted |
 
 ## 10. Completed work log
 

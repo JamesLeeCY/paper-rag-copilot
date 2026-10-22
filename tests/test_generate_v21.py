@@ -107,3 +107,11 @@ def test_context_order_changes_only_the_grounded_prompt(monkeypatch):
     assert [p.chunk_id for p in res.passages] == ["h", "r"]       # retrieval order kept
     G.generate("q", ps, llm=FakeLLM(), grounded=False)
     assert seen[1].index("[h]") < seen[1].index("[r]")            # baseline unchanged
+
+
+def test_v22_is_v21_plus_the_yes_no_rule():
+    v21, v22 = G.GROUNDED_PROMPTS["v2.1"], G.GROUNDED_PROMPTS["v2.2"]
+    rule = v22[v22.index("8. "):v22.index("\n\n只輸出 XML")]
+    assert v22.replace("\n" + rule, "") == v21
+    assert "是非題" in rule and "沒有差異" in rule
+    assert len(v22) < 1400
