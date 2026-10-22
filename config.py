@@ -225,6 +225,19 @@ PLAN_RESULT_MATCH = os.environ.get("PLAN_RESULT_MATCH", "on")
 PLAN_MATCH_MODEL = os.environ.get("PLAN_MATCH_MODEL", "BAAI/bge-m3")
 PLAN_MATCH_MIN_SIM = float(os.environ.get("PLAN_MATCH_MIN_SIM", "0.55"))
 PLAN_MATCH_MARGIN = float(os.environ.get("PLAN_MATCH_MARGIN", "-0.02"))
+# Echo rule (default "flag" since 2026-10-23, owner's decision): asked a
+# yes/no question, the generator sometimes restates the question as an
+# affirmative claim — once a false one that the judge rated only partially
+# supported. "flag" sends a partially supported claim that echoes a yes/no
+# question to review (disputed); "off" disables it. A claim echoes the
+# question when both its embedding similarity (PLAN_MATCH_MODEL) and its
+# character overlap with the question, question words removed, reach these
+# thresholds. Set on the saved outputs, where it flags the one real case and
+# nothing else (3 partially supported claims on yes/no questions in all):
+# not independently validated.
+ECHO_RULE = os.environ.get("ECHO_RULE", "flag")
+ECHO_MIN_SIM = float(os.environ.get("ECHO_MIN_SIM", "0.90"))
+ECHO_MIN_OVERLAP = float(os.environ.get("ECHO_MIN_OVERLAP", "0.70"))
 # Generator prompt version (src/generate.py). "v2" adds: quotes in the source
 # language, hypotheses/methods never stated as findings (with passage-type
 # labels in the context), cited studies attributed explicitly, negative facts

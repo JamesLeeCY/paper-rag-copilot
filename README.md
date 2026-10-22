@@ -38,13 +38,15 @@ PDFs) page it came from.
 All numbers below are aggregate; the corpora, golden sets and full reports stay
 local (see [Data & privacy](#data--privacy)).
 
-**Current default** (as of 2026-10-21): embedder **`bge-m3`** (multilingual;
+**Current default** (as of 2026-10-23): embedder **`bge-m3`** (multilingual;
 tables before the embedder comparison below used `bge-small-en-v1.5`),
 generator `qwen2.5:7b-instruct` with generator prompt `v2.1` (results tables
 before the v2.1 comparison below were produced with `v1`), judge **`phi4`** alone, judge prompt **`v3`** with each
 passage's section heading, section-aware chunking, quotes may span chunks, and
-the deterministic plan-as-result rule (`flag`) with its structural, wording and
-hypothesis-match routes; local models run on Ollama, CPU only. The judge was
+the deterministic plan-as-result rule (`flag`) with its structural, wording,
+inline and hypothesis-match routes, and the echo rule (`flag`, since
+2026-10-23: a partially supported claim restating a yes/no question goes to
+review); local models run on Ollama, CPU only. The judge was
 chosen on the judge validation below (2026-10-07). "Previous" below means
 judges `qwen2.5:7b-instruct` + `gemma3:12b` (unanimous) with prompt `v2`.
 
@@ -480,6 +482,23 @@ v2.1 stays the default; `v2.2` remains selectable for reproduction. As with
 the earlier rule-5 attempt, one-sentence prompt edits barely move a 7B
 generator where intended and move it elsewhere.
 
+**An echo check on the verification side instead (default since
+2026-10-23).** Restating the question is not itself an error — of the 8
+saved claims that echo a yes/no question (44 claims answer one, all
+corpora, both languages), 5 are true — so the rule only touches what the
+judge rated *partially supported*: such a claim, when it restates the yes/no
+question (bge-m3 similarity ≥ 0.90 and character overlap ≥ 0.70 once
+question words are removed), goes to review as `disputed`. Applied offline
+to every saved grounded output it fires once, on the false "the conditions
+differed", and flags no true claim; the other two partially supported
+claims on yes/no questions score far below the thresholds (0.66 and 0.62).
+That is one positive, with thresholds set on the same outputs, so it is not
+independently validated; it was turned on because Chinese yes/no questions
+keep producing echoes (a false echo was also seen on a thesis bait item,
+which the judge caught) and a false flag only sends a claim to review.
+`ECHO_RULE=off` disables it. It does not help when the judge rejects a true
+echo (Pratviel R04); that needs a better judge.
+
 ### Retrieval — chunking ablation (dissertation)
 
 | Strategy | Hit@1 | Hit@3 | Hit@5 | MRR |
@@ -785,6 +804,7 @@ verification are stand-ins (pipeline shape only).
 | `CONTEXT_ORDER` | `rank` | Order of the passages shown to the grounded generator: `rank` (retrieval order) or `results_first` (results/discussion, then methods/background, hypotheses last). Tried, not adopted |
 | `GENERATOR_PROMPT` | `v2.1` | Generator prompt (see "Generator prompt v2.1"); `v1` is the original; `v2` adds source-language quotes, passage-type labels (hypotheses/methods never stated as findings), explicit attribution of cited studies, negative facts answered, refusal marker only in `<unsupported_note>`. Evaluated, not adopted: better on trap questions, but more format errors on answerable ones (see Known limitations). `v2.2` = v2.1 + a yes/no-question rule; calibrated, not adopted (see "End to end with Chinese questions") |
 | `PLAN_RESULT_RULE` | `flag` | Plan or prediction read as a result: `flag` → disputed, `reject` → unsupported, `off` |
+| `ECHO_RULE` | `flag` | A partially supported claim that restates a yes/no question (embedding similarity ≥ `ECHO_MIN_SIM` 0.90 and character overlap ≥ `ECHO_MIN_OVERLAP` 0.70, question words removed) is sent to review as `disputed`; `off` disables. Not independently validated (see "End to end with Chinese questions") |
 | `PLAN_RESULT_MATCH` | `on` | Hypothesis-match route of that rule (partially supported claims closer to a hypothesis in the context than to their citation); `off` disables |
 | `PLAN_MATCH_MODEL` / `PLAN_MATCH_MIN_SIM` / `PLAN_MATCH_MARGIN` | `BAAI/bge-m3` / 0.55 / −0.02 | Embedder and thresholds of that route |
 

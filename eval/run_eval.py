@@ -155,6 +155,8 @@ def _run_signature(strategy: str, llm: LLMClient, verifier, arm: str = "grounded
     if config.PLAN_RESULT_MATCH == "on":   # (absent when off: older runs still resume)
         parts.append(f"match:{config.PLAN_MATCH_MODEL}:{config.PLAN_MATCH_MIN_SIM}:"
                      f"{config.PLAN_MATCH_MARGIN}")
+    if config.ECHO_RULE != "off":          # (absent when off: older runs still resume)
+        parts.append(f"echo:{config.ECHO_RULE}:{config.ECHO_MIN_SIM}:{config.ECHO_MIN_OVERLAP}")
     if reuse_from:          # answers and verdicts carried over from that run
         parts.append(f"reuse:{reuse_from}")
     if "ollama" in llm.describe() or "ollama" in verifier.describe():

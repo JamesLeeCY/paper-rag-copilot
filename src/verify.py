@@ -504,6 +504,40 @@ def hypothesis_match(statement: str, cited: list[str], context: list[tuple[str, 
     return ""
 
 
+_YES_NO_ZH_RE = re.compile(r"是否|有沒有|有没有|[嗎吗][？?。]?\s*$")
+_YES_NO_EN_RE = re.compile(r"^\s*(?:did|does|do|is|are|was|were|has|have|had|can|could)\b", re.I)
+_QUESTION_WORDS_RE = re.compile(
+    r"是否|有沒有|有没有|[嗎吗]|^\s*(?:did|does|do|is|are|was|were|has|have|had|can|could)\b", re.I)
+_NON_WORD_RE = re.compile(r"[\W_]+")
+
+
+def is_yes_no(question: str) -> bool:
+    return bool(_YES_NO_ZH_RE.search(question) or _YES_NO_EN_RE.search(question))
+
+
+def echo_scores(statement: str, question: str) -> tuple[float, float] | None:
+    """(embedding similarity, character overlap) of a claim with a yes/no
+    question, question words removed; None if the question is not yes/no."""
+    if not question or not is_yes_no(question):
+        return None
+    import difflib
+
+    q = _QUESTION_WORDS_RE.sub("", question)
+    a, b = (_NON_WORD_RE.sub("", s).lower() for s in (statement, q))
+    overlap = difflib.SequenceMatcher(None, a, b).ratio() if a and b else 0.0
+    v = _encode([statement, q])
+    return float(v[0] @ v[1]), overlap
+
+
+def echo_of_question(statement: str, question: str) -> str:
+    """Reason string if the claim restates the yes/no question, else ""."""
+    s = echo_scores(statement, question)
+    if s and s[0] >= config.ECHO_MIN_SIM and s[1] >= config.ECHO_MIN_OVERLAP:
+        return (f"rule: claim restates the yes/no question (similarity {s[0]:.2f}, "
+                f"overlap {s[1]:.2f})")
+    return ""
+
+
 def quote_span(quote: str, passages: list) -> list | None:
     """Passages that together contain every sentence of ``quote``, or None.
 
@@ -803,6 +837,11 @@ class Verifier:
         cited_passages = [p for p in result.passages if p.chunk_id in citation_ids]
         self._apply_plan_rule(best, quote, [p.text for p in cited_passages],
                               [_heading_of(p) for p in cited_passages], result.passages)
+        if config.ECHO_RULE == "flag" and best.label == "partially_supported":
+            why = echo_of_question(claim.statement, result.query)
+            if why:
+                best.label = "disputed"
+                best.reason = f"{why}. Judge said: {best.reason}"
         if repaired:
             best.citation_repaired_from = claim.citation_ids
             how = ("quote spans chunks " + " + ".join(citation_ids)

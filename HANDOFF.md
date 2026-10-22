@@ -710,9 +710,26 @@ Open, in suggested order:
    rejected a true claim with a correct quote (Pratviel R04); Rockstroh R07
    paraphrased its quote (fabricated-citation rejection of a true claim).
    Follow-ups: (a) generator rule — tried 2026-10-22, not adopted (below);
-   (b) a verification-side echo check (claim nearly identical to the
-   question → review), testable offline on saved outputs — next; (c) judging
-   Chinese claims with an English reasoning instruction — not started.
+   (b) a verification-side echo check — done 2026-10-23, **default on**
+   (owner's decision; below); (c) judging Chinese claims with an English
+   reasoning instruction — not started.
+   **Echo rule (`ECHO_RULE=flag`, `verify.echo_of_question`).** A claim the
+   judge rated partially supported that restates a yes/no question (zh
+   是否/有沒有/嗎, en Did/Does/Is/Are/Was/Were/Has/Have/Can/Could…; bge-m3
+   similarity ≥ 0.90 and difflib character overlap ≥ 0.70 after removing
+   question words) → disputed. Offline over every saved grounded output
+   (scratchpad `echo_offline.py`, deduplicated): 44 claims answer a yes/no
+   question (36 supported, 4 unsupported, 3 partial, 1 disputed); 8 are
+   echoes — false: Pratviel zh R02 (partial → the rule flags it) and thesis
+   B02 (unsupported, older runs); true with wrong evidence: Pratviel zh R01
+   (unsupported); true: Pratviel zh R03, R07, thesis zh R06 (supported),
+   Pratviel en R01 of the v2.2 calibration (disputed by hypothesis match),
+   Pratviel zh R04 (unsupported — judge error). The other two partial claims
+   on yes/no questions score 0.66/0.42 and 0.62/0.26. One positive, no false
+   flag, thresholds set on the same data: not independently validated.
+   Signature gains `echo:` when the rule is not off (older runs resumable
+   only with `ECHO_RULE=off`). No saved metric changes except Pratviel zh
+   R02 (partial → disputed) when re-scored.
    **Generator prompt v2.2 (rule 8, yes/no questions) — calibration
    2026-10-22 22:04–23:56, not adopted.** `GENERATOR_PROMPT=v2.2`, `--fresh`,
    34 items: thesis zh R01 R05 R06 R11 R16 R18 R19 R21 R26 (only R05/R06 of
@@ -906,7 +923,8 @@ Open, in suggested order:
 | `bdb3198` | Baseline judging: plan rule per passage, closest non-hypothesis passage; more abstention patterns; Pratviel 2024 results |
 | `5ea9d0d` | Thesis baseline re-scored under the new judging (README table updated) |
 | `8f47750` | `eval --lang zh`; Chinese-question end-to-end results |
-| (this commit) | Generator prompt v2.2 (yes/no rule): calibrated, not adopted |
+| `42aafd2` | Generator prompt v2.2 (yes/no rule): calibrated, not adopted |
+| (this commit) | Echo rule: partially supported claim restating a yes/no question → review (default on) |
 
 ## 10. Completed work log
 
