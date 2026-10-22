@@ -82,6 +82,8 @@ def cmd_eval(args):
         sys.argv += ["--trap-types", *args.trap_types]
     if args.ids:
         sys.argv += ["--ids", *args.ids]
+    if args.lang != "en":
+        sys.argv += ["--lang", args.lang]
     eval_main()
 
 
@@ -146,6 +148,8 @@ def build_parser():
                    help="ignore questions saved by an interrupted run and start over")
     e.add_argument("--ids", nargs="+", default=None, metavar="ID",
                    help="LLM pass on these question ids only")
+    e.add_argument("--lang", choices=["en", "zh"], default="en",
+                   help="ask each question in this language (zh: the items' question_zh)")
     e.add_argument("--trap-types", nargs="+", default=None, metavar="TYPE",
                    help="LLM pass on these trap types only (e.g. hypothesis_bait)")
     e.add_argument("--reuse-from", default="", metavar="SIGNATURE",

@@ -689,6 +689,29 @@ Open, in suggested order:
    plus the per-passage rule and change no item outcome. The all-passage
    sensitivity re-judge (2026-10-15) had already upgraded R19, so its
    lenient bound stands. The grounded arm is not affected.
+6d. **Chinese questions end to end — done 2026-10-22 (owner approved, plan
+   A).** `eval --lang zh` swaps each item's question for `question_zh` (the
+   English one kept as `question_en`; items without one keep their
+   question); traps were translated locally (thesis T01–T25, Pratviel
+   T01–T09; backups `golden_set.before-zh-traps.json`). Grounded arm only,
+   `--fresh`, 15:56–19:20, 4 threads (local `eval_results_zh_grounded.json`
+   per report dir); compared with the 2026-10-21 English runs
+   (`eval_results_emb_m3.json` + `reverify_emb_m3.json` for the thesis,
+   `eval_results_hypval_grounded.json` for the two OA papers). Thesis: clean
+   answers 25 → 23 (R16, R26 one partial claim each; R21 refused although
+   its passage ranked first; R18 improved), strict 27/28 → 27/29, traps and
+   bait identical item by item (36/37 correct, 35/37 strict safe), 0
+   translated quotes, 128 s per question. Pratviel: clean 7 → 3, strict 9/9
+   → 4/8, traps 9/9. Rockstroh: clean 6 → 5, strict 7/8 → 6/8. Pooled
+   discordant 9 vs 2 (p ≈ 0.065). Failure pattern: on yes/no questions the
+   generator echoes the Chinese question as an affirmative claim (Pratviel
+   R01 true claim with an irrelevant quote → unsupported; R02 false claim
+   "the conditions differed" → only partial); phi4, reasoning in Chinese,
+   rejected a true claim with a correct quote (Pratviel R04); Rockstroh R07
+   paraphrased its quote (fabricated-citation rejection of a true claim).
+   Possible follow-ups (not started): a generator rule against restating a
+   yes/no question as the claim, and judging Chinese claims with an English
+   reasoning instruction.
 6. **Human-labelled judge items** (`data/golden/judge_set_human.jsonl`,
    schema in `judge_set_human.example.jsonl`) — owner's task, not started.
 
@@ -864,7 +887,8 @@ Open, in suggested order:
 | `11735ed` | bge-m3 becomes the default embedder |
 | `08e820a` | PDF reader: drop Frontiers 2024 sidebar, bare DOI headers and equation debris |
 | `bdb3198` | Baseline judging: plan rule per passage, closest non-hypothesis passage; more abstention patterns; Pratviel 2024 results |
-| (this commit) | Thesis baseline re-scored under the new judging (README table updated) |
+| `5ea9d0d` | Thesis baseline re-scored under the new judging (README table updated) |
+| (this commit) | `eval --lang zh`; Chinese-question end-to-end results |
 
 ## 10. Completed work log
 

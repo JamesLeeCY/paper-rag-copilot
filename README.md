@@ -432,6 +432,37 @@ stray `</quote>` after a paraphrased claim turned the claim into its own
 across the two runs; it was fixed and those five claims re-judged from the
 saved outputs before the comparison above.
 
+**End to end with Chinese questions** (2026-10-22, `eval --with-llm --lang
+zh`, grounded arm, current defaults; every question asked in Traditional
+Chinese — the thesis's 12 bait items were already Chinese; compared item by
+item with the English runs of 2026-10-21 under the same settings):
+
+| | Thesis en → zh | Pratviel 2024 en → zh | Rockstroh 2020 en → zh |
+|---|---|---|---|
+| Retrieval Hit@5 (answerable) | 100% → 92% | 100% → 86% | 100% → 100% |
+| Answers fully supported | 25 → 23 (of 26) | **7 → 3** (of 7) | 6 → 5 (of 7) |
+| Claims supported, strict | 27/28 → 27/29 | **9/9 → 4/8** | 7/8 → 6/8 |
+| Traps correct / strict safe | 36, 35 → **36, 35** (of 37) | 9, 9 → **9, 9** | — |
+| Answerable questions refused | 0 → 1 | 0 → 0 | 0 → 0 |
+| Quotes translated into Chinese | 0 → **0** | 0 → 0 | 0 → 0 |
+
+Refusal and safety do not depend on the question language: every trap and
+bait outcome is the same item by item, and every quote stayed verbatim
+English. Answer precision does: pooled over the three corpora, 9 answers
+were clean in English only and 2 in Chinese only (exact McNemar p ≈ 0.065).
+On the thesis the difference is small (two partially supported claims and
+one refusal of a question whose passage was ranked first; one answer
+improved). The losses concentrate on yes/no questions ("did X reduce Y?",
+"did A and B differ?"): the generator tends to turn the Chinese question
+into an affirmative claim and attach a quote. Verification caught most of
+it — a true claim with an irrelevant quote was rejected, a quote the
+generator paraphrased failed the quote check — but not all: a **false**
+echo ("the two conditions differed"; they did not) got only partially
+supported, and phi4 rejected one true claim with a correct quote. With
+Chinese claims phi4 also reasons in Chinese and was less reliable here
+than on the English runs. Usable for Chinese questions over English
+sources, with lower answer precision on yes/no questions.
+
 ### Retrieval — chunking ablation (dissertation)
 
 | Strategy | Hit@1 | Hit@3 | Hit@5 | MRR |
@@ -841,6 +872,7 @@ python cli.py eval --with-llm --answerable-only      # answerable questions only
 python cli.py eval --with-llm --fresh                # ignore an interrupted run's saved questions
 python cli.py eval --with-llm --baseline             # ungrounded arm, judged sentence by sentence
 python cli.py eval --with-llm --baseline --reuse-from <run>  # re-score saved baseline answers
+python cli.py eval --with-llm --lang zh              # ask every question in Chinese (question_zh)
 python -m eval.rejudge [--limit 3]                  # sensitivity: re-judge non-supported claims of both arms on all 5 passages
 
 # 5. Judge validation

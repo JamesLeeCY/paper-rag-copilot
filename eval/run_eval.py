@@ -163,6 +163,22 @@ def _run_signature(strategy: str, llm: LLMClient, verifier, arm: str = "grounded
     return hashlib.sha256("\x00".join(parts).encode("utf-8")).hexdigest()[:16]
 
 
+def in_language(golden: dict, lang: str) -> dict:
+    """The golden set with each question in ``lang``: "zh" takes an item's
+    ``question_zh`` (the English one is kept as ``question_en``); items without
+    one keep their question (some bait items are written in Chinese). The
+    question text is part of each progress key, so runs in different
+    languages never share saved records."""
+    if lang == "en":
+        return golden
+    out = dict(golden)
+    for part in ("retrieval", "traps"):
+        out[part] = [dict(it, question=it[f"question_{lang}"], question_en=it["question"])
+                     if it.get(f"question_{lang}") else it
+                     for it in golden.get(part, [])]
+    return out
+
+
 def _question_key(kind: str, it: dict) -> str:
     return f"{kind}|{it['id']}|" + hashlib.md5(it["question"].encode("utf-8")).hexdigest()[:10]
 
@@ -800,13 +816,16 @@ def main():
     ap.add_argument("--reuse-from", default="", metavar="SIGNATURE",
                     help="baseline arm: reuse the answers and unchanged sentence verdicts "
                          "saved by that earlier run (after a splitting/abstention change)")
+    ap.add_argument("--lang", choices=["en", "zh"], default="en",
+                    help="ask each question in this language (zh: the items' question_zh)")
     ap.add_argument("--llm-limit", type=int, default=None,
                     help="cap #retrieval and #trap questions for the LLM pass (quick runs)")
     args = ap.parse_args()
 
-    golden = load_golden()
+    golden = in_language(load_golden(), args.lang)
     results = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "lang": args.lang,
         "embed_model": config.EMBED_MODEL,
         "rerank": args.rerank,
         "n_retrieval": len(golden["retrieval"]),
