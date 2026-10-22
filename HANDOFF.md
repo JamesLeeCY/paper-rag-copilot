@@ -637,6 +637,48 @@ Open, in suggested order:
    through that bug. The pilot corpus's bge-small fixed-strategy index
    predates the PDF spacing fix (its chunks file was rewritten when the
    bge-m3 fixed index was built); rebuild it before using bge-small there.
+6c. **Independent check of the hypothesis routes — done 2026-10-22.**
+   (i) Completed-study controls rewritten to ask for measured outcomes
+   (local `golden_set.json`, old set `golden_set.before-rewrite.json`; 7
+   items, R07 the exploratory distance result). With bge-m3 the old R01/R04
+   had retrieved only hypothesis and introduction passages (no results
+   passage in the top 5); the new set has no hypothesis passage in any top 5
+   (Hit@5 7/7). (ii) New corpus `frvir_vr_hrv_2024` (Pratviel, Bouny &
+   Deschodt-Arsac 2024, CC BY; `papers/frvir_vr_hrv_2024.pdf`, 2.2 MB):
+   numbered "1.5 Hypotheses" heading; PDF reader fixed for the 2024
+   Frontiers layout (`08e820a`; the other PDFs parse identically). Local set:
+   R01–R07 (R01–R03 worded like H1A/H1B/H2), T01–T03 false premise, T04–T06
+   hypothesis bait, T07–T08 near-absent, T09 far-absent; Hit@5 7/7 (R01's
+   results passage is not retrieved; the Discussion states it). Run
+   2026-10-21 21:54 – 10-22 02:58 (4 threads; local
+   `eval_results_hypval_{grounded,baseline}.json` in both report dirs).
+   Completed study: grounded 7 answers all from results/methods passages,
+   strict 7/8 (R06 figure-caption detail); baseline 17/18. Pratviel:
+   grounded answers 7/7 clean, strict 9/9, traps 9/9 correct and strict
+   safe, no rule fired; baseline 3/7, 18/26, traps 3/9 (strict 2/9). Rule
+   behaviour in the baseline: hypothesis-match caught T03 (false H3 claim);
+   structural route disputed a true R03 sentence (H2 supported) because it
+   was judged against its two closest passages and the hypothesis came
+   first. Fixes (this commit): `verify_statement` applies the plan rule per
+   passage before choosing the best label; `_closest` adds the closest
+   non-hypothesis passage when a Hypotheses-section passage is among the k
+   closest; `REFUSAL_HINT_RE` covers "not possible to determine", "unclear
+   from the provided context", "not … in the provided context", "does not
+   … break down". Re-scored from the saved answers (scratchpad wrapper
+   around `--reuse-from 9f0d6bf91aa376b3` that drops cached verdicts of
+   sentences near a Hypotheses section; 08:20–09:05; local
+   `eval_results_hypval_baseline_rescored.json`): R03 sentence supported,
+   T03 still disputed, R01's true sentence still unsupported (its results
+   passage is not retrieved), four abstentions no longer judged → baseline
+   4/7, 19/26, traps 4/9 (strict 2/9). McNemar on traps: strict 7–0 (p =
+   0.016), correct 5–0 (p = 0.063). Not shown by the metrics: grounded R02
+   conflated two statistics and phi4 accepted it; grounded R01/R04 are true
+   but do not answer the question (answer completeness is not measured).
+   **Open:** the thesis baseline numbers in README (main comparison and
+   bait run) were scored before the fix; 24 of 183 and 19 of 28 baseline
+   sentences there have a Hypotheses-section passage among their two
+   closest and need re-judging (plan to be approved; the grounded arm is not
+   affected).
 6. **Human-labelled judge items** (`data/golden/judge_set_human.jsonl`,
    schema in `judge_set_human.example.jsonl`) — owner's task, not started.
 
@@ -810,7 +852,8 @@ Open, in suggested order:
 | `802e99c`, `6c69964` | Cross-lingual retrieval: bge-m3 option, dense-only for Chinese queries |
 | `0405f9d` | Parser: a stray `</quote>` no longer becomes the quote |
 | `11735ed` | bge-m3 becomes the default embedder |
-| (this commit) | PDF reader: drop Frontiers 2024 sidebar, bare DOI headers and equation debris |
+| `08e820a` | PDF reader: drop Frontiers 2024 sidebar, bare DOI headers and equation debris |
+| (this commit) | Baseline judging: plan rule per passage, closest non-hypothesis passage; more abstention patterns; Pratviel 2024 results |
 
 ## 10. Completed work log
 

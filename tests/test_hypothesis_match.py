@@ -81,3 +81,32 @@ def test_reject_mode_marks_it_unsupported(monkeypatch):
     v = Verifier._apply_plan_rule(verdict("partially_supported"), "", [RES.text],
                                   [RES.heading()], CONTEXT)
     assert v.label == "unsupported"
+
+
+def test_hypothesis_passage_does_not_outvote_a_supporting_result(monkeypatch):
+    """verify_statement applies the rule per passage: a true finding that
+    restates its hypothesis is accepted on the results passage."""
+    v = Verifier.__new__(Verifier)
+    v._judge = lambda statement, passage: ClaimVerdict(statement, [], "supported", "ok", "llm")
+    res = passage("r", "Walking increased memory in these regions (p = .01).", ["4. Results"])
+    out = v.verify_statement(CLAIM, [HYP, res])
+    assert out.label == "supported" and out.citation_ids == ["r"]
+    # Judged against the hypothesis alone, the rule still fires.
+    assert v.verify_statement(CLAIM, [HYP]).label == "disputed"
+
+
+def test_closest_adds_a_passage_outside_the_hypotheses_section(monkeypatch):
+    from eval.run_eval import _closest
+
+    class Emb:
+        def encode_queries(self, xs):
+            return [bag(x) for x in xs]
+
+        def encode_passages(self, xs):
+            return [bag(x) for x in xs]
+
+    far = passage("f", "Sleep was recorded.", ["4. Results"])
+    other = passage("o", "Stress stress stress.", ["1. Introduction"])
+    picked = [p.chunk_id for p in _closest(CLAIM, [HYP, other, far], Emb(), k=1)]
+    assert picked[0] == "h" and len(picked) == 2 and picked[1] != "h"
+    assert [p.chunk_id for p in _closest("Sleep was recorded.", [HYP, other, far], Emb(), k=1)] == ["f"]

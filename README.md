@@ -147,7 +147,12 @@ prose), splits the answer into sentences and has the same judge (phi4, prompt
 v3) check each sentence against its two closest passages. Sentences that only
 abstain ("the text does not report X") or only advise where to look are not
 judged. Same 26 answerable questions and 25 traps as the grounded run
-(2026-10-12/13; Wilson 95% intervals; paired exact McNemar tests):
+(2026-10-12/13; Wilson 95% intervals; paired exact McNemar tests). The
+baseline numbers in this section were scored before the 2026-10-22 change
+to sentence judging (plan rule per passage, closest non-hypothesis passage
+added; see "Independent check of the hypothesis routes"), which can only
+move baseline sentences that sit near a Hypotheses section — 24 of 183
+sentences here, 19 of 28 in the bait run:
 
 | | Grounded (default) | Ungrounded baseline | Paired test |
 |---|---|---|---|
@@ -314,6 +319,71 @@ hypothesis-match route's pool. Re-applied offline to every saved output of
 the four corpora, it fired on exactly the two claims above (completed-study
 R01 and R04) and on nothing else. Pooled bait with
 v2.1 (thesis full run + protocol): 17/18 safe.
+
+### Independent check of the hypothesis routes (2026-10-22)
+
+Two follow-ups to the out-of-corpus check, current defaults (bge-m3,
+generator v2.1, phi4 judge), both arms, `--fresh`.
+
+**Control questions rewritten (Rockstroh et al. 2020).** The old controls
+paraphrased H1–H3c; with bge-m3, two of them (R01, R04) retrieved the
+hypothesis passages and no results passage at all, so a hypothesis was the
+only possible answer. Rewritten to ask for the measured outcome (scale,
+statistic, group means) plus one exploratory result: no hypothesis passage
+in any top-5, and the grounded arm answered all 7 from results or methods
+passages (strict 7/8, the eighth a true detail from a figure caption the
+judge did not see; baseline 17/18). The residual "answers a result question
+from the hypothesis" was mostly that question-design artefact.
+
+**A paper with a Hypotheses heading (Pratviel, Bouny & Deschodt-Arsac 2024,
+*Frontiers in Virtual Reality* 5:1358981, CC BY).** Its "1.5 Hypotheses"
+section holds four hypotheses with mixed outcomes: H1A supported, H1B not
+supported, H2 supported, H3 not supported for immersion and not tested
+directly for guided breathing. Local set: 7 answerable (three worded like
+the hypotheses, whose true results the rules must not flag), 3 false
+premises built on H1B/H2/H3, 3 bait items (an unreported psych–physio
+correlation and two analyses proposed only as future work), 2 near-absent,
+1 far-absent. The hypothesis passage was ranked first for two answerable
+questions and in the top 5 for two false premises.
+
+| | Grounded | Baseline |
+|---|---|---|
+| Answers fully supported (7) | **7** | 4 |
+| Claims supported, strict | **9/9** | 19/26 |
+| Traps correct (9) | **9** | 4 |
+| Traps strict safe (9) | **9** | 2 |
+| Plan-as-result rule fired on a true claim | 0 | 0 (1 before the fix below) |
+| Mean seconds per question | 184 | 706 |
+
+Grounded vs baseline on traps (exact McNemar): strict safe 7–0 discordant,
+p = 0.016; correct 5–0, p = 0.063 — nine items, same direction as on the
+other corpora.
+The grounded generator never stated a hypothesis as a result, so no rule had
+to fire: it refused 8 traps and answered the RMSSD false premise with true
+results, and on the hypothesis-worded controls it cited the results passage
+(or quoted H1A explicitly as "We hypothesized that…", which the hedge check
+correctly leaves alone). In the baseline the hypothesis-match route flagged
+the false claim "RMSSD rose during immersion alone" (H3 restated as a
+finding), and the structural route disputed one **true** sentence (H2 is
+supported) — a false flag: the baseline judges each sentence against its two
+closest passages, and a true finding worded like its hypothesis is closest
+to the hypothesis. Fixed (2026-10-22): `verify_statement` applies the
+plan-as-result rule per passage before picking the best one, and a sentence
+whose two closest passages include a Hypotheses section is also judged
+against the closest passage outside it. Re-scored from the saved answers,
+that sentence is supported and the flagged false claim stays disputed.
+Three baseline abstentions not caught by the refusal patterns ("not possible
+to determine", "unclear from the provided context", "does not explicitly
+break down") were judged as claims; the patterns now cover them. The table
+shows the baseline after both fixes (before: 3 answers, 18/26, 3 traps).
+Two things the metrics do not show: one grounded answer conflated two
+statistics (a p-value from the high-anxiety subgroup reported as the overall
+VAS result) and the judge accepted it; and two grounded answers were true
+but did not answer the question (R01 gave the method and the hypothesis —
+the results passage was not retrieved; R04 gave the guided-breathing effect,
+not the immersion-alone null). Answer completeness is not measured. The
+baseline numbers of the thesis comparisons above were scored before the
+fix; see HANDOFF §7 for their re-score.
 
 ### Chinese questions over English sources (2026-10-21)
 
@@ -1000,6 +1070,13 @@ Ollama clients right before launching.
    run (2026-10-16, both arms) it fired 3 times — the original case again
    and two baseline sentences, one on a new item — all of them hypotheses
    restated as findings, no false flag; still a small, same-corpus check.
+   **Independent check (2026-10-22, Pratviel et al. 2024, a paper with a
+   Hypotheses heading the rules were not tuned on):** no flag on a true
+   grounded claim; in the baseline, one correct catch (hypothesis-match) and
+   one false flag of a true finding worded like its hypothesis, caused by
+   judging a sentence against the hypothesis passage alone — fixed by
+   applying the rule per passage and adding the closest non-hypothesis
+   passage (see "Independent check of the hypothesis routes").
 2. **Background statements attributed to this study.** v3 catches most
    "Author et al. found → This study found" swaps, but on the pilot paper at
    most 40% of swaps of background statements.
@@ -1032,6 +1109,10 @@ Ollama clients right before launching.
     (section heading shown to the judge; quotes checked sentence by sentence
     across retrieved chunks), but a claim whose support is split across chunks
     is still judged one chunk at a time.
+11. **Answer completeness is not measured.** Metrics count whether claims are
+    supported, not whether they answer the question: a grounded answer can
+    be fully supported yet give the method or the hypothesis instead of the
+    result when the results passage is not retrieved.
 
 ## Roadmap
 

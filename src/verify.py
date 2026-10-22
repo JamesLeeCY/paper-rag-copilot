@@ -298,6 +298,11 @@ def _heading_of(p) -> str:
     return p.heading() if hasattr(p, "heading") else getattr(p, "section", "")
 
 
+def in_hypotheses_section(p) -> bool:
+    """The passage's innermost heading names a hypotheses section."""
+    return bool(_HYPOTHESIS_SECTION_RE.search(_heading_of(p).split(" > ")[-1]))
+
+
 def _judge_passage(p) -> str:
     """Passage as shown to a judge: its section heading, then the text.
 
@@ -717,21 +722,25 @@ class Verifier:
         generation step sits in between. The best label over ``passages`` wins;
         stops early on the first fully supporting passage. ``context`` (default
         ``passages``): all retrieved passages, for the hypothesis-match route.
+
+        The plan-as-result rule is applied per passage, before the best label is
+        chosen: a true finding that restates a hypothesis matches the hypothesis
+        passage too, and that passage must not outvote a results passage that
+        supports it (Pratviel 2024 run, 2026-10-22).
         """
+        context = context if context is not None else passages
         best: ClaimVerdict | None = None
         for p in passages:
             v = self._judge(statement, _judge_passage(p))
             v.citation_ids = [p.chunk_id]
+            v = self._apply_plan_rule(v, "", [p.text], [_heading_of(p)], context)
             if best is None or _RANK[v.label] > _RANK[best.label]:
                 best = v
             if best.label == "supported":
                 break
         if best is None:
             return ClaimVerdict(statement, [], "unsupported", "no passages retrieved", "lexical")
-        winner = next((p for p in passages if p.chunk_id in best.citation_ids), None)
-        return self._apply_plan_rule(best, "", [winner.text] if winner else [],
-                                     [_heading_of(winner)] if winner else [],
-                                     context if context is not None else passages)
+        return best
 
     def _verify_claim(self, claim: Claim, result: GenerationResult) -> ClaimVerdict:
         # Stage 0: the quote must actually appear in one of the cited passages.

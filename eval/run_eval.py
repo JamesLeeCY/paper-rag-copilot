@@ -201,9 +201,16 @@ REFUSAL_HINT_RE = re.compile(
     r"not (?:\w+ly )?(?:mentioned|stated|reported|provided|specified|discussed|available|described"
     r"|addressed|detailed)"
     r"|(?:does|do|did)(?:n't| not) (?:\w+ly )?"
-    r"(?:mention|provide|contain|specify|discuss|report|state|describe|include|address|detail)"
+    r"(?:mention|provide|contain|specify|discuss|report|state|describe|include|address|detail"
+    r"|break down)"
     r"|no (?:information|mention|data|details)|cannot (?:be )?(?:determined|answered|determine|answer)"
     r"|unable to|there is no (?:information|mention|evidence)"
+    # Pratviel 2024 baseline run (2026-10-22): "it is not possible to determine
+    # if ...", "it is unclear from the provided context whether ...", "... were
+    # not directly compared ... in the provided context".
+    r"|not possible to (?:determine|tell|say|answer)"
+    r"|unclear (?:from|in|based on) the (?:provided|given) (?:context|text|passages|information)"
+    r"|\bnot\b[^.]{0,60}\b(?:in|from) the (?:provided|given) (?:context|text|passages|information)"
     r"|未提及|沒有提到|没有提到|無法|无法|未說明|未说明|沒有提供|没有提供|並未提到|并未提到|資料中沒有|未有相關"
     # Chinese abstentions with words between the negation and the verb ("並未在
     #文獻中明確提及", "尚未在提供的文獻片段中得到詳細報告"): up to 15 characters
@@ -250,15 +257,26 @@ def opens_with_denial(text: str) -> bool:
 
 
 def _closest(sentence: str, passages: list, embedder, k: int = 2) -> list:
-    """The k context passages most similar to the sentence (cosine)."""
+    """The k context passages most similar to the sentence (cosine).
+
+    When one of them sits in a hypotheses section, the closest passage outside
+    such a section is added: a true finding worded like its hypothesis is
+    closest to the hypothesis, and judging it there alone rejected it while
+    the results passage that supports it went unseen (Pratviel 2024 run)."""
     if len(passages) <= k:
         return list(passages)
     import numpy as np
 
+    from src.verify import in_hypotheses_section
+
     q = np.asarray(embedder.encode_queries([sentence])[0], dtype=float)
     P = np.asarray(embedder.encode_passages([p.text for p in passages]), dtype=float)
     sims = P @ q / (np.linalg.norm(P, axis=1) * np.linalg.norm(q) + 1e-9)
-    return [passages[i] for i in np.argsort(-sims)[:k]]
+    ranked = [passages[i] for i in np.argsort(-sims)]
+    out = ranked[:k]
+    if any(in_hypotheses_section(p) for p in out):
+        out += next(([p] for p in ranked[k:] if not in_hypotheses_section(p)), [])
+    return out
 
 
 def baseline_bundle(question: str, strategy: str, llm, verifier, k: int = 2,
