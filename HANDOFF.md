@@ -713,7 +713,7 @@ Open, in suggested order:
    (b) a verification-side echo check — done 2026-10-23, **default on**
    (owner's decision; below); (c) judging Chinese claims in English — done
    2026-10-23/24, not adopted (below); (d1) a rule for Chinese overclaim
-   words — next.
+   words — done 2026-10-24, **default on** (owner's decision; below).
    **Judging Chinese claims (c).** Judge prompt `v3e` (v3 + "translate a
    Chinese claim into English before comparing; reason in English") and
    translate-first (`judge-eval --translate`: qwen2.5 translates each
@@ -738,6 +738,23 @@ Open, in suggested order:
    overclaim 11/25 (English 1/25), plan-to-result 1/5, negation 1/6,
    attribution 1/1, none on number/conjunction/swap. Neither adopted; both
    kept selectable. v3's overclaim cues are English words only.
+   **Chinese-overclaim rule (d1, `ZH_OVERCLAIM_RULE=flag`,
+   `verify.zh_overclaim`).** Supported → partially supported when a Chinese
+   claim has a strong-certainty word (證明 證實 必定 必然 一定 總是 絕對 無疑
+   毫無疑問 確立, simplified too; not after 未/不/無/沒/並未/無法/沒有) and no
+   cited passage matches `_EN_STRONG_RE` (prove, proof, demonstrat*,
+   confirm*, establish*, always, certain(ly), clearly, definitely,
+   undoubtedly, invariably, conclusive*); in grounded verification and per
+   passage in `verify_statement`; signature `zh-overclaim:` when on.
+   Offline on cached votes (scratchpad `zhoc_offline.py`): zh synthetic FA
+   14 → 8/54, FR 1 → 1/28, fired 6 (S040 S059 X251 X277 X280 X323, all
+   overclaims); missed X037 X069 X102 X208 X311 (證明 vs "demonstrate"
+   elsewhere in the passage; sentence-level licensing would need a fresh
+   set) and A244 (證實 vs "demonstrated"); zh real 51 and hard 26 unchanged,
+   fired 0; English synthetic 164 fired 0; saved Chinese grounded claims 164,
+   fired 1 (thesis B02 in an old bait run, a false claim already
+   unsupported). Pre-set bar (FA halved) missed by one item; turned on for
+   `check` on human-written Chinese and because the cost criteria were met.
    **Echo rule (`ECHO_RULE=flag`, `verify.echo_of_question`).** A claim the
    judge rated partially supported that restates a yes/no question (zh
    是否/有沒有/嗎, en Did/Does/Is/Are/Was/Were/Has/Have/Can/Could…; bge-m3
@@ -950,7 +967,8 @@ Open, in suggested order:
 | `8f47750` | `eval --lang zh`; Chinese-question end-to-end results |
 | `42aafd2` | Generator prompt v2.2 (yes/no rule): calibrated, not adopted |
 | `85dd5cb` | Echo rule: partially supported claim restating a yes/no question → review (default on) |
-| (this commit) | Judging Chinese claims: v3e and translate-first evaluated, not adopted |
+| `bbac62d` | Judging Chinese claims: v3e and translate-first evaluated, not adopted |
+| (this commit) | Chinese-overclaim rule (default on) |
 
 ## 10. Completed work log
 

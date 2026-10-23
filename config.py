@@ -238,6 +238,15 @@ PLAN_MATCH_MARGIN = float(os.environ.get("PLAN_MATCH_MARGIN", "-0.02"))
 ECHO_RULE = os.environ.get("ECHO_RULE", "flag")
 ECHO_MIN_SIM = float(os.environ.get("ECHO_MIN_SIM", "0.90"))
 ECHO_MIN_OVERLAP = float(os.environ.get("ECHO_MIN_OVERLAP", "0.70"))
+# Chinese overclaim rule (default "flag" since 2026-10-24, owner's decision):
+# a supported Chinese claim with a strong-certainty word (證明, 證實, 必定,
+# 總是, 無疑 ...) whose cited passage has no strong English wording (prove,
+# demonstrate, confirm, always, certainly ...) becomes partially supported;
+# "off" disables it. Offline: synthetic Chinese false accepts 14 -> 8 of 54
+# (short of the halving it was meant to reach), no true claim downgraded on
+# any set, fired once on 164 saved Chinese system claims (a false one). Most
+# useful for `check` on Chinese text a person wrote.
+ZH_OVERCLAIM_RULE = os.environ.get("ZH_OVERCLAIM_RULE", "flag")
 # Generator prompt version (src/generate.py). "v2" adds: quotes in the source
 # language, hypotheses/methods never stated as findings (with passage-type
 # labels in the context), cited studies attributed explicitly, negative facts

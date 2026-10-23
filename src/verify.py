@@ -574,6 +574,27 @@ def echo_of_question(statement: str, question: str) -> str:
     return ""
 
 
+# Chinese overclaim (under evaluation, 2026-10-24): v3's overclaim cues are
+# English words, and phi4 accepted 11 of 25 Chinese overclaims (1 of 25 in
+# English) on the translated synthetic test split.
+_ZH_STRONG_RE = re.compile(
+    r"(?<![未不無无沒没])(?<!並未)(?<!并未)(?<!無法)(?<!无法)(?<!沒有)(?<!没有)"
+    r"(?:證明|证明|證實|证实|必定|必然|一定|總是|总是|絕對|绝对|毫無疑問|毫无疑问|無疑|无疑|確立|确立)")
+_EN_STRONG_RE = re.compile(
+    r"\b(?:prov(?:e|es|ed|en|ing)|proof|demonstrat\w*|confirm\w*|establish\w*|always|"
+    r"certain(?:ly)?|clearly|definitely|undoubtedly|invariably|conclusive\w*)\b", re.I)
+
+
+def zh_overclaim(statement: str, cited: list[str]) -> str:
+    """Reason string if a Chinese claim uses a strong-certainty word that no
+    cited passage matches with a strong English word, else ""."""
+    m = _ZH_STRONG_RE.search(statement)
+    if not m or any(_EN_STRONG_RE.search(t) for t in cited):
+        return ""
+    return (f"rule: Chinese overclaim — the claim says {m.group(0)!r} but the cited "
+            f"passage has no matching strong wording")
+
+
 def quote_span(quote: str, passages: list) -> list | None:
     """Passages that together contain every sentence of ``quote``, or None.
 
@@ -803,6 +824,10 @@ class Verifier:
         for p in passages:
             v = self._judge(statement, _judge_passage(p))
             v.citation_ids = [p.chunk_id]
+            if config.ZH_OVERCLAIM_RULE == "flag" and v.label == "supported":
+                why = zh_overclaim(statement, [p.text])
+                if why:
+                    v.label, v.reason = "partially_supported", f"{why}. Judge said: {v.reason}"
             v = self._apply_plan_rule(v, "", [p.text], [_heading_of(p)], context)
             if best is None or _RANK[v.label] > _RANK[best.label]:
                 best = v
@@ -873,6 +898,11 @@ class Verifier:
         cited_passages = [p for p in result.passages if p.chunk_id in citation_ids]
         self._apply_plan_rule(best, quote, [p.text for p in cited_passages],
                               [_heading_of(p) for p in cited_passages], result.passages)
+        if config.ZH_OVERCLAIM_RULE == "flag" and best.label == "supported":
+            why = zh_overclaim(claim.statement, [p.text for p in cited_passages])
+            if why:
+                best.label = "partially_supported"
+                best.reason = f"{why}. Judge said: {best.reason}"
         if config.ECHO_RULE == "flag" and best.label == "partially_supported":
             why = echo_of_question(claim.statement, result.query)
             if why:

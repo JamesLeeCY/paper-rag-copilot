@@ -38,15 +38,16 @@ PDFs) page it came from.
 All numbers below are aggregate; the corpora, golden sets and full reports stay
 local (see [Data & privacy](#data--privacy)).
 
-**Current default** (as of 2026-10-23): embedder **`bge-m3`** (multilingual;
+**Current default** (as of 2026-10-24): embedder **`bge-m3`** (multilingual;
 tables before the embedder comparison below used `bge-small-en-v1.5`),
 generator `qwen2.5:7b-instruct` with generator prompt `v2.1` (results tables
 before the v2.1 comparison below were produced with `v1`), judge **`phi4`** alone, judge prompt **`v3`** with each
 passage's section heading, section-aware chunking, quotes may span chunks, and
 the deterministic plan-as-result rule (`flag`) with its structural, wording,
-inline and hypothesis-match routes, and the echo rule (`flag`, since
+inline and hypothesis-match routes, the echo rule (`flag`, since
 2026-10-23: a partially supported claim restating a yes/no question goes to
-review); local models run on Ollama, CPU only. The judge was
+review) and the Chinese-overclaim rule (`flag`, since 2026-10-24); local
+models run on Ollama, CPU only. The judge was
 chosen on the judge validation below (2026-10-07). "Previous" below means
 judges `qwen2.5:7b-instruct` + `gemma3:12b` (unanimous) with prompt `v2`.
 
@@ -601,6 +602,24 @@ On the 26 hard items (Chinese plans restated as findings) both are poor
 (false accept 8/12 vs 6/12). Both options stay selectable for
 reproduction; the verifier is unchanged.
 
+**A deterministic Chinese-overclaim rule instead (default since
+2026-10-24).** A Chinese claim the judge rated supported that uses a
+strong-certainty word (證明, 證實, 必定, 必然, 一定, 總是, 絕對, 無疑,
+確立; negated forms such as 並未證明 excluded) becomes *partially supported*
+when no cited passage has strong English wording (prove, demonstrate,
+confirm, establish, always, certainly, clearly …). Applied offline to the
+saved votes: synthetic Chinese false accepts 14 → 8 of 54 (all 6 it fired on
+were overclaims; it did not reach the halving it was meant to: the 5 it
+missed say 證明 where another sentence of the passage says "demonstrate",
+and 證明 covers both prove and demonstrate); no true claim downgraded on the
+synthetic, real (51) or hard (26) sets; it never fires on English claims;
+over the 164 saved Chinese system claims it fired once, on a false one. The
+synthetic items were translated by the author of the rule, so their result
+shows that the rule works, not that it generalises. It is on because a false
+flag only downgrades to partially supported and because `check` is used on
+Chinese text a person wrote, where 證明/必定 overclaims are common;
+`ZH_OVERCLAIM_RULE=off` disables it.
+
 ---
 
 ## Architecture
@@ -834,6 +853,7 @@ verification are stand-ins (pipeline shape only).
 | `CONTEXT_ORDER` | `rank` | Order of the passages shown to the grounded generator: `rank` (retrieval order) or `results_first` (results/discussion, then methods/background, hypotheses last). Tried, not adopted |
 | `GENERATOR_PROMPT` | `v2.1` | Generator prompt (see "Generator prompt v2.1"); `v1` is the original; `v2` adds source-language quotes, passage-type labels (hypotheses/methods never stated as findings), explicit attribution of cited studies, negative facts answered, refusal marker only in `<unsupported_note>`. Evaluated, not adopted: better on trap questions, but more format errors on answerable ones (see Known limitations). `v2.2` = v2.1 + a yes/no-question rule; calibrated, not adopted (see "End to end with Chinese questions") |
 | `PLAN_RESULT_RULE` | `flag` | Plan or prediction read as a result: `flag` → disputed, `reject` → unsupported, `off` |
+| `ZH_OVERCLAIM_RULE` | `flag` | A supported Chinese claim with a strong-certainty word (證明, 必定, 總是 …) and no strong wording in the cited passage becomes partially supported; `off` disables (see "Chinese claims over English sources") |
 | `ECHO_RULE` | `flag` | A partially supported claim that restates a yes/no question (embedding similarity ≥ `ECHO_MIN_SIM` 0.90 and character overlap ≥ `ECHO_MIN_OVERLAP` 0.70, question words removed) is sent to review as `disputed`; `off` disables. Not independently validated (see "End to end with Chinese questions") |
 | `PLAN_RESULT_MATCH` | `on` | Hypothesis-match route of that rule (partially supported claims closer to a hypothesis in the context than to their citation); `off` disables |
 | `PLAN_MATCH_MODEL` / `PLAN_MATCH_MIN_SIM` / `PLAN_MATCH_MARGIN` | `BAAI/bge-m3` / 0.55 / −0.02 | Embedder and thresholds of that route |
@@ -1199,7 +1219,8 @@ Ollama clients right before launching.
    v1 stays the default.
 6. **Chinese claims are judged less strictly than English ones** (false
    accept 14/54 vs 3/54 on the same synthetic items), mostly overclaims;
-   see "Chinese claims over English sources" under Judge validation.
+   a word-list rule brings it to 8/54 (see "Chinese claims over English
+   sources" under Judge validation).
 7. **Judges are not deterministic.** The same pair can get different votes
    across runs; decide on larger sets or repeated runs.
 8. **Reasoning-model judges are too slow on CPU.** With room for its thinking,
