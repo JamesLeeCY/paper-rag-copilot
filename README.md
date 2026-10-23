@@ -571,6 +571,36 @@ false-accept to 2–3% at the cost of 13–24% of claims going to human review.
 Samples are small (one item = 2–5%), and synthetic items are easier than real
 generator errors.
 
+**Chinese claims over English sources (2026-10-23/24).** The judge was
+validated on English claims, but answers to Chinese questions are Chinese
+claims. Two local sets: the thesis synthetic test split translated into
+Chinese item by item (82, perturbations kept: "proves" → 證明, "will
+always" → 必定總是, negations, numbers, plan wording), and 51 real Chinese
+claims from the Chinese-question runs, hand-labelled (5 more ambiguous ones
+set aside). phi4 + v3, with headings:
+
+| Synthetic test split (54 perturbed, 28 true) | English claims | Chinese claims | Chinese, translated first |
+|---|---|---|---|
+| False accept | **3/54** | 14/54 | 20/54 |
+| False reject | 2/28 | **1/28** | 4/28 |
+| Binary correct | **77/82** | 67/82 | 58/82 |
+
+The same items in Chinese are judged clearly worse (12 vs 2 discordant,
+exact McNemar p = 0.013), and almost all of the gap is **overclaim**: 11 of
+25 Chinese overclaims accepted vs 1 of 25 English ones — v3's overclaim
+cues are English words (prove, always, certainly…). Two fixes were tried
+and **not adopted**: (1) judge prompt `v3e`, v3 plus "translate a Chinese
+claim into English before comparing, reason in English" — 49 of 51 real
+claims got the identical label; (2) translate-first, the generator model
+translating each Chinese claim before the judge sees it (`judge-eval
+--translate`) — fewer false accepts on the 51 real claims (5 → 1 of 10) but
+worse on the 82 synthetic items (9 vs 0 discordant, p = 0.004): the
+translation softened overclaims ("必定" → "likely"), sometimes switched back
+to Chinese mid-sentence, and once silently corrected a wrong region name.
+On the 26 hard items (Chinese plans restated as findings) both are poor
+(false accept 8/12 vs 6/12). Both options stay selectable for
+reproduction; the verifier is unchanged.
+
 ---
 
 ## Architecture
@@ -1167,24 +1197,27 @@ Ollama clients right before launching.
    template placeholder as a citation id, and lowered strict precision 97% →
    90% through citation errors on true claims — all within the intervals, so
    v1 stays the default.
-6. **Judges are not deterministic.** The same pair can get different votes
+6. **Chinese claims are judged less strictly than English ones** (false
+   accept 14/54 vs 3/54 on the same synthetic items), mostly overclaims;
+   see "Chinese claims over English sources" under Judge validation.
+7. **Judges are not deterministic.** The same pair can get different votes
    across runs; decide on larger sets or repeated runs.
-7. **Reasoning-model judges are too slow on CPU.** With room for its thinking,
+8. **Reasoning-model judges are too slow on CPU.** With room for its thinking,
    `deepseek-r1:8b` needs 4–8 minutes per judgment (one exceeded 5 minutes), so
    it was dropped as a judge; its Stage B result above is invalid.
-8. **Small samples.** Judge rates rest on 55–83 items and system rates on
+9. **Small samples.** Judge rates rest on 55–83 items and system rates on
    20–51 questions; reports show 95% intervals (see "How certain are these
    numbers?"), and most differences discussed here fall inside them.
-9. **Verification is slow on CPU.** Each phi4 judgment takes 38–75 s
+10. **Verification is slow on CPU.** Each phi4 judgment takes 38–75 s
    depending on threads and prompt length, so `check` on a long paragraph
    can take several minutes even with two passages per sentence (see Setup). A judgment that still times out sends the claim to
    review rather than guessing; `n_unjudged` in the eval results counts these.
-10. **Chunk boundaries.** A chunk judged alone can lack context a true claim
+11. **Chunk boundaries.** A chunk judged alone can lack context a true claim
     relies on, and a quote can run across two chunks. Both are now mitigated
     (section heading shown to the judge; quotes checked sentence by sentence
     across retrieved chunks), but a claim whose support is split across chunks
     is still judged one chunk at a time.
-11. **Answer completeness is not measured.** Metrics count whether claims are
+12. **Answer completeness is not measured.** Metrics count whether claims are
     supported, not whether they answer the question: a grounded answer can
     be fully supported yet give the method or the hypothesis instead of the
     result when the results passage is not retrieved.

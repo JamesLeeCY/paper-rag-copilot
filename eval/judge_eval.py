@@ -228,12 +228,21 @@ def main(argv=None):
     ap.add_argument("--types", nargs="+", default=None,
                     help="only these item types, e.g. --types plan_to_result attribution_swap regression")
     ap.add_argument("--limit", type=int, default=None, help="score only the first N items (quick run)")
+    ap.add_argument("--items", default=None, metavar="JSONL",
+                    help="score this item file instead of the validation set (same fields: "
+                         "id, claim, passage, gold_label, perturbation, split)")
+    ap.add_argument("--translate", action="store_true",
+                    help="translate Chinese claims into English with the generator model "
+                         "before judging (translate-first)")
     ap.add_argument("--with-heading", action="store_true",
                     help="show judges each passage's section heading, as the live verifier does")
     args = ap.parse_args(argv)
 
     specs = args.judges or config.JUDGES or [f"{config.LLM_BACKEND}:{config.LLM_MODEL}"]
-    items = load_items()
+    if args.items:
+        items = [json.loads(l) for l in open(args.items, encoding="utf-8") if l.strip()]
+    else:
+        items = load_items()
     if args.split != "all":
         items = [it for it in items if it["split"] == args.split]
     if args.types:
@@ -245,6 +254,23 @@ def main(argv=None):
     if args.with_heading:
         tag = "+heading"
         print(f"[judge-eval] section heading added to {add_headings(items)}/{len(items)} passages")
+
+    if args.translate:
+        from src.llm import LLMClient
+        from src.verify import translate_claim
+
+        translator = LLMClient()
+        tag += "+tr"
+        n = 0
+        for it in items:
+            en = translate_claim(it["claim"], translator)
+            n += en != it["claim"]
+            it["claim_original"], it["claim"] = it["claim"], en
+        print(f"[judge-eval] translated {n}/{len(items)} claims with {translator.describe()}")
+        config.REPORT_DIR.mkdir(parents=True, exist_ok=True)
+        (config.REPORT_DIR / "judge_translations.json").write_text(json.dumps(
+            {it["id"]: [it["claim_original"], it["claim"]] for it in items},
+            ensure_ascii=False, indent=1), encoding="utf-8")
 
     votes = collect_votes(specs, items, args.prompts, tag)
     preds = dict(votes)

@@ -711,8 +711,33 @@ Open, in suggested order:
    paraphrased its quote (fabricated-citation rejection of a true claim).
    Follow-ups: (a) generator rule — tried 2026-10-22, not adopted (below);
    (b) a verification-side echo check — done 2026-10-23, **default on**
-   (owner's decision; below); (c) judging Chinese claims with an English
-   reasoning instruction — not started.
+   (owner's decision; below); (c) judging Chinese claims in English — done
+   2026-10-23/24, not adopted (below); (d1) a rule for Chinese overclaim
+   words — next.
+   **Judging Chinese claims (c).** Judge prompt `v3e` (v3 + "translate a
+   Chinese claim into English before comparing; reason in English") and
+   translate-first (`judge-eval --translate`: qwen2.5 translates each
+   Chinese claim with `verify.TRANSLATE_SYSTEM`, phi4 + v3 judges the
+   translation; not wired into the live verifier). Sets (local,
+   gitignored): `judge_set_zh_real.jsonl` (51 real Chinese claims from the
+   zh and v2.2 runs, my labels: 41 supported, 3 partial, 7 unsupported; 5
+   ambiguous in `judge_set_zh_real_ambiguous.jsonl`), `judge_set_zh_synth.jsonl`
+   (thesis synthetic test split translated item by item, `claim_en` kept).
+   Calibration A (2026-10-23, 51 real claims; one guard stop at 11:46 when
+   another project took the CPU, resumed from the vote cache 12:33–15:24):
+   v3 and v3e identical on 49/51 (false accept 5/10, false reject 2/41
+   both); translate-first false accept 1/10, false reject 4/41 (a
+   mistranslated region name; one claim's wrong region silently corrected
+   by the translator). Calibration B (20:47–01:05, `--with-heading`;
+   `judge_results_calb_*.json`, `judge_translations_calb_*.json`): synthetic
+   82 — English claims (cached v3 votes) FA 3/54 FR 2/28; Chinese FA 14/54
+   FR 1/28 (en vs zh 12–2, p = 0.013); translated FA 20/54 FR 4/28 (zh vs
+   translated 9–0, p = 0.004; translations softened 必定 → "likely" and
+   some switched to simplified Chinese mid-sentence); hard 26: FA 8/12 vs
+   6/12, FR 2/14 vs 3/14. By perturbation, Chinese false accepts are
+   overclaim 11/25 (English 1/25), plan-to-result 1/5, negation 1/6,
+   attribution 1/1, none on number/conjunction/swap. Neither adopted; both
+   kept selectable. v3's overclaim cues are English words only.
    **Echo rule (`ECHO_RULE=flag`, `verify.echo_of_question`).** A claim the
    judge rated partially supported that restates a yes/no question (zh
    是否/有沒有/嗎, en Did/Does/Is/Are/Was/Were/Has/Have/Can/Could…; bge-m3
@@ -924,7 +949,8 @@ Open, in suggested order:
 | `5ea9d0d` | Thesis baseline re-scored under the new judging (README table updated) |
 | `8f47750` | `eval --lang zh`; Chinese-question end-to-end results |
 | `42aafd2` | Generator prompt v2.2 (yes/no rule): calibrated, not adopted |
-| (this commit) | Echo rule: partially supported claim restating a yes/no question → review (default on) |
+| `85dd5cb` | Echo rule: partially supported claim restating a yes/no question → review (default on) |
+| (this commit) | Judging Chinese claims: v3e and translate-first evaluated, not adopted |
 
 ## 10. Completed work log
 

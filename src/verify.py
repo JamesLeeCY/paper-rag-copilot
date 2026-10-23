@@ -172,8 +172,44 @@ C. 論點把結果歸給誰（claim_attribution）："this_study"（本研究）
     1,
 )
 
+# v3e (under evaluation, 2026-10-23): v3 plus one instruction to compare a
+# Chinese claim in English. Asked in Chinese, the judge reasons in Chinese
+# and was less reliable on Chinese claims over English sources.
+_V3E_RULE = ("論點如果是中文：先在心中把論點逐句翻成英文（數字、效果方向、確定程度用詞、"
+             "對象都照原意保留），再用英文和原文逐項比對。reason 一律用英文寫。\n\n")
+VERIFY_SYSTEM_V3E = VERIFY_SYSTEM_V3.replace(
+    "只輸出 JSON", _V3E_RULE + "只輸出 JSON", 1
+).replace('"reason": "簡短理由"', '"reason": "brief reason in English"', 1)
+
 VERIFY_PROMPTS = {"v1": VERIFY_SYSTEM_V1, "v2": VERIFY_SYSTEM_V2, "v3": VERIFY_SYSTEM_V3,
-                  "v4": VERIFY_SYSTEM_V4, "v5": VERIFY_SYSTEM_V5}
+                  "v4": VERIFY_SYSTEM_V4, "v5": VERIFY_SYSTEM_V5, "v3e": VERIFY_SYSTEM_V3E}
+
+# Translate-first (under evaluation): a Chinese claim is translated into
+# English by the generator model before any judge sees it.
+TRANSLATE_SYSTEM = (
+    "把使用者給的學術論點翻成英文。逐字保留所有數字、統計量與單位、效果方向（增加、減少、"
+    "沒有差異）、確定程度用詞（可能、顯示、證實、相關、造成）、範圍與對象，以及假設或計畫的"
+    "語氣（預期、預計、假設）。不要補充、刪減或修正內容，即使它看起來有錯。只輸出英文譯文。"
+)
+_translations: dict[str, str] = {}
+
+
+def translate_claim(statement: str, llm) -> str:
+    """English translation of a claim containing Chinese; other claims, and
+    any translation failure, return the claim unchanged. Cached per claim."""
+    if not _CJK_ANY_RE.search(statement):
+        return statement
+    if statement not in _translations:
+        try:
+            out = llm.complete(TRANSLATE_SYSTEM, statement, max_tokens=300).strip()
+        except (OSError, ValueError) as e:
+            print(f"[verify] translation failed ({type(e).__name__}: {e}); judging the original")
+            return statement
+        _translations[statement] = out or statement
+    return _translations[statement]
+
+
+_CJK_ANY_RE = re.compile(r"[㐀-鿿]")
 
 _SOURCE_STAGES = {"result", "hypothesis", "plan_or_method", "background", "other_study"}
 _CLAIM_STAGES = {"finding", "hypothesis_or_plan", "method", "background"}
