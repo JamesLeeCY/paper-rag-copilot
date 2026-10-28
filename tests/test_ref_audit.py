@@ -48,3 +48,24 @@ def test_an_entry_merged_into_another_is_a_split_error():
     merged = ref("Upas, M. (2003). Running. Vine, D. E. (2010). A systematic review.")
     res = audit(["(Vine et al., 2010; Upas, 2003)"], [merged])
     assert [u["kind"] for u in res["unresolved"]] == ["reference_split_error"]
+
+
+def test_numbered_citations_expand_ranges_and_lists():
+    from eval.ref_audit import numbered_citations_in
+    assert numbered_citations_in("shown [1-3], again [1,5] and [6, 8–9]; not [DOCX File]") == \
+        [1, 2, 3, 1, 5, 6, 8, 9]
+
+
+def test_a_numbered_list_is_audited_by_number():
+    refs = [ref(f"Hazel{i} JE. Title {i}. J Nat. 2020;1:{i}.") for i in range(1, 6)]
+    res = audit(["Parks help [1,2] and [4]; see [3] and [7].", "Alder (1995) is cited once [1]."], refs)
+    assert res["style"] == "numbered"
+    assert [u["number"] for u in res["unresolved"]] == [7]
+    assert res["uncited_references"] == ["[5] Hazel5 JE. Title 5. J Nat. 2020;1:5."]
+    assert res["first_cited_out_of_order"] == [3]
+
+
+def test_author_year_text_with_a_stray_bracket_number_stays_author_year():
+    res = audit(["As shown (Alder, 1995; Birch, 2001) and in step [2]."],
+                [ref("Alder, A. (1995). T."), ref("Birch, B. (2001). T.")])
+    assert res["style"] == "author-year" and res["unresolved"] == []

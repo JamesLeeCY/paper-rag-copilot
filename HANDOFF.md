@@ -905,6 +905,44 @@ Open, in suggested order:
    audit" results table (aggregate counts, both corpora), Usage step 7,
    Data & privacy note on what `--lookup` sends. Owner's next step: fix
    the list in the manuscript, then rerun both parts to confirm.
+6f. **PDF reference-list splitting — done 2026-10-28 (owner approved).**
+   Diagnosis on the four OA PDFs (no models): Frontiers 2020 (Rockstroh)
+   sets justified reference lines one word per PDF line, so "Bowler," stood
+   alone and failed the entry-start pattern (5 merges, 6 split errors), and
+   a wrapped DOI line stood alone and was dropped as a bare DOI (Vasylevska:
+   "doi: 50194"); the pilot article's spacing accents ("P´oka") broke the
+   entry-start pattern (1 merge, plus "P´oka et al." unparsed in the body);
+   JMIR's numbered list ("1." on its own line) came out as one 23,000-character
+   entry; end matter (Conflict of Interest, Copyright, Abbreviations, "Please
+   cite as") was appended to the last entry. Fixes in `src/ingest_pdf.py`, all
+   in the reference list only: `_block_lines(merge_baseline=True)` joins lines
+   on one baseline (block's lines kept as `merged`, also fed to the repeat
+   count); `_fix_accents` composes spacing accents between letters before a
+   lower-case letter ("O´Brien" kept); `_split_numbered` splits on
+   consecutive numbers only and strips them; `_REF_END_RE` cuts the list at
+   end matter. `eval/ref_audit.py`: body citations read through
+   `_fix_accents`; a numbered list (more [n] citations than author–year ones)
+   is audited by number (`audit_numbered`: number_out_of_range, uncited
+   "[n] …", `first_cited_out_of_order`), report and printout gain `style`.
+   Tests `tests/test_ingest_pdf_refsplit.py`, additions to
+   `tests/test_ref_audit.py` (invented names). Regression (snapshots in the
+   session scratchpad): body paragraphs (index, page, section, text hash)
+   identical in all four PDFs; Rockstroh 48 → 54 refs, split errors 6 → 0;
+   pilot 73 → 74, citation mentions 110 → 111, its 3 "missing" unchanged
+   (2 real + "David 1988" from "David Watson", a known narrative false
+   alarm); JMIR 1 → 85 (each checked by hand), 85/85 cited, none out of
+   range or order; Pratviel references identical; dissertation (.docx)
+   part-1 counts identical. Not done: stored chunks/indexes keep the old
+   `citations` metadata (it lives in the Chroma metadata, so it refreshes at
+   the next index rebuild; chunk text is unchanged) and `references.jsonl`
+   (display only); the Crossref/PubMed lookup was not rerun on Rockstroh or
+   JMIR (step 4 of the plan, optional).
+   **Found on the way, open:** the bare-page-number filter also drops
+   number-only words in body blocks set one word per line — about 24 table
+   values in the pilot article (pp. 6–7), "20" in Pratviel's "consisting of
+   20 questions"; Rockstroh's body has none. Fixing it changes body text →
+   chunks and bge-m3 indexes need rebuilding, and saved eval results may
+   shift; needs its own plan (README known limitation 13).
 6. **Human-labelled judge items** (`data/golden/judge_set_human.jsonl`,
    schema in `judge_set_human.example.jsonl`) — owner's task, not started.
 
@@ -1089,7 +1127,8 @@ Open, in suggested order:
 | `9c336ec` | Reference audit, step 1: internal consistency of citations and the reference list |
 | `9727bd9` | Reference audit, step 2: PubMed MCP pilot (20 references), lessons for step 3 |
 | `e397368` | Reference audit, steps 3–4: Crossref + PubMed batch lookup (`eval/ref_lookup.py`), wrapped-DOI fix in the PDF reader |
-| (this commit) | Reference audit, step 5: README results, owner issue list (local) |
+| `e1cb59b` | Reference audit, step 5: README results, owner issue list (local) |
+| (this commit) | PDF reference-list splitting (one word per line, accents, numbered lists, end matter); numbered-citation audit |
 
 ## 10. Completed work log
 

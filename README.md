@@ -537,6 +537,21 @@ not indexed in PubMed (environmental psychology, HCI, CyberTherapy journals),
 so Crossref is the primary source. The tool checks bibliographic details
 only, not whether a source supports the sentence citing it.
 
+**PDF reference lists (2026-10-28).** On the open-access PDFs, part 1 first
+found errors in our own parser, not in the papers. Frontiers (2020) sets a
+justified reference list one word per PDF line, so 5 places in Rockstroh et
+al. 2020 merged two entries. Spacing accents (`P´oka`) merged 1 place in the
+pilot article. The JMIR protocol's numbered list came out as a single entry.
+Words on the same baseline are now joined (reference list only), accents
+composed, numbered lists split by consecutive numbers, and the list ends at
+the first line of end matter (Abbreviations, Conflict of Interest,
+Copyright). Results: Rockstroh 48 → 54 entries, 6 split errors → 0; pilot
+73 → 74; JMIR 1 → 85, all checked by hand; Pratviel unchanged. Body text is
+identical in all four PDFs, and the dissertation (.docx) is unaffected. A
+numbered list gets its own part-1 check: cited numbers beyond the list,
+entries never cited, and entries first cited out of order. JMIR: 85/85
+cited, none out of range or out of order.
+
 ### Retrieval — chunking ablation (dissertation)
 
 | Strategy | Hit@1 | Hit@3 | Hit@5 | MRR |
@@ -967,7 +982,9 @@ The PDF loader (hardened on a real published article):
   and gives an unheaded opening its own Introduction section;
 - joins hyphenated line breaks and removes soft hyphens;
 - merges table fragments into one record;
-- splits off the reference list into individual entries;
+- splits off the reference list into individual entries (author–year or
+  numbered; words set one per PDF line are rejoined, spacing accents composed,
+  end matter after the list dropped);
 - records page numbers, so citations read `§2.1 (p. 3)`.
 
 Scanned PDFs without a text layer are not supported (they need OCR).
@@ -1288,6 +1305,11 @@ Ollama clients right before launching.
     supported, not whether they answer the question: a grounded answer can
     be fully supported yet give the method or the hypothesis instead of the
     result when the results passage is not retrieved.
+13. **PDF body: number-only words can be lost.** Where a PDF sets a block one
+    word per line, a word that is only a number is taken for a page number and
+    dropped: about 24 table values in the pilot article, one count in
+    Pratviel et al. 2024 ("consisting of 20 questions"). Fixing it changes
+    body text, so chunks and indexes would need rebuilding.
 
 ## Roadmap
 

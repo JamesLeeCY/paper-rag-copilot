@@ -22,6 +22,7 @@ Heuristics, in order:
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections import Counter
 from pathlib import Path
 
@@ -80,22 +81,49 @@ def _norm_repeat(text: str) -> str | None:
     return key if len(key) >= 12 else None
 
 
-def _block_lines(block: dict) -> list[tuple[str, float, bool, bool]]:
-    out = []
+def _block_lines(block: dict, merge_baseline: bool = False) -> list[tuple[str, float, bool, bool]]:
+    """(text, size, bold, italic) per line. With ``merge_baseline``, PDF lines
+    on the same baseline are joined first: Frontiers (2020) sets justified
+    reference lists one word per PDF line, so "Bowler," and a DOI stood alone."""
+    groups: list[list[dict]] = []
     for line in block.get("lines", []):
-        all_spans = line.get("spans", [])
-        spans = [s for s in all_spans if s.get("text", "").strip()]
+        prev = groups[-1][-1]["bbox"] if merge_baseline and groups else None
+        if (prev and abs(line["bbox"][3] - prev[3]) < 1.0
+                and line["bbox"][0] >= prev[2] - 1.0):
+            groups[-1].append(line)
+        else:
+            groups.append([line])
+    out = []
+    for group in groups:
+        texts, spans = [], []
+        for line in group:
+            all_spans = line.get("spans", [])
+            # Join every span, whitespace-only ones included: some typesetters
+            # (Frontiers) emit each inter-word space as its own span, and dropping
+            # them merged the words ("dynamicallychangingVREs").
+            texts.append("".join(s.get("text", "") for s in all_spans).strip())
+            spans += [s for s in all_spans if s.get("text", "").strip()]
         if not spans:
             continue
-        # Join every span, whitespace-only ones included: some typesetters
-        # (Frontiers) emit each inter-word space as its own span, and dropping
-        # them merged the words ("dynamicallychangingVREs").
-        text = "".join(s.get("text", "") for s in all_spans).strip()
+        text = " ".join(t for t in texts if t)
         size = max(s["size"] for s in spans)
         bold = all((s["flags"] & _BOLD_FLAG) or "bold" in s["font"].lower() for s in spans)
         italic = all((s["flags"] & _ITALIC_FLAG) or "italic" in s["font"].lower() for s in spans)
         out.append((text, size, bold, italic))
     return out
+
+
+# Spacing accents some PDFs emit before the letter ("P´oka", "M´er˝o").
+_SPACING_ACCENTS = {"´": "́", "˝": "̋", "¨": "̈",
+                    "ˆ": "̂", "˜": "̃", "ˇ": "̌"}
+# Only between letters, before a lower-case one: "O´Brien" is an apostrophe.
+_SPACING_ACCENT_RE = re.compile("(?<=[A-Za-z])([" + "".join(_SPACING_ACCENTS) + r"])([a-z])")
+
+
+def _fix_accents(text: str) -> str:
+    """'P´oka' -> 'Póka'."""
+    return unicodedata.normalize("NFC", _SPACING_ACCENT_RE.sub(
+        lambda m: m.group(2) + _SPACING_ACCENTS[m.group(1)], text))
 
 
 def _join_lines(lines: list[str]) -> str:
@@ -127,9 +155,12 @@ def load_pdf(path: Path) -> tuple[list[BodyPara], list[Reference]]:
             lines = _block_lines(b)
             if not lines:
                 continue
-            blocks.append({"page": pno, "lines": lines})
+            merged = _block_lines(b, merge_baseline=True)   # used in the reference list
+            blocks.append({"page": pno, "lines": lines, "merged": merged})
             for text, size, _, _ in lines:
                 size_chars[round(size, 1)] += len(text)
+                line_pages.setdefault(_norm_repeat(text), set()).add(pno)
+            for text, *_ in merged:
                 line_pages.setdefault(_norm_repeat(text), set()).add(pno)
     if not blocks:
         raise ValueError(f"No extractable text in {path} (scanned PDF? needs OCR)")
@@ -150,10 +181,11 @@ def load_pdf(path: Path) -> tuple[list[BodyPara], list[Reference]]:
             continue
         # A bare number is a page number, unless it is the wrapped tail of a
         # DOI ("doi:10.3357/AMHP.4747." + "2017").
-        lines = [ln for i, ln in enumerate(b["lines"])
+        block_lines = b["merged"] if in_refs else b["lines"]
+        lines = [ln for i, ln in enumerate(block_lines)
                  if _norm_repeat(ln[0]) not in repeated
                  and not (re.fullmatch(r"\d{1,4}", ln[0])
-                          and not (i and _DOI_WRAP_RE.search(b["lines"][i - 1][0])))
+                          and not (i and _DOI_WRAP_RE.search(block_lines[i - 1][0])))
                  and not _BOILERPLATE_RE.match(ln[0])
                  and not _BARE_ID_RE.match(ln[0])]
         if not lines:
@@ -179,7 +211,7 @@ def load_pdf(path: Path) -> tuple[list[BodyPara], list[Reference]]:
             continue
 
         if in_refs:
-            ref_lines.extend(ln[0] for ln in lines)
+            ref_lines.extend(_fix_accents(ln[0]) for ln in lines)
             continue
         if not started:
             continue                        # title page, authors, affiliations
@@ -242,6 +274,11 @@ _REF_START_RE = re.compile(r"^(?:[a-z]{1,3} )?[A-Z][A-Za-zÀ-ɏ'’\-]+(?: [A-Z]
 _REF_YEAR_RE = re.compile(r"\((?:19|20)\d{2}[a-z]?[,)]|\(n\.d\.\)|\(in press\)", re.I)
 
 
+# End matter typeset right after the reference list (Frontiers, JMIR).
+_REF_END_RE = re.compile(r"^(?:Abbreviations$|Conflicts? of Interest\b|Copyright ©|Edited by\b|"
+                         r"Publisher.s Note\b)", re.I)
+
+
 def _split_references(lines: list[str]) -> list[str]:
     """Split reference-list lines into entries.
 
@@ -249,13 +286,37 @@ def _split_references(lines: list[str]) -> list[str]:
     list wraps onto lines that also look like "Surname, I.". So a line starts
     a new entry only if it looks like an author AND the entry being built
     already has its year — i.e. that entry's author list is complete.
+    The list ends at the first line of end matter.
     """
+    end = next((i for i, ln in enumerate(lines)
+                if _REF_END_RE.match(unicodedata.normalize("NFKC", ln))), len(lines))
+    lines = lines[:end]
+    if lines and _REF_NUMBER_RE.match(lines[0]) and _REF_NUMBER_RE.match(lines[0]).group(1) == "1":
+        return _split_numbered(lines)
     entries: list[list[str]] = []
     for ln in lines:
         if entries and not (_REF_START_RE.match(ln) and _REF_YEAR_RE.search(" ".join(entries[-1]))):
             entries[-1].append(ln)
         else:
             entries.append([ln])
+    return [_join_lines(e) for e in entries]
+
+
+# A numbered list (Vancouver, JMIR): "1. Bettmann JE, ..." or "1." on its own line.
+_REF_NUMBER_RE = re.compile(r"^(\d{1,3})\.(?:\s+(?=\S)|$)")
+
+
+def _split_numbered(lines: list[str]) -> list[str]:
+    """Split a numbered reference list. A line starts entry n+1 only if it
+    begins with exactly that number, so numbers inside an entry ("12. ed.",
+    a wrapped "2024." line) do not split it. The numbers are removed."""
+    entries: list[list[str]] = []
+    for ln in lines:
+        m = _REF_NUMBER_RE.match(ln)
+        if m and int(m.group(1)) == len(entries) + 1:
+            entries.append([ln[m.end():]] if ln[m.end():] else [])
+        elif entries:
+            entries[-1].append(ln)
     return [_join_lines(e) for e in entries]
 
 

@@ -8,6 +8,9 @@ Checks, per corpus (CORPUS / SOURCE_PATH as for ingest):
     year) and missing;
   - references never cited in the text;
   - duplicate references and same surname + year entries without a/b suffix.
+A numbered list ([1], [16,20-22] cited more often than author-year) gets
+instead: cited numbers beyond the list, entries never cited, and numbers
+first cited out of order.
 
 The report holds reference strings and cited surnames, i.e. the corpus's own
 bibliography: it is written to REPORT_DIR (gitignored) and only counts are
@@ -23,6 +26,7 @@ import unicodedata
 from collections import Counter, defaultdict
 
 import config
+from src.ingest_pdf import _fix_accents
 
 _YEAR = r"(?:19|20)\d{2}[a-z]?|n\.d\.|in press"
 _PAREN_RE = re.compile(r"\(([^()]{4,400})\)")
@@ -99,6 +103,20 @@ def citations_in(text: str) -> list[tuple[str, str]]:
     return out
 
 
+_NUM_GROUP_RE = re.compile(r"\[(\d{1,3}(?:\s*[-–]\s*\d{1,3})?(?:\s*,\s*\d{1,3}(?:\s*[-–]\s*\d{1,3})?)*)\]")
+
+
+def numbered_citations_in(text: str) -> list[int]:
+    """Reference numbers cited as [3], [1,15], [16,20-22], in text order."""
+    out = []
+    for m in _NUM_GROUP_RE.finditer(text):
+        for part in m.group(1).split(","):
+            a, _, b = re.sub(r"\s", "", part).replace("–", "-").partition("-")
+            lo, hi = int(a), int(b or a)
+            out += list(range(lo, hi + 1)) if 0 <= hi - lo < 100 else [lo, hi]
+    return out
+
+
 _POSSESSIVE_RE = re.compile(r"\b([A-Z][A-Za-zÀ-ɏ\-]+)['’]s\s+\(")
 
 
@@ -117,15 +135,38 @@ def ref_year(ref) -> str:
     return m.group(1).lower() if m else ref.year
 
 
+def audit_numbered(nums: list[int], refs: list) -> dict:
+    """A numbered list (Vancouver): cited numbers beyond the list, entries
+    never cited, and numbers first cited out of order (entry n must be first
+    cited after entries 1..n-1)."""
+    first = list(dict.fromkeys(nums))
+    out_of_order = [n for i, n in enumerate(first) if n <= len(refs) and any(m > n for m in first[:i])]
+    norm = Counter(re.sub(r"\W+", " ", _fold(r.raw))[:80] for r in refs)
+    return {
+        "style": "numbered", "n_references": len(refs), "n_citation_mentions": len(nums),
+        "n_distinct_citations": len(first),
+        "unresolved": [{"number": n, "count": nums.count(n), "kind": "number_out_of_range"}
+                       for n in sorted(set(nums)) if not 1 <= n <= len(refs)],
+        "uncited_references": [f"[{i}] {r.raw}" for i, r in enumerate(refs, 1) if i not in set(nums)],
+        "first_cited_out_of_order": out_of_order,
+        "duplicate_references": [k for k, n in norm.items() if n > 1],
+        "ambiguous_same_surname_year": [],
+    }
+
+
 def audit(body_texts: list[str], refs: list) -> dict:
-    keyed = {(_fold(ref_surname(r)), ref_year(r)): r for r in refs}
+    nums = numbered_citations_in("\n".join(body_texts))
+    if len(nums) > len(citations_in("\n".join(body_texts))):
+        return audit_numbered(nums, refs)
+    keyed ={(_fold(ref_surname(r)), ref_year(r)): r for r in refs}
     by_surname = defaultdict(set)
     by_year = defaultdict(set)
     for (s, y) in keyed:
         by_surname[s].add(y)
         by_year[y.rstrip("abcdefgh")].add(s)
     ref_text = _fold(" ".join(r.raw for r in refs))
-    cites = Counter(citations_in("\n".join(body_texts)))
+    # A PDF body keeps spacing accents ("P´oka"); the reference list has them fixed.
+    cites = Counter(citations_in(_fix_accents("\n".join(body_texts))))
     cited_keys, unresolved = set(), []
     for (surname, year), n in cites.items():
         k = (_fold(surname), year.lower())
@@ -153,6 +194,7 @@ def audit(body_texts: list[str], refs: list) -> dict:
     plain = Counter((_fold(ref_surname(r)), ref_year(r)) for r in refs if not ref_year(r)[-1:].isalpha())
     ambiguous = [f"{s} {y}" for (s, y), n in plain.items() if n > 1]
     return {
+        "style": "author-year",
         "n_references": len(refs), "n_citation_mentions": sum(cites.values()),
         "n_distinct_citations": len(cites),
         "unresolved": sorted(unresolved, key=lambda u: (u["kind"], u["surname"])),
@@ -175,12 +217,13 @@ def main() -> None:
     path = config.REPORT_DIR / "ref_audit.json"
     path.write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
     kinds = Counter(u["kind"] for u in res["unresolved"])
-    print(json.dumps({"corpus": config.CORPUS, "references": res["n_references"],
+    print(json.dumps({"corpus": config.CORPUS, "style": res["style"], "references": res["n_references"],
                       "citation_mentions": res["n_citation_mentions"],
                       "distinct_citations": res["n_distinct_citations"],
                       "unresolved": dict(kinds), "uncited_references": len(res["uncited_references"]),
                       "duplicates": len(res["duplicate_references"]),
-                      "ambiguous": len(res["ambiguous_same_surname_year"]), "report": str(path)}))
+                      "ambiguous": len(res["ambiguous_same_surname_year"]),
+                      "out_of_order": len(res.get("first_cited_out_of_order", [])), "report": str(path)}))
     if "--lookup" in sys.argv:    # part 2: Crossref + PubMed (network, cached)
         from eval.ref_lookup import lookup_all
         found = lookup_all(refs)
