@@ -788,6 +788,45 @@ Open, in suggested order:
    Baseline–Immersion comparison → unsupported). Criteria (Pratviel zh clean
    ≥ 5/7, R02 fixed, no regression, net ≥ +3) not met → full run skipped,
    default stays v2.1, v2.2 kept registered for reproduction.
+6e. **Reference audit — in progress (owner approved 2026-10-28).** Goal: check
+   the bibliography of a corpus (thesis first) before submission. Plan:
+   step 0 enable the PubMed plugin; step 1 internal consistency (no network);
+   step 2 pilot lookups with the PubMed MCP (Pratviel 10 + thesis 10 refs);
+   step 3 batch lookup in `eval/ref_audit.py` (DOI → Crossref/PubMed, else
+   title + first author + year; statuses verified / metadata mismatch with
+   the field / not found → manual check, books and theses are often not
+   indexed / retracted; local response cache, rate limits, recorded fixtures
+   for tests); step 4 run Pratviel (hand-check 20) then the thesis, hand-check
+   every non-verified entry; step 5 local issue list for the owner,
+   aggregate numbers only in README/HANDOFF. Only bibliographic data of
+   published works leaves the machine, never body text; no e-mail address is
+   sent to Crossref unless the owner agrees.
+   **Status (2026-10-28).** Step 0: plugin enabled on the account
+   (`ListPlugins` shows PubMed enabled) but its tools load only in a new
+   session — open a new Code session in this folder and check with
+   `ToolSearch` ("pubmed") before step 2. Step 1 done: `eval/ref_audit.py`
+   (`CORPUS=<name> python -m eval.ref_audit`; report
+   `REPORT_DIR/ref_audit.json`, gitignored, holds the corpus's own
+   bibliography, only counts are printed; tests `tests/test_ref_audit.py`).
+   Citations are read from the whole body joined (groups run across page
+   breaks): parenthetical groups split on ";", several years per author,
+   narrative "Surname (2020)", possessive "Smith's (2001)", a/b suffixes,
+   particles (de, van …) and multi-word surnames ("De Franco Tobar"),
+   acronym lead-ins ("SSQ, …, Bouchard et al."). Unresolved kinds:
+   year_mismatch, misspelling (edit distance ≤ 2), missing, and
+   reference_split_error (the cited name and year are in the reference text
+   but not as their own entry: a PDF list split wrongly, not a citation
+   error). Validation on the OA corpora (each finding checked by hand):
+   nature_walking — 2 cited works absent from its reference list (confirmed
+   in the PDF) and two same-author-year 1988 entries without a/b (real);
+   Pratviel — 1 false alarm (software version "Matlab 2021b"); Rockstroh —
+   6 reference_split_error from our PDF reference splitter (known parser
+   limitation: two-column Frontiers lists merge entries). Thesis (84 refs,
+   97 citation mentions): 2 cited but not listed, 1 cited with a year not
+   in the list, 6 listed but not found in the text (+1 false alarm caused by
+   two same-author-year entries), 4 same-first-author-year groups without
+   a/b (+1 distinguishable by author count) — details only in the local
+   report for the owner. Next: step 2 in a new session.
 6. **Human-labelled judge items** (`data/golden/judge_set_human.jsonl`,
    schema in `judge_set_human.example.jsonl`) — owner's task, not started.
 
@@ -968,7 +1007,8 @@ Open, in suggested order:
 | `42aafd2` | Generator prompt v2.2 (yes/no rule): calibrated, not adopted |
 | `85dd5cb` | Echo rule: partially supported claim restating a yes/no question → review (default on) |
 | `bbac62d` | Judging Chinese claims: v3e and translate-first evaluated, not adopted |
-| (this commit) | Chinese-overclaim rule (default on) |
+| `14ae8c1` | Chinese-overclaim rule (default on) |
+| (this commit) | Reference audit, step 1: internal consistency of citations and the reference list |
 
 ## 10. Completed work log
 
