@@ -788,7 +788,7 @@ Open, in suggested order:
    Baseline–Immersion comparison → unsupported). Criteria (Pratviel zh clean
    ≥ 5/7, R02 fixed, no regression, net ≥ +3) not met → full run skipped,
    default stays v2.1, v2.2 kept registered for reproduction.
-6e. **Reference audit — in progress (owner approved 2026-10-28).** Goal: check
+6e. **Reference audit — done 2026-10-28 (owner approved 2026-10-28).** Goal: check
    the bibliography of a corpus (thesis first) before submission. Plan:
    step 0 enable the PubMed plugin; step 1 internal consistency (no network);
    step 2 pilot lookups with the PubMed MCP (Pratviel 10 + thesis 10 refs);
@@ -889,9 +889,22 @@ Open, in suggested order:
    first-author-only Crossref records, U+2010 hyphen, OUP article id, IOP
    DOI alias, book ↔ review. Details per entry for the owner in the local
    `eval/reports/ref_lookup_handcheck.md`. Not compared: journal name
-   (a wrong journal shows up as volume/page/DOI differences). Next: step 5
-   (local issue list combining steps 1–4 for the owner; aggregate numbers
-   in README).
+   (a wrong journal shows up as volume/page/DOI differences).
+   **Step 5 done (2026-10-28):** owner's issue list in the local
+   `eval/reports/ref_issues.md` (thesis only; every item hand-checked):
+   20 must-fix items — 2 entries that appear not to exist (in both cases
+   the text's citation fits a real entry already listed, so deleting them
+   also removes two same-author-year clashes), 6 real works with wrong
+   details, 3 citations missing from the list (one a wrong year), 2
+   same-author-year pairs to label a/b, 7 listed but never cited (one, a
+   dataset, is used in the Methods without a citation; another entry with
+   wrong details is in effect uncited because both of its citations
+   describe a different listed paper); 2 minor (online-first year, missing
+   subtitle); 5 to confirm by hand (proceedings, software, books, chapter,
+   manual). 59 of 84 references have no finding. README: "Reference
+   audit" results table (aggregate counts, both corpora), Usage step 7,
+   Data & privacy note on what `--lookup` sends. Owner's next step: fix
+   the list in the manuscript, then rerun both parts to confirm.
 6. **Human-labelled judge items** (`data/golden/judge_set_human.jsonl`,
    schema in `judge_set_human.example.jsonl`) — owner's task, not started.
 
@@ -1075,7 +1088,8 @@ Open, in suggested order:
 | `14ae8c1` | Chinese-overclaim rule (default on) |
 | `9c336ec` | Reference audit, step 1: internal consistency of citations and the reference list |
 | `9727bd9` | Reference audit, step 2: PubMed MCP pilot (20 references), lessons for step 3 |
-| (this commit) | Reference audit, steps 3–4: Crossref + PubMed batch lookup (`eval/ref_lookup.py`), wrapped-DOI fix in the PDF reader |
+| `e397368` | Reference audit, steps 3–4: Crossref + PubMed batch lookup (`eval/ref_lookup.py`), wrapped-DOI fix in the PDF reader |
+| (this commit) | Reference audit, step 5: README results, owner issue list (local) |
 
 ## 10. Completed work log
 

@@ -500,6 +500,43 @@ which the judge caught) and a false flag only sends a claim to review.
 `ECHO_RULE=off` disables it. It does not help when the judge rejects a true
 echo (Pratviel R04); that needs a better judge.
 
+### Reference audit (2026-10-28)
+
+A bibliography check meant to run before submission
+(`python -m eval.ref_audit --lookup`, see [Usage](#usage)). Part 1 (offline)
+matches in-text citations against the reference list. Part 2 looks each
+reference up in Crossref and PubMed, then compares year, volume, first page,
+DOI, author count and author names. A record only counts as the same work
+if its title and first author match. Each reference ends up verified,
+mismatch, retracted or not found.
+
+| | Dissertation | Pratviel et al. 2024 (OA) |
+|---|---|---|
+| References / citation mentions | 84 / 97 | 60 / 86 |
+| Cited but not listed / year not in list | 2 / 1 | 0 (1 false alarm: "Matlab 2021b") |
+| Listed but never cited | 7 | 0 |
+| Same author + year without a/b | 2 pairs (+3 caused by wrong entries) | 0 |
+| Lookup: verified | 69 | 57 |
+| Lookup: mismatch (all real on hand-check) | 8 | 0 |
+| Lookup: not found — real work outside Crossref/PubMed | 5 | 3 |
+| Lookup: not found — **appears not to exist** | **2** | 0 |
+| Retracted | 0 | 0 |
+
+The dissertation's 8 mismatches include a year that the text cites the same
+way (part 1 cannot see it), an unregistered DOI, two DOIs that resolve to
+unrelated papers, and co-author lists that differ from the record. The two
+entries that appear not to exist have unregistered DOIs, and their titles
+are in neither Crossref nor PubMed. In both cases the text's citation fits a
+real entry already in the list. A hand-check of every non-verified entry
+and all 50 search-based matches found no false "verified" and no false
+mismatch. The false alarms met while building it (a lowercase surname,
+"Volume 14", Crossref records with the first author only, U+2010 hyphens,
+an OUP article id, an IOP DOI alias, a book matched to its review) are fixed
+and covered by tests. In a 20-reference pilot, about 30% of the sample was
+not indexed in PubMed (environmental psychology, HCI, CyberTherapy journals),
+so Crossref is the primary source. The tool checks bibliographic details
+only, not whether a source supports the sentence citing it.
+
 ### Retrieval — chunking ablation (dissertation)
 
 | Strategy | Hit@1 | Hit@3 | Hit@5 | MRR |
@@ -896,6 +933,11 @@ generated chunks and indexes, every golden set, judge set and vote cache, and
 the evaluation reports (`eval/reports/`). What ships is **code, methodology,
 architecture and aggregate metrics** only.
 
+The reference audit's lookup (`--lookup`) sends each reference string and DOI,
+which is bibliographic data about published works, to Crossref and NCBI. It
+never sends body text, and it sends no e-mail address unless
+`CROSSREF_MAILTO` / `NCBI_EMAIL` are set.
+
 To run it on your own corpus: drop a `.docx` at the repo root (or set
 `DISSERTATION_DOCX`), then author a golden set following
 [`data/golden/golden_set.example.json`](data/golden/golden_set.example.json) and
@@ -970,6 +1012,10 @@ python cli.py judge-eval --with-heading               # passages shown with thei
 
 # 6. Unit tests for the deterministic verification rules (no LLM, no corpus)
 python -m pytest tests
+
+# 7. Reference audit: citations vs reference list (offline), then Crossref + PubMed lookups
+python -m eval.ref_audit
+python -m eval.ref_audit --lookup                    # network; cached in .cache/ref_lookup
 ```
 
 `check` is the writer-facing use: it splits your paragraph into sentences,
