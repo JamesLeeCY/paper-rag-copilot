@@ -1,0 +1,1098 @@
+{
+ "references": {
+  "0": "Anderson, A. P., Mayer, M. D., Fellows, A. M., Cowan, D. R., Hegel, M. T., and Buckey, J. C. (2017). Relaxation with immersive natural scenes presented using virtual reality. Aerosp. Med. Hum. Perform. 88, 520–526. doi:10.3357/AMHP.4747. 2017",
+  "4": "Bouchard, S., St-Jacques, J., Renaud, P., and Wiederhold, B. K. (2009). Side effects of immersions in virtual reality for people suffering from anxiety disorders. J. CyberTherapy Rehabil. 2, 127–138.",
+  "14": "Dickerson, S. S., and Kemeny, M. E. (2004). Acute stressors and cortisol responses: a theoretical integration and synthesis of laboratory research. Psychol. Bull. 130, 355–391. doi:10.1037/0033-2909.130.3.355",
+  "21": "Kaplan, S. (1995). The restorative beneﬁts of nature: toward an integrative framework. J. Environ. Psychol. Green Psychol. 15, 169–182. doi:10.1016/0272-4944(95)90001-2",
+  "24": "Lehrer, P. (2013). How does heart rate variability biofeedback work? Resonance, the baroreﬂex, and other mechanisms. Biofeedback 41, 26–31. doi:10.5298/1081-5937-41. 1.02",
+  "42": "Sackeim, H. A., Keilp, J. G., Rush, A. J., George, M. S., Marangell, L. B., Dormer, J. S., et al. (2001a). The effects of vagus nerve stimulation on cognitive performance in patients with treatment-resistant depression. Neuropsychiatry. Neuropsychol. Behav. Neurol. 14, 53–62.",
+  "45": "Selye, H. (1956). The stress of life, the stress of life. New York, NY, US: McGraw-Hill.",
+  "50": "Tabor, A., Bateman, S., Scheme, E. J., and schraefel, m. c. (2022). Comparing heart rate variability biofeedback and simple paced breathing to inform the design of guided breathing technologies. Front. Comput. Sci. 4. doi:10.3389/fcomp.2022.926649",
+  "57": "Weibel, R. P., Kerr, J. I., Naegelin, M., Ferrario, A., Schinazi, V. R., La Marca, R., et al. (2023). Virtual reality-supported biofeedback for stress management: beneﬁcial effects on heart rate variability and user experience. Comput. Hum. Behav. 141, 107607. doi:10. 1016/j.chb.2022.107607",
+  "58": "White, M. P., Yeo, N. L., Vassiljev, P., Lundstedt, R., Wallergård, M., Albin, M., et al. (2018). A prescription for &ldquo;nature&amp;rdquo; &ndash; the potential of using virtual nature in therapeutics. Neuropsychiatr. Dis. Treat. 14, 3001–3013. doi:10.2147/ NDT.S179038",
+  "dickerson_year_2005": "Dickerson, S. S., and Kemeny, M. E. (2005). Acute stressors and cortisol responses: a theoretical integration and synthesis of laboratory research. Psychol. Bull. 130, 355–391. doi:10.1037/0033-2909.130.3.355",
+  "dickerson_kaplan_doi": "Dickerson, S. S., and Kemeny, M. E. (2004). Acute stressors and cortisol responses: a theoretical integration and synthesis of laboratory research. Psychol. Bull. 130, 355–391. doi:10.1016/0272-4944(95)90001-2"
+ },
+ "responses": {
+  "https://api.crossref.org/works/10.3357/amhp.4747.2017": {
+   "message": {
+    "DOI": "10.3357/amhp.4747.2017",
+    "title": [
+     "Relaxation with Immersive Natural Scenes Presented Using Virtual Reality"
+    ],
+    "author": [
+     {
+      "family": "Anderson"
+     },
+     {
+      "family": "Mayer"
+     },
+     {
+      "family": "Fellows"
+     },
+     {
+      "family": "Cowan"
+     },
+     {
+      "family": "Hegel"
+     },
+     {
+      "family": "Buckey"
+     }
+    ],
+    "issued": {
+     "date-parts": [
+      [
+       2017,
+       6,
+       1
+      ]
+     ]
+    },
+    "published-print": {
+     "date-parts": [
+      [
+       2017,
+       6,
+       1
+      ]
+     ]
+    },
+    "volume": "88",
+    "page": "520-526",
+    "type": "journal-article",
+    "container-title": [
+     "Aerospace Medicine and Human Performance"
+    ]
+   }
+  },
+  "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=10.3357%2Famhp.4747.2017%5Bdoi%5D&retmode=json&tool=paper_rag_copilot": {
+   "idlist": [
+    "28539139"
+   ]
+  },
+  "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=28539139&retmode=json&tool=paper_rag_copilot": {
+   "pubdate": "2017 Jun 1",
+   "authors": [
+    {
+     "name": "Anderson AP",
+     "authtype": "Author",
+     "clusterid": ""
+    },
+    {
+     "name": "Mayer MD",
+     "authtype": "Author",
+     "clusterid": ""
+    },
+    {
+     "name": "Fellows AM",
+     "authtype": "Author",
+     "clusterid": ""
+    },
+    {
+     "name": "Cowan DR",
+     "authtype": "Author",
+     "clusterid": ""
+    },
+    {
+     "name": "Hegel MT",
+     "authtype": "Author",
+     "clusterid": ""
+    },
+    {
+     "name": "Buckey JC",
+     "authtype": "Author",
+     "clusterid": ""
+    }
+   ],
+   "title": "Relaxation with Immersive Natural Scenes Presented Using Virtual Reality.",
+   "volume": "88",
+   "pages": "520-526",
+   "pubtype": [
+    "Journal Article"
+   ],
+   "articleids": [
+    {
+     "idtype": "pubmed",
+     "idtypen": 1,
+     "value": "28539139"
+    },
+    {
+     "idtype": "doi",
+     "idtypen": 3,
+     "value": "10.3357/AMHP.4747.2017"
+    }
+   ]
+  },
+  "https://api.crossref.org/works?query.bibliographic=Bouchard%2C+S.%2C+St-Jacques%2C+J.%2C+Renaud%2C+P.%2C+and+Wiederhold%2C+B.+K.+%282009%29.+Side+effects+of+immersions+in+virtual+reality+for+people+suffering+from+anxiety+disorders.+J.+CyberTherapy+Rehabil.+2%2C+127%E2%80%93138.&rows=3": {
+   "message": {
+    "items": [
+     {
+      "DOI": "10.1109/have.2002.1106906",
+      "title": [
+       "Applications of virtual reality in clinical psychology: illustrations with the treatment of anxiety disorders"
+      ],
+      "author": [
+       {
+        "family": "Bouchard"
+       },
+       {
+        "family": "Renaud"
+       },
+       {
+        "family": "Robillard"
+       },
+       {
+        "family": "St-Jacques"
+       }
+      ],
+      "issued": {
+       "date-parts": [
+        [
+         null
+        ]
+       ]
+      },
+      "page": "7-11",
+      "type": "proceedings-article",
+      "container-title": [
+       "IEEE International Workshop HAVE Haptic Virtual Environments and Their"
+      ]
+     },
+     {
+      "DOI": "10.1007/978-1-4899-8023-6",
+      "title": [
+       "Advances in Virtual Reality and Anxiety Disorders"
+      ],
+      "author": [
+       {
+        "family": "Wiederhold"
+       },
+       {
+        "family": "Bouchard"
+       }
+      ],
+      "issued": {
+       "date-parts": [
+        [
+         2014
+        ]
+       ]
+      },
+      "published-print": {
+       "date-parts": [
+        [
+         2014
+        ]
+       ]
+      },
+      "type": "book"
+     },
+     {
+      "DOI": "10.1007/978-1-4899-8023-6_3",
+      "title": [
+       "Sickness in Virtual Reality"
+      ],
+      "author": [
+       {
+        "family": "Wiederhold"
+       },
+       {
+        "family": "Bouchard"
+       }
+      ],
+      "issued": {
+       "date-parts": [
+        [
+         2014
+        ]
+       ]
+      },
+      "published-print": {
+       "date-parts": [
+        [
+         2014
+        ]
+       ]
+      },
+      "published-online": {
+       "date-parts": [
+        [
+         2014,
+         10,
+         28
+        ]
+       ]
+      },
+      "page": "35-62",
+      "type": "book-chapter",
+      "container-title": [
+       "Advances in Virtual Reality and Anxiety Disorders"
+      ]
+     }
+    ]
+   }
+  },
+  "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=Bouchard%5B1au%5D+AND+2%5Bvi%5D+AND+127%5Bpg%5D&retmode=json&tool=paper_rag_copilot": {
+   "idlist": []
+  },
+  "https://api.crossref.org/works/10.1037/0033-2909.130.3.355": {
+   "message": {
+    "DOI": "10.1037/0033-2909.130.3.355",
+    "title": [
+     "Acute Stressors and Cortisol Responses: A Theoretical Integration and Synthesis of Laboratory Research."
+    ],
+    "author": [
+     {
+      "family": "Dickerson"
+     },
+     {
+      "family": "Kemeny"
+     }
+    ],
+    "issued": {
+     "date-parts": [
+      [
+       2004
+      ]
+     ]
+    },
+    "published-online": {
+     "date-parts": [
+      [
+       2004
+      ]
+     ]
+    },
+    "volume": "130",
+    "page": "355-391",
+    "type": "journal-article",
+    "container-title": [
+     "Psychological Bulletin"
+    ]
+   }
+  },
+  "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=10.1037%2F0033-2909.130.3.355%5Bdoi%5D&retmode=json&tool=paper_rag_copilot": {
+   "idlist": [
+    "15122924"
+   ]
+  },
+  "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=15122924&retmode=json&tool=paper_rag_copilot": {
+   "pubdate": "2004 May",
+   "authors": [
+    {
+     "name": "Dickerson SS",
+     "authtype": "Author",
+     "clusterid": ""
+    },
+    {
+     "name": "Kemeny ME",
+     "authtype": "Author",
+     "clusterid": ""
+    }
+   ],
+   "title": "Acute stressors and cortisol responses: a theoretical integration and synthesis of laboratory research.",
+   "volume": "130",
+   "pages": "355-91",
+   "pubtype": [
+    "Journal Article",
+    "Meta-Analysis",
+    "Research Support, U.S. Gov't, Non-P.H.S.",
+    "Research Support, U.S. Gov't, P.H.S."
+   ],
+   "articleids": [
+    {
+     "idtype": "pubmed",
+     "idtypen": 1,
+     "value": "15122924"
+    },
+    {
+     "idtype": "doi",
+     "idtypen": 3,
+     "value": "10.1037/0033-2909.130.3.355"
+    },
+    {
+     "idtype": "pii",
+     "idtypen": 4,
+     "value": "2004-13724-001"
+    }
+   ]
+  },
+  "https://api.crossref.org/works/10.1016/0272-4944%2895%2990001-2": {
+   "message": {
+    "DOI": "10.1016/0272-4944(95)90001-2",
+    "title": [
+     "The restorative benefits of nature: Toward an integrative framework"
+    ],
+    "author": [
+     {
+      "family": "Kaplan"
+     }
+    ],
+    "issued": {
+     "date-parts": [
+      [
+       1995,
+       9
+      ]
+     ]
+    },
+    "published-print": {
+     "date-parts": [
+      [
+       1995,
+       9
+      ]
+     ]
+    },
+    "volume": "15",
+    "page": "169-182",
+    "type": "journal-article",
+    "container-title": [
+     "Journal of Environmental Psychology"
+    ]
+   }
+  },
+  "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=10.1016%2F0272-4944%2895%2990001-2%5Bdoi%5D&retmode=json&tool=paper_rag_copilot": {
+   "idlist": []
+  },
+  "https://api.crossref.org/works/10.5298/1081-5937-41.1.02": {
+   "message": {
+    "DOI": "10.5298/1081-5937-41.1.02",
+    "title": [
+     "How Does Heart Rate Variability Biofeedback Work? Resonance, the Baroreflex, and Other Mechanisms"
+    ],
+    "author": [
+     {
+      "family": "Lehrer"
+     }
+    ],
+    "issued": {
+     "date-parts": [
+      [
+       2013
+      ]
+     ]
+    },
+    "published-print": {
+     "date-parts": [
+      [
+       2013
+      ]
+     ]
+    },
+    "volume": "41",
+    "page": "26-31",
+    "type": "journal-article",
+    "container-title": [
+     "Biofeedback"
+    ]
+   }
+  },
+  "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=10.5298%2F1081-5937-41.1.02%5Bdoi%5D&retmode=json&tool=paper_rag_copilot": {
+   "idlist": []
+  },
+  "https://api.crossref.org/works?query.bibliographic=Sackeim%2C+H.+A.%2C+Keilp%2C+J.+G.%2C+Rush%2C+A.+J.%2C+George%2C+M.+S.%2C+Marangell%2C+L.+B.%2C+Dormer%2C+J.+S.%2C+et+al.+%282001a%29.+The+effects+of+vagus+nerve+stimulation+on+cognitive+performance+in+patients+with+treatment-resistant+depression.+Neuropsychiatry.+Neuropsychol.+Behav.+Neurol.+14%2C+53%E2%80%9362.&rows=3": {
+   "message": {
+    "items": [
+     {
+      "DOI": "10.1006/ebeh.2001.0209",
+      "title": [
+       "A Review of Vagus Nerve Stimulation for Treatment-Resistant Depression"
+      ],
+      "author": [
+       {
+        "family": "Marangell"
+       },
+       {
+        "family": "Rush"
+       },
+       {
+        "family": "George"
+       },
+       {
+        "family": "Georges"
+       },
+       {
+        "family": "Sackeim"
+       }
+      ],
+      "issued": {
+       "date-parts": [
+        [
+         2001,
+         6
+        ]
+       ]
+      },
+      "published-print": {
+       "date-parts": [
+        [
+         2001,
+         6
+        ]
+       ]
+      },
+      "volume": "2",
+      "page": "S6-S10",
+      "type": "journal-article",
+      "container-title": [
+       "Epilepsy &amp; Behavior"
+      ]
+     },
+     {
+      "DOI": "10.1517/14656566.2.7.1061",
+      "title": [
+       "Vagus nerve stimulation in depression"
+      ],
+      "author": [
+       {
+        "family": "Goodnick"
+       },
+       {
+        "family": "Rush"
+       },
+       {
+        "family": "George"
+       },
+       {
+        "family": "Marangell"
+       },
+       {
+        "family": "Sackeim"
+       }
+      ],
+      "issued": {
+       "date-parts": [
+        [
+         2001,
+         7
+        ]
+       ]
+      },
+      "published-print": {
+       "date-parts": [
+        [
+         2001,
+         7
+        ]
+       ]
+      },
+      "published-online": {
+       "date-parts": [
+        [
+         2005,
+         2,
+         24
+        ]
+       ]
+      },
+      "volume": "2",
+      "page": "1061-1063",
+      "type": "journal-article",
+      "container-title": [
+       "Expert Opinion on Pharmacotherapy"
+      ]
+     },
+     {
+      "DOI": "10.1017/s1461145703003250",
+      "title": [
+       "Vagus nerve stimulation (VNS): utility in neuropsychiatric disorders"
+      ],
+      "author": [
+       {
+        "family": "George"
+       },
+       {
+        "family": "Rush"
+       },
+       {
+        "family": "Sackeim"
+       },
+       {
+        "family": "Marangell"
+       }
+      ],
+      "issued": {
+       "date-parts": [
+        [
+         2003,
+         3
+        ]
+       ]
+      },
+      "published-print": {
+       "date-parts": [
+        [
+         2003,
+         3
+        ]
+       ]
+      },
+      "volume": "6",
+      "page": "73-83",
+      "article-number": "S1461145703003250",
+      "type": "journal-article",
+      "container-title": [
+       "The International Journal of Neuropsychopharmacology"
+      ]
+     }
+    ]
+   }
+  },
+  "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=Sackeim%5B1au%5D+AND+14%5Bvi%5D+AND+53%5Bpg%5D&retmode=json&tool=paper_rag_copilot": {
+   "idlist": [
+    "11234909"
+   ]
+  },
+  "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=11234909&retmode=json&tool=paper_rag_copilot": {
+   "pubdate": "2001 Jan",
+   "authors": [
+    {
+     "name": "Sackeim HA",
+     "authtype": "Author",
+     "clusterid": ""
+    },
+    {
+     "name": "Keilp JG",
+     "authtype": "Author",
+     "clusterid": ""
+    },
+    {
+     "name": "Rush AJ",
+     "authtype": "Author",
+     "clusterid": ""
+    },
+    {
+     "name": "George MS",
+     "authtype": "Author",
+     "clusterid": ""
+    },
+    {
+     "name": "Marangell LB",
+     "authtype": "Author",
+     "clusterid": ""
+    },
+    {
+     "name": "Dormer JS",
+     "authtype": "Author",
+     "clusterid": ""
+    },
+    {
+     "name": "Burt T",
+     "authtype": "Author",
+     "clusterid": ""
+    },
+    {
+     "name": "Lisanby SH",
+     "authtype": "Author",
+     "clusterid": ""
+    },
+    {
+     "name": "Husain M",
+     "authtype": "Author",
+     "clusterid": ""
+    },
+    {
+     "name": "Cullum CM",
+     "authtype": "Author",
+     "clusterid": ""
+    },
+    {
+     "name": "Oliver N",
+     "authtype": "Author",
+     "clusterid": ""
+    },
+    {
+     "name": "Zboyan H",
+     "authtype": "Author",
+     "clusterid": ""
+    }
+   ],
+   "title": "The effects of vagus nerve stimulation on cognitive performance in patients with treatment-resistant depression.",
+   "volume": "14",
+   "pages": "53-62",
+   "pubtype": [
+    "Clinical Trial",
+    "Journal Article",
+    "Research Support, Non-U.S. Gov't"
+   ],
+   "articleids": [
+    {
+     "idtype": "pubmed",
+     "idtypen": 1,
+     "value": "11234909"
+    }
+   ]
+  },
+  "https://api.crossref.org/works?query.bibliographic=Selye%2C+H.+%281956%29.+The+stress+of+life%2C+the+stress+of+life.+New+York%2C+NY%2C+US%3A+McGraw-Hill.&rows=3": {
+   "message": {
+    "items": [
+     {
+      "DOI": "10.2106/00004623-195739020-00034",
+      "title": [
+       "The Stress of Life. Hans Selye, M.D. New York, McGraw-Hill Book Company, Inc. 1956. $5.95"
+      ],
+      "author": [
+       {
+        "family": "H."
+       }
+      ],
+      "issued": {
+       "date-parts": [
+        [
+         1957,
+         4
+        ]
+       ]
+      },
+      "published-print": {
+       "date-parts": [
+        [
+         1957,
+         4
+        ]
+       ]
+      },
+      "volume": "39",
+      "page": "479",
+      "type": "journal-article",
+      "container-title": [
+       "The Journal of Bone &amp; Joint Surgery"
+      ]
+     },
+     {
+      "DOI": "10.1177/019263658506948224",
+      "title": [
+       "A Review of Stress Management Life Stress. By Stacey B. Day. New York: Van Nostrand Reinhold Company, 1982; Women Under Stress. By Donald R. Morse and M. Lawrence Furst. New York: Van Nostrand Reinhold Company, 1982; Selye's Guide to Stress Research, Volume 1. By Hans Selye. New York: Van Nostrand Reinhold Company, 1980; Selye's Guide to Stress Research, Volumes 2-3. By Hans Selye. New York: Van Nostrand Reinhold Company, 1983"
+      ],
+      "author": [
+       {
+        "family": "Lynch"
+       }
+      ],
+      "issued": {
+       "date-parts": [
+        [
+         1985,
+         9
+        ]
+       ]
+      },
+      "published-print": {
+       "date-parts": [
+        [
+         1985,
+         9
+        ]
+       ]
+      },
+      "published-online": {
+       "date-parts": [
+        [
+         1985,
+         9,
+         1
+        ]
+       ]
+      },
+      "volume": "69",
+      "page": "132-132",
+      "type": "journal-article",
+      "container-title": [
+       "NASSP Bulletin"
+      ]
+     },
+     {
+      "DOI": "10.1111/j.1749-6632.1998.tb08967.x",
+      "title": [
+       "Hans Selye (1907-1982)"
+      ],
+      "author": [
+       {
+        "family": "Bertok"
+       }
+      ],
+      "issued": {
+       "date-parts": [
+        [
+         1998,
+         6
+        ]
+       ]
+      },
+      "published-print": {
+       "date-parts": [
+        [
+         1998,
+         6
+        ]
+       ]
+      },
+      "volume": "851",
+      "page": "xv-xv",
+      "type": "journal-article",
+      "container-title": [
+       "Annals of the New York Academy of Sciences"
+      ]
+     }
+    ]
+   }
+  },
+  "https://api.crossref.org/works/10.3389/fcomp.2022.926649": {
+   "message": {
+    "DOI": "10.3389/fcomp.2022.926649",
+    "title": [
+     "Comparing heart rate variability biofeedback and simple paced breathing to inform the design of guided breathing technologies"
+    ],
+    "author": [
+     {
+      "family": "Tabor"
+     },
+     {
+      "family": "Bateman"
+     },
+     {
+      "family": "Scheme"
+     },
+     {
+      "family": "schraefel"
+     }
+    ],
+    "issued": {
+     "date-parts": [
+      [
+       2022,
+       11,
+       30
+      ]
+     ]
+    },
+    "published-online": {
+     "date-parts": [
+      [
+       2022,
+       11,
+       30
+      ]
+     ]
+    },
+    "volume": "4",
+    "article-number": "926649",
+    "type": "journal-article",
+    "container-title": [
+     "Frontiers in Computer Science"
+    ]
+   }
+  },
+  "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=10.3389%2Ffcomp.2022.926649%5Bdoi%5D&retmode=json&tool=paper_rag_copilot": {
+   "idlist": []
+  },
+  "https://api.crossref.org/works/10.1016/j.chb.2022.107607": {
+   "message": {
+    "DOI": "10.1016/j.chb.2022.107607",
+    "title": [
+     "Virtual reality-supported biofeedback for stress management: Beneficial effects on heart rate variability and user experience"
+    ],
+    "author": [
+     {
+      "family": "Weibel"
+     },
+     {
+      "family": "Kerr"
+     },
+     {
+      "family": "Naegelin"
+     },
+     {
+      "family": "Ferrario"
+     },
+     {
+      "family": "Schinazi"
+     },
+     {
+      "family": "La Marca"
+     },
+     {
+      "family": "Hoelscher"
+     },
+     {
+      "family": "Nater"
+     },
+     {
+      "family": "von Wangenheim"
+     }
+    ],
+    "issued": {
+     "date-parts": [
+      [
+       2023,
+       4
+      ]
+     ]
+    },
+    "published-print": {
+     "date-parts": [
+      [
+       2023,
+       4
+      ]
+     ]
+    },
+    "volume": "141",
+    "page": "107607",
+    "article-number": "107607",
+    "type": "journal-article",
+    "container-title": [
+     "Computers in Human Behavior"
+    ]
+   }
+  },
+  "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=10.1016%2Fj.chb.2022.107607%5Bdoi%5D&retmode=json&tool=paper_rag_copilot": {
+   "idlist": []
+  },
+  "https://api.crossref.org/works/10.2147/ndt.s179038": {
+   "message": {
+    "DOI": "10.2147/ndt.s179038",
+    "title": [
+     "A prescription for &amp;ldquo;nature&amp;rdquo; &amp;ndash; the potential of using virtual nature in therapeutics"
+    ],
+    "author": [
+     {
+      "family": "White"
+     },
+     {
+      "family": "Yeo"
+     },
+     {
+      "family": "Vassiljev"
+     },
+     {
+      "family": "Lundstedt"
+     },
+     {
+      "family": "Wallergård"
+     },
+     {
+      "family": "Albin"
+     },
+     {
+      "family": "Lõhmus"
+     }
+    ],
+    "issued": {
+     "date-parts": [
+      [
+       2018,
+       11
+      ]
+     ]
+    },
+    "published-online": {
+     "date-parts": [
+      [
+       2018,
+       11
+      ]
+     ]
+    },
+    "volume": "Volume 14",
+    "page": "3001-3013",
+    "type": "journal-article",
+    "container-title": [
+     "Neuropsychiatric Disease and Treatment"
+    ]
+   }
+  },
+  "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=10.2147%2Fndt.s179038%5Bdoi%5D&retmode=json&tool=paper_rag_copilot": {
+   "idlist": [
+    "30510422"
+   ]
+  },
+  "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=30510422&retmode=json&tool=paper_rag_copilot": {
+   "pubdate": "2018",
+   "authors": [
+    {
+     "name": "White MP",
+     "authtype": "Author",
+     "clusterid": ""
+    },
+    {
+     "name": "Yeo NL",
+     "authtype": "Author",
+     "clusterid": ""
+    },
+    {
+     "name": "Vassiljev P",
+     "authtype": "Author",
+     "clusterid": ""
+    },
+    {
+     "name": "Lundstedt R",
+     "authtype": "Author",
+     "clusterid": ""
+    },
+    {
+     "name": "Wallergård M",
+     "authtype": "Author",
+     "clusterid": ""
+    },
+    {
+     "name": "Albin M",
+     "authtype": "Author",
+     "clusterid": ""
+    },
+    {
+     "name": "Lõhmus M",
+     "authtype": "Author",
+     "clusterid": ""
+    }
+   ],
+   "title": "A prescription for \"nature\" - the potential of using virtual nature in therapeutics.",
+   "volume": "14",
+   "pages": "3001-3013",
+   "pubtype": [
+    "Journal Article",
+    "Review"
+   ],
+   "articleids": [
+    {
+     "idtype": "pubmed",
+     "idtypen": 1,
+     "value": "30510422"
+    },
+    {
+     "idtype": "pmc",
+     "idtypen": 8,
+     "value": "PMC6231506"
+    },
+    {
+     "idtype": "pmcid",
+     "idtypen": 5,
+     "value": "pmc-id: PMC6231506;"
+    },
+    {
+     "idtype": "doi",
+     "idtypen": 3,
+     "value": "10.2147/NDT.S179038"
+    },
+    {
+     "idtype": "pii",
+     "idtypen": 4,
+     "value": "ndt-14-3001"
+    }
+   ]
+  },
+  "https://api.crossref.org/works?query.bibliographic=Dickerson%2C+S.+S.%2C+and+Kemeny%2C+M.+E.+%282004%29.+Acute+stressors+and+cortisol+responses%3A+a+theoretical+integration+and+synthesis+of+laboratory+research.+Psychol.+Bull.+130%2C+355%E2%80%93391.+doi%3A10.1016%2F0272-4944%2895%2990001-2&rows=3": {
+   "message": {
+    "items": [
+     {
+      "DOI": "10.1037/0033-2909.130.3.355",
+      "title": [
+       "Acute Stressors and Cortisol Responses: A Theoretical Integration and Synthesis of Laboratory Research."
+      ],
+      "author": [
+       {
+        "family": "Dickerson"
+       },
+       {
+        "family": "Kemeny"
+       }
+      ],
+      "issued": {
+       "date-parts": [
+        [
+         2004
+        ]
+       ]
+      },
+      "published-online": {
+       "date-parts": [
+        [
+         2004
+        ]
+       ]
+      },
+      "volume": "130",
+      "page": "355-391",
+      "type": "journal-article",
+      "container-title": [
+       "Psychological Bulletin"
+      ]
+     },
+     {
+      "DOI": "10.1097/psy.0b013e31817bbc77",
+      "title": [
+       "Rumination and Cortisol Responses to Laboratory Stressors"
+      ],
+      "author": [
+       {
+        "family": "Zoccola"
+       },
+       {
+        "family": "Dickerson"
+       },
+       {
+        "family": "Zaldivar"
+       }
+      ],
+      "issued": {
+       "date-parts": [
+        [
+         2008,
+         7
+        ]
+       ]
+      },
+      "published-print": {
+       "date-parts": [
+        [
+         2008,
+         7
+        ]
+       ]
+      },
+      "volume": "70",
+      "page": "661-667",
+      "type": "journal-article",
+      "container-title": [
+       "Psychosomatic Medicine"
+      ]
+     },
+     {
+      "DOI": "10.1037/e633982013-679",
+      "title": [
+       "Rumination: Assessment and relationship to cortisol responses to a laboratory speech task"
+      ],
+      "author": [
+       {
+        "family": "Mycek"
+       },
+       {
+        "family": "Dickerson"
+       }
+      ],
+      "issued": {
+       "date-parts": [
+        [
+         2007
+        ]
+       ]
+      },
+      "published-print": {
+       "date-parts": [
+        [
+         2007
+        ]
+       ]
+      },
+      "type": "dataset",
+      "container-title": [
+       "PsycEXTRA Dataset"
+      ]
+     }
+    ]
+   }
+  }
+ }
+}

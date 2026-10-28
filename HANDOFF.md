@@ -846,8 +846,52 @@ Open, in suggested order:
    articles, use `<doi>[doi]` in ESearch instead; (v) DOIs wrap across PDF
    lines ("41.\n1.02") and the PDF splitter drops a wrapped tail line
    (Anderson "AMHP.4747." lost "2017"); (vi) the MCP's ECitMatch output
-   swaps `key` and `pmid`. Next: step 3 (batch lookup in
-   `eval/ref_audit.py` via E-utilities + Crossref, cache, fixtures).
+   swaps `key` and `pmid`.
+   **Steps 3–4 done (2026-10-28):** `eval/ref_lookup.py`, run as
+   `CORPUS=<name> python -m eval.ref_audit --lookup` (report
+   `REPORT_DIR/ref_lookup.json`, counts printed). Per reference: listed DOI →
+   Crossref; if absent, unregistered or pointing to another work, Crossref
+   `query.bibliographic` with the reference string; then PubMed ESearch by
+   first author + volume + page (`[1au] [vi] [pg]`, no year so a wrong year
+   is still found). A record is the same work only if its title words are in
+   the reference (≥ 80%, or the whole main title before a subtitle) and the
+   first author matches; books/manuals (no volume/pages) must also match the
+   year (Crossref offered a book review and a later test edition). Compared:
+   year (print/issued/online), volume, first page (Frontiers article
+   numbers yes, OUP ids like "nsz037" no), DOI (not when the record was
+   fetched by the listed DOI: aliases), author count unless "et al.",
+   listed surnames absent from the record (fuller of Crossref/PubMed;
+   a record whose authors are a subset is taken as truncated), missing
+   subtitle. PubMed (by DOI, else by citation) gives the PMID and the
+   "Retracted Publication" flag; Crossref `updated-by` retraction too.
+   Statuses verified / mismatch / retracted / not_found (hint: no
+   volume/pages → check by hand; DOI unregistered and no record → check the
+   work exists) / error. Cache `.cache/ref_lookup/` (trimmed responses,
+   gitignored); 1 s between Crossref calls, 0.4 s NCBI, retries on 429/5xx;
+   no e-mail sent (`CROSSREF_MAILTO`, `NCBI_EMAIL` optional). Tests
+   `tests/test_ref_lookup.py` on recorded Crossref/PubMed responses for
+   Pratviel references (`tests/fixtures/ref_lookup_pratviel.json`, public
+   bibliographic metadata) plus invented records. PDF reader fix: a bare
+   number line after a line-wrapped DOI is kept (it was dropped as a page
+   number); step-1 reports for nature_walking and Rockstroh unchanged.
+   Results — Pratviel (60): 57 verified, 3 not found (two non-indexed
+   CyberTherapy venues, a 1956 book), 0 mismatch; 55 via the listed DOI.
+   Thesis (84): 69 verified, 8 mismatch, 7 not found; 60 with a PMID.
+   Hand-check of every non-verified thesis entry and all 50 search matches:
+   8/8 mismatches real (wrong year ×2 + one minor online-first year, DOI not
+   registered, author lists that differ from the record ×2, one entry with
+   wrong year/volume/page/DOI/co-authors, one with the wrong journal and a
+   DOI of an unrelated paper, a missing subtitle); not found: 5 real works
+   outside Crossref/PubMed (proceedings, software, books, chapter, manual)
+   and **2 that appear not to exist** (unregistered DOIs, no record by title
+   in Crossref or PubMed). No false "verified" among the search matches.
+   False alarms met and fixed on the way: lowercase surname, "Volume 14",
+   first-author-only Crossref records, U+2010 hyphen, OUP article id, IOP
+   DOI alias, book ↔ review. Details per entry for the owner in the local
+   `eval/reports/ref_lookup_handcheck.md`. Not compared: journal name
+   (a wrong journal shows up as volume/page/DOI differences). Next: step 5
+   (local issue list combining steps 1–4 for the owner; aggregate numbers
+   in README).
 6. **Human-labelled judge items** (`data/golden/judge_set_human.jsonl`,
    schema in `judge_set_human.example.jsonl`) — owner's task, not started.
 
@@ -1030,7 +1074,8 @@ Open, in suggested order:
 | `bbac62d` | Judging Chinese claims: v3e and translate-first evaluated, not adopted |
 | `14ae8c1` | Chinese-overclaim rule (default on) |
 | `9c336ec` | Reference audit, step 1: internal consistency of citations and the reference list |
-| (this commit) | Reference audit, step 2: PubMed MCP pilot (20 references), lessons for step 3 |
+| `9727bd9` | Reference audit, step 2: PubMed MCP pilot (20 references), lessons for step 3 |
+| (this commit) | Reference audit, steps 3–4: Crossref + PubMed batch lookup (`eval/ref_lookup.py`), wrapped-DOI fix in the PDF reader |
 
 ## 10. Completed work log
 

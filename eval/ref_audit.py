@@ -11,12 +11,14 @@ Checks, per corpus (CORPUS / SOURCE_PATH as for ingest):
 
 The report holds reference strings and cited surnames, i.e. the corpus's own
 bibliography: it is written to REPORT_DIR (gitignored) and only counts are
-printed. Run: CORPUS=<name> python -m eval.ref_audit
+printed. Run: CORPUS=<name> python -m eval.ref_audit [--lookup]
+(--lookup adds part 2, eval/ref_lookup.py: Crossref and PubMed lookups.)
 """
 from __future__ import annotations
 
 import json
 import re
+import sys
 import unicodedata
 from collections import Counter, defaultdict
 
@@ -179,6 +181,12 @@ def main() -> None:
                       "unresolved": dict(kinds), "uncited_references": len(res["uncited_references"]),
                       "duplicates": len(res["duplicate_references"]),
                       "ambiguous": len(res["ambiguous_same_surname_year"]), "report": str(path)}))
+    if "--lookup" in sys.argv:    # part 2: Crossref + PubMed (network, cached)
+        from eval.ref_lookup import lookup_all
+        found = lookup_all(refs)
+        path = config.REPORT_DIR / "ref_lookup.json"
+        path.write_text(json.dumps(found, ensure_ascii=False, indent=1), encoding="utf-8")
+        print(json.dumps({k: v for k, v in found.items() if k != "results"} | {"report": str(path)}))
 
 
 if __name__ == "__main__":

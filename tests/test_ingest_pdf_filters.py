@@ -1,7 +1,8 @@
-"""PDF reader filters for page-1 sidebars, bare DOI headers and equation debris."""
+"""PDF reader filters for page-1 sidebars, bare DOI headers, wrapped DOIs and
+equation debris."""
 import pytest
 
-from src.ingest_pdf import _BARE_ID_RE, _CONTROL_RE, _SIDEBAR_RE
+from src.ingest_pdf import _BARE_ID_RE, _CONTROL_RE, _DOI_WRAP_RE, _SIDEBAR_RE
 
 
 @pytest.mark.parametrize("line", [
@@ -32,6 +33,16 @@ def test_body_text_is_not_a_sidebar(line):
 ])
 def test_bare_identifier_lines(line, bare):
     assert bool(_BARE_ID_RE.match(line)) is bare
+
+
+@pytest.mark.parametrize("line, wraps", [
+    ("Perform. 88, 520–526. doi:10.3357/AMHP.4747.", True),   # next line "2017" is kept
+    ("doi:10.5298/1081-5937-41.", True),
+    ("Perform. 88, 520–526. doi:10.3357/AMHP.4747.2017", False),
+    ("Cognitive load rose in session 3.", False),             # next "12" is a page number
+])
+def test_a_number_after_a_wrapped_doi_is_not_a_page_number(line, wraps):
+    assert bool(_DOI_WRAP_RE.search(line)) is wraps
 
 
 def test_math_font_debris_is_detected():

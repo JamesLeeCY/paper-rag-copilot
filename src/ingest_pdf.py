@@ -55,6 +55,7 @@ _SIDEBAR_RE = re.compile(
     r"PUBLISHED \d|CITATION\b|COPYRIGHT\b|TYPE [A-Z]|DOI 10\.)")
 # A line that is only a DOI (a running header with too few letters for the
 # repeat check) or only an e-mail address.
+_DOI_WRAP_RE = re.compile(r"\b10\.\d{4,9}/\S*[.\-/]$")
 _BARE_ID_RE = re.compile(r"^(?:(?:DOI:? )?10\.\d{4,9}/\S+|\S+@\S+\.[A-Za-z]{2,})$")
 # Glyphs of math fonts without a Unicode mapping come out as control characters.
 _CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
@@ -147,9 +148,12 @@ def load_pdf(path: Path) -> tuple[list[BodyPara], list[Reference]]:
     for b in blocks:
         if _SIDEBAR_RE.match(b["lines"][0][0]):
             continue
-        lines = [ln for ln in b["lines"]
+        # A bare number is a page number, unless it is the wrapped tail of a
+        # DOI ("doi:10.3357/AMHP.4747." + "2017").
+        lines = [ln for i, ln in enumerate(b["lines"])
                  if _norm_repeat(ln[0]) not in repeated
-                 and not re.fullmatch(r"\d{1,4}", ln[0])
+                 and not (re.fullmatch(r"\d{1,4}", ln[0])
+                          and not (i and _DOI_WRAP_RE.search(b["lines"][i - 1][0])))
                  and not _BOILERPLATE_RE.match(ln[0])
                  and not _BARE_ID_RE.match(ln[0])]
         if not lines:
