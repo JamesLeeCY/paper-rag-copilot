@@ -826,7 +826,28 @@ Open, in suggested order:
    in the list, 6 listed but not found in the text (+1 false alarm caused by
    two same-author-year entries), 4 same-first-author-year groups without
    a/b (+1 distinguishable by author count) — details only in the local
-   report for the owner. Next: step 2 in a new session.
+   report for the owner.
+   **Step 2 done (2026-10-28):** PubMed MCP pilot on 10 Pratviel + 10 thesis
+   references picked by hand to mix types (one thesis entry chosen because
+   it looked wrong, so not a random draw); details in the local
+   `eval/reports/ref_audit_pilot.md`. ECitMatch (journal + year + volume +
+   first page + author) matched 14/20, all 14 correct. Thesis: 7 verified,
+   3 to fix — a year off by two that the text cites consistently (invisible
+   to step 1), a DOI that PubMed's record contradicts, a single author where
+   the record has four. Pratviel: 6 verified, 4 not in PubMed (journals not
+   indexed: J CyberTherapy Rehabil, Biofeedback, Annu Rev CyberTherapy
+   Telemed, Comput Hum Behav; Kaplan 1995 J Environ Psychol), no errors.
+   Lessons for step 3: (i) ~30% of this sample is outside PubMed, so
+   Crossref is a required second source and "not in PubMed" ≠ "not found";
+   (ii) a keyword fallback returned the wrong paper (Lehrer 2013 → Lehrer &
+   Gevirtz 2014, another entry of the same list) — accept a fallback only on
+   a title match; (iii) compare year, volume, first page, DOI and author
+   count, not just existence; (iv) `convert_article_ids` knows only PMC
+   articles, use `<doi>[doi]` in ESearch instead; (v) DOIs wrap across PDF
+   lines ("41.\n1.02") and the PDF splitter drops a wrapped tail line
+   (Anderson "AMHP.4747." lost "2017"); (vi) the MCP's ECitMatch output
+   swaps `key` and `pmid`. Next: step 3 (batch lookup in
+   `eval/ref_audit.py` via E-utilities + Crossref, cache, fixtures).
 6. **Human-labelled judge items** (`data/golden/judge_set_human.jsonl`,
    schema in `judge_set_human.example.jsonl`) — owner's task, not started.
 
@@ -1008,7 +1029,8 @@ Open, in suggested order:
 | `85dd5cb` | Echo rule: partially supported claim restating a yes/no question → review (default on) |
 | `bbac62d` | Judging Chinese claims: v3e and translate-first evaluated, not adopted |
 | `14ae8c1` | Chinese-overclaim rule (default on) |
-| (this commit) | Reference audit, step 1: internal consistency of citations and the reference list |
+| `9c336ec` | Reference audit, step 1: internal consistency of citations and the reference list |
+| (this commit) | Reference audit, step 2: PubMed MCP pilot (20 references), lessons for step 3 |
 
 ## 10. Completed work log
 
