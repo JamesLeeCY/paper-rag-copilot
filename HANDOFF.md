@@ -634,9 +634,8 @@ Open, in suggested order:
    24 vs 25, traps strict safe 34 vs 35, bait safe 10 vs 11, 127 vs 111 s per
    question; one genuine unsupported claim each (small R26; m3 R18, a quote
    not in the source). Earlier runs since `bc0cba0` had no claim rejected
-   through that bug. The pilot corpus's bge-small fixed-strategy index
-   predates the PDF spacing fix (its chunks file was rewritten when the
-   bge-m3 fixed index was built); rebuild it before using bge-small there.
+   through that bug. (The pilot corpus's stale bge-small fixed-strategy index
+   was rebuilt on 2026-10-28, item 6g.)
 6c. **Independent check of the hypothesis routes — done 2026-10-22.**
    (i) Completed-study controls rewritten to ask for measured outcomes
    (local `golden_set.json`, old set `golden_set.before-rewrite.json`; 7
@@ -933,16 +932,40 @@ Open, in suggested order:
    alarm); JMIR 1 → 85 (each checked by hand), 85/85 cited, none out of
    range or order; Pratviel references identical; dissertation (.docx)
    part-1 counts identical. Not done: stored chunks/indexes keep the old
-   `citations` metadata (it lives in the Chroma metadata, so it refreshes at
-   the next index rebuild; chunk text is unchanged) and `references.jsonl`
-   (display only); the Crossref/PubMed lookup was not rerun on Rockstroh or
-   JMIR (step 4 of the plan, optional).
-   **Found on the way, open:** the bare-page-number filter also drops
-   number-only words in body blocks set one word per line — about 24 table
-   values in the pilot article (pp. 6–7), "20" in Pratviel's "consisting of
-   20 questions"; Rockstroh's body has none. Fixing it changes body text →
-   chunks and bge-m3 indexes need rebuilding, and saved eval results may
-   shift; needs its own plan (README known limitation 13).
+   `citations` metadata and `references.jsonl` until the rebuild of item 6g
+   (done the same day); the Crossref/PubMed lookup was not rerun on
+   Rockstroh or JMIR (step 4 of the plan, optional).
+6g. **PDF body numbers — done 2026-10-28 (owner approved).** Found during 6f:
+   the bare-page-number filter (a line that is only 1–4 digits) also dropped
+   number-only words in body blocks set one word per PDF line (Frontiers,
+   tables). Fix in `src/ingest_pdf.py`: `_baseline_ids` gives each line a
+   baseline-group id, and `_filter_lines` drops a bare number only if no
+   other kept line shares its baseline (a page number's neighbours are
+   running-footer text, dropped by the repeat check; the wrapped-DOI-tail
+   exception stays). Tests in `tests/test_ingest_pdf_filters.py`. Offline
+   check (full body snapshots in the session scratchpad): 26 numbers
+   restored, every change a pure number insertion — 24 table values in the
+   pilot article (4 tables, pp. 6–7), Pratviel "consisting of 20
+   questions", JMIR "0.1 to 45 Hz"; Rockstroh none; no page number let in;
+   paragraph count, indices, pages, sections, references and part-1 audit
+   counts identical in all four PDFs (golden `target_paras` stay valid).
+   Saved outputs: of 155 claims with stored passages in the three affected
+   corpora, 3 (Pratviel) cite an affected paragraph and their quote check is
+   unchanged on the new text; 2 pilot judge-set items use an affected table
+   paragraph but not the restored numbers — no past verdict was affected.
+   Rebuild (waiter + `resource_guard`, 16:14–16:32, no Ollama, peak CPU 89%,
+   RAM 44%; backup of the old indexes in the session scratchpad): chunks and
+   all 14 indexes of the four PDF corpora (bge-m3 everywhere, bge-small where
+   it existed); chunk counts unchanged; chunk `citations` metadata now
+   reflects 6f. Retrieval before → after (`eval.retrieval_lang`, fixed and
+   section, en and zh): bge-m3 identical on all four corpora; bge-small
+   identical except the pilot's Chinese questions (20 items): fixed Hit@1
+   0.10 → 0.15, Hit@5 0.45 → 0.40, MRR 0.248 → 0.273 — its old index was the
+   stale one (26/39 documents differed from the chunks file); section Hit@5
+   0.40 → 0.35, Hit@10 0.60 → 0.55 (R19 out of the top 10, a table chunk
+   now ranks higher), MRR 0.253 → 0.270. Eval results saved before this
+   commit used the old body text of these three PDFs (dissertation .docx
+   unaffected).
 6. **Human-labelled judge items** (`data/golden/judge_set_human.jsonl`,
    schema in `judge_set_human.example.jsonl`) — owner's task, not started.
 
@@ -1128,7 +1151,8 @@ Open, in suggested order:
 | `9727bd9` | Reference audit, step 2: PubMed MCP pilot (20 references), lessons for step 3 |
 | `e397368` | Reference audit, steps 3–4: Crossref + PubMed batch lookup (`eval/ref_lookup.py`), wrapped-DOI fix in the PDF reader |
 | `e1cb59b` | Reference audit, step 5: README results, owner issue list (local) |
-| (this commit) | PDF reference-list splitting (one word per line, accents, numbered lists, end matter); numbered-citation audit |
+| `f2da52d` | PDF reference-list splitting (one word per line, accents, numbered lists, end matter); numbered-citation audit |
+| (this commit) | PDF body: numbers beside kept words are no longer dropped as page numbers; chunks and indexes rebuilt |
 
 ## 10. Completed work log
 

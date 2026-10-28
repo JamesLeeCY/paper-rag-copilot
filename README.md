@@ -985,6 +985,8 @@ The PDF loader (hardened on a real published article):
 - splits off the reference list into individual entries (author–year or
   numbered; words set one per PDF line are rejoined, spacing accents composed,
   end matter after the list dropped);
+- keeps numbers in sentences and table rows that a PDF sets one word per line,
+  while still dropping page numbers;
 - records page numbers, so citations read `§2.1 (p. 3)`.
 
 Scanned PDFs without a text layer are not supported (they need OCR).
@@ -1305,11 +1307,14 @@ Ollama clients right before launching.
     supported, not whether they answer the question: a grounded answer can
     be fully supported yet give the method or the hypothesis instead of the
     result when the results passage is not retrieved.
-13. **PDF body: number-only words can be lost.** Where a PDF sets a block one
-    word per line, a word that is only a number is taken for a page number and
-    dropped: about 24 table values in the pilot article, one count in
-    Pratviel et al. 2024 ("consisting of 20 questions"). Fixing it changes
-    body text, so chunks and indexes would need rebuilding.
+13. ~~PDF body: number-only words lost~~ — fixed 2026-10-28. Where a PDF set
+    a block one word per line, a word that was only a number was taken for a
+    page number and dropped (24 table values in the pilot article, one each in
+    Pratviel et al. 2024 and the JMIR protocol). A bare number is now dropped
+    only if nothing else kept shares its line; chunks and indexes were
+    rebuilt, and retrieval with bge-m3 is unchanged on all four PDF corpora.
+    Earlier evaluation runs on these PDFs used the old text; no saved verdict
+    involved a restored number.
 
 ## Roadmap
 

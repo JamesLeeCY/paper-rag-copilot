@@ -113,6 +113,37 @@ def _block_lines(block: dict, merge_baseline: bool = False) -> list[tuple[str, f
     return out
 
 
+def _baseline_ids(block: dict) -> list[int]:
+    """A baseline-group id for each line ``_block_lines(block)`` returns: PDF
+    lines on the same baseline, left to right, share an id."""
+    ids, prev, gid = [], None, -1
+    for line in block.get("lines", []):
+        box = line.get("bbox")
+        if not (box and prev and abs(box[3] - prev[3]) < 1.0 and box[0] >= prev[2] - 1.0):
+            gid += 1
+        prev = box
+        if any(s.get("text", "").strip() for s in line.get("spans", [])):
+            ids.append(gid)
+    return ids
+
+
+def _filter_lines(lines: list, baselines: list[int], repeated: set) -> list:
+    """Drop running headers/footers, boilerplate, bare identifiers and page numbers."""
+    kept = [i for i, ln in enumerate(lines)
+            if _norm_repeat(ln[0]) not in repeated
+            and not _BOILERPLATE_RE.match(ln[0])
+            and not _BARE_ID_RE.match(ln[0])]
+    # A bare number is a page number, unless it is the wrapped tail of a DOI
+    # ("doi:10.3357/AMHP.4747." + "2017") or shares its baseline with kept
+    # text: blocks set one word per PDF line (Frontiers, tables) put each
+    # number of a sentence or table row on a line of its own, while a page
+    # number's neighbours are running-footer text, dropped above.
+    return [lines[i] for i in kept
+            if not (re.fullmatch(r"\d{1,4}", lines[i][0])
+                    and not (i and _DOI_WRAP_RE.search(lines[i - 1][0]))
+                    and not any(baselines[j] == baselines[i] for j in kept if j != i))]
+
+
 # Spacing accents some PDFs emit before the letter ("P´oka", "M´er˝o").
 _SPACING_ACCENTS = {"´": "́", "˝": "̋", "¨": "̈",
                     "ˆ": "̂", "˜": "̃", "ˇ": "̌"}
@@ -156,7 +187,8 @@ def load_pdf(path: Path) -> tuple[list[BodyPara], list[Reference]]:
             if not lines:
                 continue
             merged = _block_lines(b, merge_baseline=True)   # used in the reference list
-            blocks.append({"page": pno, "lines": lines, "merged": merged})
+            blocks.append({"page": pno, "lines": lines, "merged": merged,
+                           "baselines": _baseline_ids(b)})
             for text, size, _, _ in lines:
                 size_chars[round(size, 1)] += len(text)
                 line_pages.setdefault(_norm_repeat(text), set()).add(pno)
@@ -179,15 +211,10 @@ def load_pdf(path: Path) -> tuple[list[BodyPara], list[Reference]]:
     for b in blocks:
         if _SIDEBAR_RE.match(b["lines"][0][0]):
             continue
-        # A bare number is a page number, unless it is the wrapped tail of a
-        # DOI ("doi:10.3357/AMHP.4747." + "2017").
-        block_lines = b["merged"] if in_refs else b["lines"]
-        lines = [ln for i, ln in enumerate(block_lines)
-                 if _norm_repeat(ln[0]) not in repeated
-                 and not (re.fullmatch(r"\d{1,4}", ln[0])
-                          and not (i and _DOI_WRAP_RE.search(block_lines[i - 1][0])))
-                 and not _BOILERPLATE_RE.match(ln[0])
-                 and not _BARE_ID_RE.match(ln[0])]
+        if in_refs:
+            lines = _filter_lines(b["merged"], list(range(len(b["merged"]))), repeated)
+        else:
+            lines = _filter_lines(b["lines"], b["baselines"], repeated)
         if not lines:
             continue
         text = _collapse_spaced(_join_lines([ln[0] for ln in lines]))
